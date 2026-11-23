@@ -1,0 +1,7 @@
+# 采集数据和任务数据库
+/data/
+
+# Python 构建产物
+/build/
+/dist/
+*.egg-info/
