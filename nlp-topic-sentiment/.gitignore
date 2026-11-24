@@ -1,0 +1,20 @@
+# 本地大文件 / 缓存：不进入 Git
+# 这些文件保留在本地工作区方便直接查看，但体积过大或可再生成，提交时忽略。
+
+# 模型权重（单个 154MB，超过 GitHub 100MB 单文件限制；config/tokenizer 正常提交）
+data/rbt3_model_aspect/model.safetensors
+data/rbt3_model_item/model.safetensors
+
+# 结果原表（249MB / 82MB；已提供 .csv.gz 压缩版，解压即可还原）
+data/result/topic_sentiment_review_summary.csv
+data/result/topic_sentiment_detail.csv
+
+# 过程工具 / 个人备忘：本地保留，不作为课程交付提交
+标注工具.html
+你现在该怎么做.md
+data/annotation/tasks_embed.js
+
+# 运行缓存与备份
+__pycache__/
+*.py[cod]
+*.bak_*
