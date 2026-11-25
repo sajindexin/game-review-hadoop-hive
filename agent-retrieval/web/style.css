@@ -1,0 +1,71 @@
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --ink: #1f2328;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --accent: #2f6fed;
+  --accent-soft: #eaf0ff;
+  --warn: #b45309;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.65 -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+}
+.topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 22px; background: var(--panel); border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 5;
+}
+.brand { font-weight: 700; font-size: 16px; letter-spacing: .2px; }
+.brand span { color: var(--accent); margin: 0 4px; }
+.meta { color: var(--muted); font-size: 12px; }
+.layout { display: grid; grid-template-columns: 320px 1fr; gap: 18px; padding: 18px 22px 26px; max-width: 1280px; margin: 0 auto; }
+.sidebar { display: flex; flex-direction: column; gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.field select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font-size: 13px; color: var(--ink); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.card-title { font-weight: 600; font-size: 13px; margin-bottom: 8px; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat { background: #fafbfc; border: 1px solid var(--line); border-radius: 8px; padding: 8px; text-align: center; }
+.stat-k { font-size: 11px; color: var(--muted); }
+.stat-v { font-size: 16px; font-weight: 700; }
+.stat-s { font-size: 11px; color: var(--muted); }
+.items { margin: 0; padding-left: 16px; font-size: 12px; }
+.items li { margin-bottom: 6px; }
+.items a { color: var(--ink); font-weight: 600; text-decoration: none; border-bottom: 1px dashed #c7cdd6; }
+.muted { color: var(--muted); }
+.hint { font-size: 11px; color: var(--muted); line-height: 1.6; }
+
+.chat { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; min-height: 640px; }
+.messages { flex: 1; padding: 18px; overflow-y: auto; max-height: 66vh; }
+.msg { display: flex; margin-bottom: 12px; }
+.msg.user { justify-content: flex-end; }
+.bubble { max-width: 94%; background: #f7f8fa; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+.msg.user .bubble { background: var(--accent-soft); border-color: #d6e2ff; }
+.bubble p { margin: 0 0 8px; white-space: pre-wrap; }
+.bubble p:last-child { margin-bottom: 0; }
+.subhead { font-weight: 600; margin-top: 10px !important; }
+.numbers { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+.num { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+.num-k { font-size: 11px; color: var(--muted); }
+.num-v { font-weight: 700; }
+.cites { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.cite { display: flex; align-items: baseline; gap: 6px; font-size: 12px; flex-wrap: wrap; }
+.cite a { color: var(--accent); text-decoration: none; }
+.badge { font-size: 10px; padding: 1px 6px; border-radius: 999px; background: #eef2f7; color: #445; }
+.cite.review .badge { background: #eaf7ee; color: #1c6b35; }
+.cite .badge.verified { background: #1c6b35; color: #fff; }
+.cite.announcement .badge { background: #fdf2e3; color: #9a5b06; }
+.links { margin-top: 10px; display: flex; gap: 12px; }
+.links a { color: var(--accent); font-size: 12px; text-decoration: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 18px 10px; }
+.chip { border: 1px solid var(--line); background: #fff; color: #374151; border-radius: 999px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+.composer { display: flex; gap: 10px; padding: 14px 18px 18px; border-top: 1px solid var(--line); }
+.composer input { flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 13px; }
+.composer input:focus { outline: 2px solid #c9d8ff; border-color: var(--accent); }
+.composer button { padding: 10px 18px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
+.error { color: #b42318; }
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }

@@ -1,0 +1,167 @@
+# 游戏更新反馈 · 检索与问答 Agent（唐宇杰负责模块）
+
+对应分工：**检索算法与 Agent**。输入是官方更新日志（黄静雯分支的 26 个版本 / 75 项改动）、
+全量清洗数据 v1（488.5 万条），输出是一个**可以独立启动、也可以被 Java Web 调用**的服务：
+
+> 分支说明：本模块提交在 `feat/agent-retrieval`（基于 `main`）。为了让模块自包含、不依赖先 checkout
+> 别人的分支，黄静雯的 `items.jsonl`、`patches.jsonl`、`更新前后对比.csv` 和 469 条已复核引文
+> 都原样复制在 `data_sources/` 下；她的原始分支仍是 `feat/game-update-feedback-analysis`。
+> 其中 `verified_quotes.jsonl` 来自她的提交 `c26c38a`，git blob sha1
+> `043c048a16da4997a5a8202f509e48ebd817c329` 与本目录文件逐字节一致（见 `data_sources/README.md`）。
+
+| 交付物 | 在哪里 | 说明 |
+|---|---|---|
+| 检索接口 | `POST /api/retrieve/reviews`、`POST /api/retrieve/announcements` | BM25 + 向量混合检索，返回带 `review_id`、Steam 链接、语种、日期的原文 |
+| 候选更新条目 | `POST /api/items/candidates` | 给一段玩家原话，返回它可能提到的官方改动（供黄静雯的关联模型联调） |
+| Agent 服务 | `POST /api/agent/ask` | 自动判断“查指标 / 查公告 / 查评论”，模板化作答，逐条标注出处 |
+| **已复核引文接入** | `data_sources/verified_quotes.jsonl`（469 条） | 黄静雯 `c26c38a` 提交的原文件，哈希校验一致，优先于数据集原文 |
+| 22 道验收题 | `eval/acceptance.jsonl`、`eval/run_acceptance.py` | 覆盖数字、已复核原文、空态、拒答、缺上下文；**当前 22/22 通过** |
+| 联调说明 | [`docs/HANDOFF_石曜铭.md`](docs/HANDOFF_石曜铭.md) | 给石曜铭的 5 分钟接入清单 |
+| 接口说明 | [`docs/API.md`](docs/API.md) | 完整字段与错误码 |
+| 设计说明 | [`docs/DESIGN.md`](docs/DESIGN.md) | 数据流、打分、证据分级、防幻觉策略 |
+
+## 快速开始
+
+```powershell
+cd agent-retrieval
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+
+# 1) 构建知识库（约 10 秒；只需 v1 parquet，目录/引文都在 data_sources/）
+python -m tools.build_knowledge `
+  --parquet "<v1 发布包>\releases\v1\data\cleaned_reviews.parquet" `
+  --out data
+
+# 2) 命令行问一句
+python -m src.cli ask "为什么艾尔登法环 1.12 差评变多了？"
+
+# 3) 启动 HTTP 服务（自带演示页 http://127.0.0.1:8000/ 和 OpenAPI 文档 /docs）
+python -m src.cli serve --port 8000
+
+# 4) 跑 20 道验收题，生成 eval/REPORT.md
+python eval/run_acceptance.py
+```
+
+环境：Python 3.10+（本机 3.14 验证通过）。`data_sources/catalog/` 里的 `items.jsonl`、`patches.jsonl`、
+`更新前后对比.csv` 是从黄静雯分支原样复制的（为了不依赖“先 checkout 她的分支”），
+`data_sources/verified_quotes.jsonl` 是她的 469 条已复核引文。
+想直接用她的分支目录时，加 `--branch <game-update-feedback-analysis 路径>` 即可覆盖。
+
+`data/` 是生成物（约 40MB），不入库；换机器只要重新跑第 1 步。
+
+## 它怎么回答
+
+一次提问会走三步，**每一步都留下可核对的痕迹**：
+
+1. **定位实体**：从问题里认出游戏、版本（`1.12` / `Deep Freeze` / `7.33`）和改动条目（`姜岛探索`）；
+2. **调工具**：
+   - `lookup_metrics`：读 26 个版本的窗口指标（更新前 14 天 / 发布当天 / 更新后 14 天，全部 / 中文 / 英文）；
+   - `search_announcements`：在 75 项官方改动里检索；
+   - `search_reviews`：在 6.2 万条窗口评测样本里检索，可按条目、语种、阶段、好评/差评过滤；
+   - `top_negative_reviews`：问“为什么差评变多”时，取更新后被顶得最多的差评；
+3. **模板化作答**：数字只从指标表取，原话只从检索结果取，逐条打 `[n]` 出处；检索不到就写“暂无已复核引文”。
+
+例：
+
+> 《ELDEN RING》Patch 1.12（2024-06-20）的推荐率：更新前 14 天 96.0%（4,657/4,851），发布当天 97.2%（344/354），
+> 更新后 14 天 82.5%（4,074/4,936），前后相比下降 13.5 个百分点（全部语言）[1]
+>
+> 数据集原文（未复核，更新后差评按点赞排序）：
+> 1. “The performance sucks. I get lags and stutter even on RTX4090…” —— en · 2024-06-22 · 不推荐 [2]
+
+## 证据分级（答辩时按这个口径说）
+
+| 级别 | 来源 | 什么时候用 | API 标记 |
+|---|---|---|---|
+| **已复核** | 黄静雯 `窗口内已复核可引用关联.jsonl`（469 条、20 个版本、37 项改动，`AI逐条核对原文`） | 能命中该版本/改动时**优先**用，且不再混入别的原文 | `evidence_status=verified_quotes`，引用 `verified=true` |
+| 数据集原文 | v1 窗口样本（61,729 条），带 `review_id` + Steam 链接 | 该版本没有已复核库，或问“为什么差评多”需要代表性差评 | `evidence_status=dataset_quotes`，引用 `verified=false`，答案里写“未复核” |
+| 无 | — | 该改动没有可引用原话 | `evidence_status=none`，答案写“暂无已复核引文” |
+
+**严格模式**：只要这个版本有已复核库，就只用已复核引文；某条改动没有就返回空态，不拿整款游戏的评论凑数。
+唯一的例外是“为什么差评变多”这类归因问题——已复核库不足 2 条时，退回“更新后被顶得最多的差评”，并在标题里写明**未复核**。
+
+## 检索口径（写报告时请照抄）
+
+- **语料**：v1 全量 4,884,580 条里，落在 26 个版本窗口（发布前后各 14 天）内的评测；
+  每个窗口保留「提到官方改动」的评测（最多 1,200 条）+ 每个阶段随机样本（最多 900 条），合计 61,729 条。
+  也就是说：**指标是全量口径，原文检索是窗口样本口径**，页面上必须写清楚。
+- **分词**：不依赖 jieba。中文按「单字 + 相邻双字」，英文按连续字母/数字；单字只用于召回，证据门槛用双字实体词。
+- **打分**：BM25（k1=1.2, b=0.75）与向量余弦按 0.7 / 0.3 融合；条目明确时给命中该条目别名的评测加权。
+- **证据门槛**：候选必须命中问题里的实体词（如「姜岛」「挂件」「差评」），否则不返回，宁缺毋滥。
+- **向量**：默认 `hash-512`（零依赖离线兜底）。装好 `sentence-transformers` 并设置
+  `GRA_BGE_MODEL=<bge-small-zh-v1.5 路径>` 后，重新构建即切换为 BGE，接口不变。
+
+## 验证到哪一步了（别只看“做完了”）
+
+| 项目 | 怎么验的 | 结果 |
+|---|---|---|
+| 22 道验收题 | `python eval/run_acceptance.py` | ✅ 22/22，见 `eval/REPORT.md` |
+| 冒烟测试 | `python -m unittest discover -s tests` | ✅ 12/12 |
+| 已复核引文 | 469 条全部入索引，20 个版本 37 项改动 | ✅ 引用带 `verified=true` 与 Steam 链接 |
+| HTTP 接口 | `/health`、`/api/games`、`/api/patches/{id}`、`/api/agent/ask` | ✅ 200，UTF-8 正常 |
+| 答案格式 | 断言回答里不含 `**` / `](` 等 Markdown 残留 | ✅ 纯文本，链接只出现在 `citations` |
+| 版本详情页 | `/versions/{patch_id}` 路由 | ✅ 200（指标、改动、分语种） |
+| 浏览器视觉 | 沙箱里 Edge headless 起不来 | ⚠️ **未截图验证**，CSS/JS 只做了语法与接口检查 |
+| 真 BGE | 沙箱 pip 装不上 sentence-transformers | ⚠️ 未验证，默认 hash 向量 |
+
+## 已知限制（别在答辩时被问倒）
+
+1. **已复核库只覆盖 26 个版本里的 20 个、75 项改动里的 37 项**。其余版本走“数据集原文（未复核）”，
+   答案和引用里都会明确标注，不能混着说成“已复核”。
+2. **中文别名覆盖有限**：例如 Rust 的“海浪”在窗口内 0 条中文提及（全量也只有 8 条英文 water），
+   所以问“海浪效果”会明确返回“暂无已复核引文”，这是设计行为，不是 bug。
+3. **指标分组只有 all / chinese / en**：黄静雯原表还有 zh-Hant、ru 等 8 个语种，小语种样本为 0 时
+   `rate` 为空，本模块只保留前三个稳定分组。
+4. **不是大模型生成**：没有 API Key 时用模板拼装，牺牲一点自然度，换来 100% 可复现、可核对。
+   需要更自然的措辞时，可在 `Agent.ask` 返回后套一层 LLM 改写，但数字和引用必须原样保留。
+5. **条目别名决定召回**：像 GTA「保金执法事务所」在窗口样本里没有任何中文提及，
+   问它会明确返回“暂无已复核引文”，不会拿整款游戏的评测凑数（这是修过的行为）。
+
+## 和石曜铭联调
+
+他的 Servlet 只需要两次调用：
+
+```java
+// 1) 版本页初始化：拿指标 + 官方改动
+GET  http://127.0.0.1:8000/api/patches/sdv_20201221_15
+
+// 2) “问这个版本”按钮
+POST http://127.0.0.1:8000/api/agent/ask
+{"question":"1.5 更新后推荐率降了多少？","appid":"413150","patch_id":"sdv_20201221_15"}
+```
+
+返回里的 `answer` 直接渲染；`numbers` 可做数字卡片；`citations` 渲染“查看统计 / 查看原文”；
+`status=need_context` 时把 `suggestions` 渲染成可点的追问。字段细节见 [`docs/API.md`](docs/API.md)。
+
+## 目录结构
+
+```
+agent-retrieval/
+├── tools/build_knowledge.py    # parquet + 黄静雯分支 + 已复核引文 -> catalog/corpus/索引
+├── data_sources/
+│   ├── verified_quotes.jsonl   # 黄静雯 469 条已复核引文（原样保留，勿改）
+│   └── catalog/                # 从黄静雯分支复制的 items / patches / 指标表
+│       ├── items.jsonl
+│       ├── patches.jsonl
+│       └── 更新前后对比.csv
+├── src/
+│   ├── tokenize.py             # 中英混合分词
+│   ├── bm25.py                 # 纯 numpy BM25 + 倒排索引
+│   ├── dense.py                # 向量编码（hash 兜底 / BGE 可选）
+│   ├── catalog.py              # 版本目录、指标表、版本号解析
+│   ├── retrieval.py            # 评测/已复核引文/公告检索、候选条目
+│   ├── agent.py                # 意图 -> 工具 -> 模板作答
+│   ├── api.py                  # FastAPI 接口
+│   └── cli.py                  # ask / serve / meta
+├── web/                        # 演示页（原生 JS，无需构建）
+├── eval/                       # 22 道验收题 + 报告
+├── docs/                       # API.md / DESIGN.md
+└── tests/test_smoke.py         # 冒烟测试
+```
+
+## 数据版本
+
+所有输出都基于 v1：`cleaned_reviews.parquet` SHA256
+`6602f7bbf9983a58627a100f238e71483b5cf3e8deb19070fc761afb39702e08`，
+指标来自黄静雯 `更新前后对比.csv`，改动目录来自 `items.jsonl` / `patches.jsonl`。
