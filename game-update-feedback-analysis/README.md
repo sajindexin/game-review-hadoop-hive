@@ -39,11 +39,19 @@ for candidate, score in scored:
 
 评测关联使用字符 TF-IDF 生成候选，再用逻辑回归判断具体改动是否被提及。标注由 AI 完成。原四款留出游戏的 F1 为 82.05%，在后来新增的三个版本窗口上为 48.00%。多语言 E5 用于在选定版本中查找玩家引文。[训练代码](黄静雯_全组评测改动关联/group_model.py) · [四款游戏的评估](黄静雯_全组评测改动关联/跨游戏独立评估.json) · [三个新版本的评估](黄静雯_全组评测改动关联/增强验证/新版本独立验证结果.json) · [引文查询接口](黄静雯_全组评测改动关联/增强验证/find_evidence.py)
 
+有配套的批量评分分块时，可运行 `python 黄静雯_全组评测改动关联/full_verify.py` 复核评测键、候选、阈值和版本窗口。程序在临时文件上核验并计算 SHA-256，验收通过后发布两个 Parquet 和对应的 `全量覆盖验收.json`。评分或对账失败时，仍可使用上一次通过验收的结果。
+
 ## 已复核引文与 Agent 接入
 
 [窗口内已复核可引用关联.jsonl](黄静雯_全组评测改动关联/窗口内已复核可引用关联.jsonl) 交付 469 对评测与改动关联，按评测原文片段及条目逐项复核。每行带有 `appid`、`patch_id`、`item_id`、`review_id`、`phase`、`evidence`、`source_url` 和 `verification`。`source_url` 指向对应官方改动公告，`review_id` 用于回查该条 Steam 评测。
 
 Agent 可按游戏、版本、条目、阶段和语种建立自己的索引，保留引用原文及其来源。接口采用 `evidence_status` 时，来自清洗评测表的引文标为 `dataset_quotes`，从复核文件中查到的引文标为 `verified_quotes`。同一查询的原文验收题应核对评测标识和原文片段，按实际过滤后的结果判定。
+
+阶段引文按 UTC 首次发表日期归类，同时保留 `created_ts`、`updated_ts`、`edited_after_window` 和 `before_review_edited_after_release`。接入时可沿用 `find_evidence.py lookup` 的时间口径。
+
+- 选择更新前、发布日或更新后时，按 `phase` 匹配，并排除 `edited_after_window=true` 的引文。
+- 选择更新前时，还要排除 `before_review_edited_after_release=true` 的引文，避免把发布后编辑的正文放进更新前样本。
+- 选择发布日时，最后编辑时间存在且 UTC 日期晚于首次发表日期的引文也排除。选择全部阶段时，可保留这些引文并显示首次发表与最后编辑时间。
 
 | 操作 | 所需输入 |
 | --- | --- |
