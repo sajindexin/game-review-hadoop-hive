@@ -142,10 +142,17 @@ cd (Join-Path $REPO "nlp-topic-sentiment\code")
 #    其他路径，同样会被识破。确实只要参考数字时显式加 --allow-unverified-holdout
 #    （或 --allow-fallback-ids），输出会明确标为「参考评估」，不会写成严格留出集结论。
 #    显式 --rbt3 时若模型加载/评估失败会返回非零退出码，不会误报成功
+#    显式 --rbt3-model <目录> 同样视为要评估该模型（不会静默跳过第三方法）；
+#    权重未入库，干净 clone 需先跑第 6 步训练或把权重放进 data/rbt3_model_aspect，
+#    否则报"no file named model.safetensors"并以退出码 2 结束；
+#    没要求评估 RBT3 时，结论只会写"只完成 ①② 两个基线"，不会写成三方法均已评估
 & $PY evaluate_full.py --rbt3 --heldout
 
-# 7b) 切分与留出集守卫自检（纯标准库，不需要 torch / numpy，秒级）
+# 7b) 切分与留出集守卫自检（纯标准库，不需要 torch / numpy，71 项约 10 秒）
+#     verify_guard_mutation.py 把历史缺陷注回源码副本，要求上述用例必须变红（约 75 秒），
+#     用来确认绿灯有效，而不是"断言刚好兼容了缺陷"
 & $PY verify_split_guard.py
+& $PY verify_guard_mutation.py
 
 # 8) 推理：默认按层检测权重，缺权重自动规则回退；--rule-fallback 强制两层规则
 & $PY infer_rbt3_v2.py --text "姜岛探索很好玩，但是八人联机老是掉线" --appid 413150

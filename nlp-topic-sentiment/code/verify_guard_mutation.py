@@ -67,6 +67,12 @@ MUTATIONS = [
      [("code/evaluate_full.py",
        '    verified = bool(want) and got == want',
        '    verified = bool(want) and os.path.exists(os.path.join(model_dir, "holdout_ids.json"))')]),
+
+    ("只给 --rbt3-model 不启用 RBT3（静默少跑一个方法）",
+     "干净 clone 联调：没跑 RBT3 不得宣称三方法均已评估",
+     [("code/evaluate_full.py",
+       '    if args.rbt3_model:\n        args.rbt3 = True\n    else:\n        args.rbt3_model = default_model',
+       '    if not args.rbt3_model:\n        args.rbt3_model = default_model')]),
 ]
 
 
@@ -75,6 +81,17 @@ def fresh_copy(parent):
     shutil.copytree(os.path.join(ROOT, "code"), os.path.join(d, "code"))
     shutil.copytree(os.path.join(ROOT, "data", "annotation"),
                     os.path.join(d, "data", "annotation"))
+    # 评估用例需要模型目录里的留出集与元数据（只有 json，几 MB，不含权重）。
+    # 少了它会令 verify_split_guard 的 5g/5h 在所有变异下都失败，变异自检就失去区分力。
+    src_model = os.path.join(ROOT, "data", "rbt3_model_aspect")
+    if os.path.isdir(src_model):
+        dst_model = os.path.join(d, "data", "rbt3_model_aspect")
+        os.makedirs(dst_model, exist_ok=True)
+        for name in ("holdout_ids.json", "task_meta.json", "config.json",
+                     "tokenizer_config.json", "tokenizer.json"):
+            s = os.path.join(src_model, name)
+            if os.path.exists(s):
+                shutil.copy2(s, os.path.join(dst_model, name))
     return d
 
 
@@ -110,6 +127,16 @@ def main():
     base = tempfile.mkdtemp(prefix="guardmut_")
     print(f"变异自检：{len(MUTATIONS)} 个历史缺陷逐个注入副本")
     print(f"临时目录: {base}\n")
+
+    # 基线：未变异的副本必须全绿。否则每个变异都会"红"，抓住与否无从判断。
+    probe = fresh_copy(base)
+    rc0, out0 = run_guard(probe)
+    shutil.rmtree(probe, ignore_errors=True)
+    if rc0 != 0:
+        bad = [ln.strip() for ln in out0.splitlines() if "[FAIL]" in ln]
+        raise SystemExit("[ERROR] 未变异副本本身就失败，变异自检无意义（可能是副本环境不完整）：\n  "
+                         + "\n  ".join(bad[:6]))
+    print("基线：未变异副本全绿 ✓\n")
 
     missed, skipped = [], []
     for name, contract, patches in MUTATIONS:

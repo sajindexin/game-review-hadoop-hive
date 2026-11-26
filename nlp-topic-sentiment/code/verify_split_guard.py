@@ -307,6 +307,36 @@ def main():
     check("参考评估" in log, "--allow-unverified-holdout 时标为参考评估")
     check("严格留出集评估：" not in log, "参考评估时不再宣称严格留出集口径")
 
+    # 5g. 没要求评估 RBT3 时，不得宣称"三方法都评估了"。
+    #     干净 clone（模型目录只有 config/tokenizer、没有权重）实测过：只给 --rbt3-model
+    #     会静默跳过 ③，而结论文案照旧写"三方法口径一致、可直接写进报告"。
+    model_meta = os.path.join(ROOT, "data", "rbt3_model_aspect", "holdout_ids.json")
+    if os.path.exists(model_meta):
+        rc, log = run(["code/evaluate_full.py", "--heldout"])
+        check("三方法都在" not in log, "未要求 RBT3 时不宣称三方法均在留出集上评估")
+        check("两个基线" in log, f"明确说明只完成 ① ② 两个基线（退出码 {rc}）")
+    else:
+        print("  [skip] 缺少 data/rbt3_model_aspect/holdout_ids.json，跳过 5g")
+
+    # 5h. 显式给 --rbt3-model 等价于要求跑 RBT3：权重缺失必须失败退出，不能静默跳过
+    gold_ids_file = os.path.join(ROOT, "data", "annotation", "gold_eval_ids.json")
+    if os.path.exists(gold_ids_file):
+        import evaluate_full as ev_mod
+        with open(gold_ids_file, encoding="utf-8") as f:
+            g_ids = sorted(json.load(f))
+        nw = os.path.join(tmp, "model_no_weights")
+        os.makedirs(nw, exist_ok=True)
+        with open(os.path.join(nw, "holdout_ids.json"), "w", encoding="utf-8") as f:
+            json.dump(g_ids, f)
+        with open(os.path.join(nw, "task_meta.json"), "w", encoding="utf-8") as f:
+            json.dump({"task": "aspect", "holdout_sha256": ev_mod._sha256_ids(g_ids)}, f)
+        rc, log = run(["code/evaluate_full.py", "--heldout", "--rbt3-model", nw])
+        check(rc != 0, f"只给 --rbt3-model 时自动启用 RBT3，缺权重即非零退出（实际 {rc}）")
+        check("RBT3 评估失败" in log, "报错说明 RBT3 评估失败")
+        check("三方法都在" not in log, "RBT3 未跑成时不得宣称三方法均已评估")
+    else:
+        print("  [skip] 缺少 gold_eval_ids.json，跳过 5h")
+
     check_header("6. 模型发布：保留用户文件、尾部路径、失败回滚")
     import train_rbt3_v2 as train_mod
 

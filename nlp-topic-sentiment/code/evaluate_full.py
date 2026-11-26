@@ -198,8 +198,11 @@ def resolve_holdout_ids(args):
 
 def main():
     ap = argparse.ArgumentParser()
+    default_model = os.path.normpath(os.path.join(HERE, "..", "data", "rbt3_model_aspect"))
     ap.add_argument("--rbt3", action="store_true", help="是否评估 RBT3 模型")
-    ap.add_argument("--rbt3-model", default=os.path.normpath(os.path.join(HERE, "..", "data", "rbt3_model_aspect")))
+    ap.add_argument("--rbt3-model", default="",
+                    help=f"RBT3 模型目录（默认 {default_model}，仅用于留出集指纹校验）；"
+                         f"显式指定时自动启用 RBT3 评估")
     ap.add_argument("--heldout", action="store_true",
                     help="严格口径：只在模型训练时未见过的 eval 评论上评估三个方法")
     ap.add_argument("--eval-ids", default="",
@@ -211,6 +214,14 @@ def main():
     ap.add_argument("--allow-partial-holdout", action="store_true",
                     help="留出集 ID 有部分在金标里找不到时仍继续（默认在严格模式下报错）")
     args = ap.parse_args()
+
+    # 显式给 --rbt3-model <目录> 就意味着"要评估这个模型"，与 --rbt3 等价。
+    # 旧实现只认 --rbt3：两者一起用没问题，但只给模型目录时会静默跳过第三方法，
+    # 而结论文案仍按"三方法"输出——干净 clone（无权重）下实测过这个假结论。
+    if args.rbt3_model:
+        args.rbt3 = True
+    else:
+        args.rbt3_model = default_model
 
     data = load_data()
     verified = False
@@ -231,7 +242,7 @@ def main():
                     f"        照此评估会悄悄少评一部分评论。确认可接受时加 --allow-partial-holdout。")
         print(f"留出集匹配金标: {len(matched)}/{len(eval_ids)} 条")
         if verified:
-            print(f"严格留出集评估：模型未见过的 {len(data)} 条评论（三方法口径一致）")
+            print(f"严格留出集评估：模型未见过的 {len(data)} 条评论（各方法同口径）")
         else:
             print(f"参考评估：{len(data)} 条评论（留出集未通过模型指纹校验，"
                   f"不能声称模型未见过这些评论）")
@@ -268,6 +279,7 @@ def main():
 
     # ---- 3. rbt3 ----
     rbt3_failed = False
+    rbt3_done = False        # 真的跑出 ③ 的结果才置 True；"没要求跑"不能当成跑成功
     if args.rbt3:
         try:
             os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
@@ -300,6 +312,7 @@ def main():
             print("=== ③ rbt3（金标微调，全主题三分类，无规则门控）===")
             print(f"  micro-P/R/F1: {p:.4f} / {r:.4f} / {f1:.4f}")
             print(f"  macro-F1:     {mf1:.4f}\n")
+            rbt3_done = True
         except Exception as e:
             rbt3_failed = True
             print(f"RBT3 评估失败: {e}\n", file=sys.stderr)
@@ -308,6 +321,12 @@ def main():
         if rbt3_failed:
             print("说明：本次仅完成 ① voted_up 与 ② rule_absm 两个基线；RBT3 评估失败，")
             print("      三项对比尚未完成，不能据此写'三方法均已评估'的结论。")
+        elif not rbt3_done:
+            # 没要求跑 RBT3：此时只剩两个基线，不能说"三方法都在留出集上评估"
+            print(f"说明：严格留出集口径，但本次只评估了 ① 与 ② 两个基线"
+                  f"（加 --rbt3 或显式 --rbt3-model <权重目录> 才会跑 ③）。")
+            print("      留出集指纹与模型 task_meta.json 一致，但三项对比尚未完成，"
+                  "不能写成三方法均已评估。")
         elif verified:
             print(f"说明：严格留出集口径。三方法都在 RBT3 未见过的 {len(data)} 条 eval 评论上评估，")
             print("      留出集指纹与模型 task_meta.json 一致，可直接写进报告。")

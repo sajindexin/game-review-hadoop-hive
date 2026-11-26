@@ -262,15 +262,29 @@ $env:HF_ENDPOINT = "https://hf-mirror.com"
 **交付前自检加固（本轮补充，均可用命令直接验证）**
 
 - `code/verify_split_guard.py` 为**纯标准库**实现（不需要 torch / numpy / pandas / pyarrow），
-  干净 Python 解释器即可跑完 66 项回归；`evaluate_full.py` 不带 `--rbt3` 时同样零第三方依赖。
+  干净 Python 解释器即可跑完 71 项回归；`evaluate_full.py` 不带 `--rbt3` 时同样零第三方依赖。
 - **拦截用例不再只看退出码**：缺依赖、缺数据时任何路径都会非零退出，只比退出码会把
   "守卫被绕过"误判为通过。现在每条"应被拦截"的用例同时要求：日志出现对应报错、
   日志没有后续阶段横幅（训练 `训练样本:` / 评估 `留出集匹配金标`）、未创建模型目录或改写权重。
   这条加固是实测出来的：把"训练集缺 review_id 只警告"注回源码后，旧断言仍然全绿。
-- 新增 `code/verify_guard_mutation.py`（约 45 秒）：把五轮复审确认过的缺陷逐个注回源码副本，
-  要求 `verify_split_guard.py` **必须变红**——五类缺陷（金标同文本跨侧、meta 缺指纹放行、
-  训练集缺 ID 放行、发布整目录替换、留出集按路径认指纹）全部被抓；任一漏检即非零退出。
+- 新增 `code/verify_guard_mutation.py`（约 75 秒）：把复审与联调确认过的缺陷逐个注回源码副本，
+  要求 `verify_split_guard.py` **必须变红**——六类缺陷（金标同文本跨侧、meta 缺指纹放行、
+  训练集缺 ID 放行、发布整目录替换、留出集按路径认指纹、只给 `--rbt3-model` 不启用 RBT3）
+  全部被抓；脚本会先校验"未变异副本全绿"作为基线，任一漏检即非零退出。
   这才证明绿灯有效，而不是"断言刚好兼容了缺陷"。
+
+**干净 clone 联调（在 `github.com/sajindexin/game-review-hadoop-hive` 新 clone 上复跑）**
+
+- 干净 clone 里模型目录只有 `config.json` / `tokenizer*` / `holdout_ids.json` / `task_meta.json`，
+  权重未入库。此时 `evaluate_full.py --heldout --rbt3-model data/rbt3_model_aspect`
+  只跑了 ①②，却输出「三方法口径一致……可直接写进报告」——**第三方法静默缺席而结论照旧**。
+  原因：是否跑 RBT3 只由 `--rbt3` 控制，`--rbt3-model` 仅当作路径；结论文案又用
+  `not rbt3_failed` 推断"三方法都跑了"，把"没要求跑"和"跑成功"混为一谈。
+- 已修：显式给 `--rbt3-model <目录>` 即等价于启用 RBT3；结论文案按 `rbt3_done` 三分支
+  （跑成 / 要求跑但失败 / 未要求跑），未跑第三方法时明确写"只完成 ①②，不能写成三方法均已评估"；
+  留出集横幅由"三方法口径一致"改为"各方法同口径"。
+- 干净 clone 复跑结果：`verify_split_guard.py` 63 项（少 3 项因银标不入库而 skip）、
+  `verify_delivery.py` 全绿、`verify_guard_mutation.py` 6/6 抓住。
 - 原子发布补了**回滚分支**：只替换模型产物（权重/分词器/元数据），目录里的用户文件原样保留；
   替换中途失败会删除新文件并把旧产物移回。守卫测试用例 6 用打桩 `shutil.move` 覆盖了这条路径，
   同时覆盖"输出路径尾部带分隔符"（旧实现会因此报 WinError 87）与"目录内非模型文件保留"。
