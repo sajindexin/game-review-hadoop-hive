@@ -1,4 +1,4 @@
-更新说明（提交 adfb21d）
+更新说明
 
 一、本次更新
 1. 意图路由改为 LLM 结构化输出（意图/阶段/条目/排行），失败或未配置 Key 自动退回规则。
@@ -12,5 +12,5 @@
 验收题 36/36，词典评测 39/39，冒烟测试 26/26。
 
 三、状态
-已上传到 feat/agent-retrieval，远端 HEAD 为 adfb21d。
+已上传到 feat/agent-retrieval，远端为最新提交。
 tatus --short 已删除；桌面 agent-retrieval/ 与仓库一致。
