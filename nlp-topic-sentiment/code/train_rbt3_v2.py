@@ -31,6 +31,7 @@ import sys
 import json
 import argparse
 import random
+from datetime import datetime
 import numpy as np
 
 # 国内网络：HuggingFace 直连常超时，默认走 hf-mirror 镜像（可用 HF_ENDPOINT 覆盖）
@@ -73,6 +74,12 @@ def item_prompt(item_id):
 
 
 def read_csv(path, task):
+    """读训练/验证数据，返回 [(review_id, text, key, label), ...]。
+
+    review_id 直接取 CSV 里的 review_id 列（prepare_gold_3way / prepare_rbt3_data_v2 都会写出）。
+    旧文件没有该列时置空串，由调用方决定是否拒绝——留出集不能靠文本回查标注集来反推，
+    因为条目/主题的 evidence 文本只是整条评论的一个片段，回查命中率是 0。
+    """
     rows = []
     id_col = "aspect" if task == "aspect" else "item_id"
     valid = ASPECT_PROMPT if task == "aspect" else set(ITEMS.keys())
@@ -82,12 +89,113 @@ def read_csv(path, task):
             key = (r.get(id_col) or "").strip()
             sent = (r.get("sentiment") or "").strip()
             if text and key in valid and sent in SENT2ID:
-                rows.append((text, key, SENT2ID[sent]))
+                rows.append(((r.get("review_id") or "").strip(), text, key, SENT2ID[sent]))
     return rows
 
 
 def make_prompt(task, key):
     return f"评价方面：{ASPECT_PROMPT[key]}" if task == "aspect" else item_prompt(key)
+
+
+def load_and_validate(args):
+    """读入训练/验证数据并完成全部前置校验，返回 (train_rows, eval_rows, holdout_ids)。
+
+    任何一项不通过都直接 SystemExit，且此时还没有创建模型目录、更没有写权重，
+    已有模型不会被破坏。校验项：
+      1. 训练集非空
+      2. --eval 指定的文件存在且解析后非空
+      3. train / eval 评论文本集合不相交
+      4. train / eval 原始 review_id 集合不相交
+      5. eval 必须带 review_id（留出集只能来自本轮实际使用的验证数据）
+    """
+    train_rows = read_csv(args.train, args.task)
+    if not train_rows:
+        raise SystemExit(f"训练集为空，检查 --train 与列名(review_id,review_text,"
+                         f"{'aspect' if args.task == 'aspect' else 'item_id'},sentiment)")
+
+    eval_rows, holdout_ids = [], []
+    if not args.eval:
+        print("[提示] 未提供 --eval，本次不产出留出集 ID；严格留出集评估将无法进行。")
+        return train_rows, eval_rows, holdout_ids
+
+    if not os.path.exists(args.eval):
+        raise SystemExit(f"[ERROR] --eval 文件不存在: {args.eval}")
+    eval_rows = read_csv(args.eval, args.task)
+    if not eval_rows:
+        raise SystemExit(f"[ERROR] 验证集为空或列名不合法: {args.eval}")
+
+    train_texts = {r[1] for r in train_rows}
+    eval_texts = {r[1] for r in eval_rows}
+    overlap_text = train_texts & eval_texts
+    if overlap_text:
+        raise SystemExit(
+            f"[ERROR] 训练集与验证集有 {len(overlap_text)} 条相同评论文本，不能作为严格留出集。"
+            f" 请用 prepare_rbt3_data_v2.py / prepare_gold_3way.py 按评论分组切分。"
+        )
+
+    eval_id_list = [r[0] for r in eval_rows]
+    missing_id = sum(1 for x in eval_id_list if not x)
+    if missing_id:
+        raise SystemExit(
+            f"[ERROR] 验证集有 {missing_id}/{len(eval_id_list)} 行缺少 review_id 列。"
+            f" 留出集 ID 必须来自验证数据本身，不能再靠 review_text 回查标注集"
+            f"（证据文本是评论片段，回查命中率为 0，会静默沿用上一轮的旧留出集）。"
+            f" 请用当前版本的 prepare_gold_3way.py / prepare_rbt3_data_v2.py 重新生成数据。"
+        )
+
+    train_ids = {r[0] for r in train_rows if r[0]}
+    eval_ids = {x for x in eval_id_list if x}
+    overlap_id = train_ids & eval_ids
+    if overlap_id:
+        raise SystemExit(
+            f"[ERROR] 训练集与验证集有 {len(overlap_id)} 条相同 review_id，同一评论跨了 train/eval"
+            f"（常见于按三元组随机切分）。请按 review_id 分组切分。"
+        )
+
+    bad = [x for x in eval_ids if not x.isdigit()]
+    if bad:
+        raise SystemExit(f"[ERROR] 验证集 review_id 含非数字值: {bad[:5]}")
+    holdout_ids = sorted({int(x) for x in eval_ids})
+
+    print(f"留出校验: train/eval 文本零重叠（{len(train_texts)} / {len(eval_texts)}），"
+          f"review_id 零重叠（{len(train_ids)} / {len(holdout_ids)}）")
+    return train_rows, eval_rows, holdout_ids
+
+
+def _ids_sha256(ids):
+    import hashlib
+    return hashlib.sha256(json.dumps(sorted(ids)).encode("utf-8")).hexdigest()
+
+
+def publish_model(out_dir, save_fn, meta):
+    """先把模型与配套元数据全部写到临时目录，成功后再整体替换 out_dir。
+
+    这样"权重"与"holdout_ids.json / task_meta.json"永远同批发布：
+    中途失败只会留下一个临时目录，已有模型保持原状。
+    """
+    import shutil
+    import time
+
+    parent = os.path.dirname(os.path.abspath(out_dir)) or "."
+    os.makedirs(parent, exist_ok=True)
+    tmp = os.path.join(parent, f".{os.path.basename(out_dir)}.tmp-{os.getpid()}-{int(time.time())}")
+    shutil.rmtree(tmp, ignore_errors=True)
+    os.makedirs(tmp, exist_ok=True)
+    try:
+        save_fn(tmp)
+        with open(os.path.join(tmp, "task_meta.json"), "w", encoding="utf-8") as f:
+            json.dump(meta, f, ensure_ascii=False, indent=2)
+        backup = None
+        if os.path.exists(out_dir):
+            backup = f"{out_dir}.old-{int(time.time())}"
+            os.replace(out_dir, backup)
+        os.replace(tmp, out_dir)
+        if backup:
+            shutil.rmtree(backup, ignore_errors=True)
+    except BaseException:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
+    return out_dir
 
 
 def main():
@@ -98,6 +206,13 @@ def main():
         args.out = os.path.join(HERE, "..", "data",
                                 "rbt3_model_aspect" if args.task == "aspect" else "rbt3_model_item")
 
+    # ===== 第 1 步：读数据 + 完成全部校验 =====
+    # 必须在训练、尤其是落盘保存之前做完：旧实现把重叠校验放在 save_pretrained 之后，
+    # 校验失败退出时新权重已经覆盖旧模型，而 holdout_ids.json 仍是上一轮的 ID，
+    # 于是"训练时说不行、评估时却拿旧留出集当模型没见过的数据"。
+    train_rows, eval_rows, holdout_ids = load_and_validate(args)
+    print(f"任务: {args.task} | 训练样本: {len(train_rows)}, 验证样本: {len(eval_rows)}")
+
     try:
         import torch
         from torch.utils.data import Dataset, DataLoader
@@ -106,13 +221,6 @@ def main():
         print("缺少依赖，请先运行：")
         print("  pip install -i https://mirrors.aliyun.com/pypi/simple torch transformers scikit-learn")
         raise SystemExit(f"ImportError: {e}")
-
-    train_rows = read_csv(args.train, args.task)
-    eval_rows = read_csv(args.eval, args.task) if args.eval and os.path.exists(args.eval) else []
-    print(f"任务: {args.task} | 训练样本: {len(train_rows)}, 验证样本: {len(eval_rows)}")
-    if not train_rows:
-        raise SystemExit(f"训练集为空，检查 --train 与列名(review_text,"
-                         f"{'aspect' if args.task=='aspect' else 'item_id'},sentiment)")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"设备: {device}")
@@ -130,7 +238,7 @@ def main():
         def __len__(self):
             return len(self.data)
         def __getitem__(self, i):
-            text, key, label = self.data[i]
+            _rid, text, key, label = self.data[i]
             enc = tokenizer(make_prompt(args.task, key), text, truncation=True,
                             max_length=args.max_len, padding="max_length", return_tensors="pt")
             return {k: v.squeeze(0) for k, v in enc.items()}, label
@@ -170,56 +278,40 @@ def main():
               target_names=[ID2SENT[i] for i in present], digits=4, zero_division=0))
         print("macro-F1:", round(f1_score(golds, preds, average="macro"), 4))
 
-    os.makedirs(args.out, exist_ok=True)
-    model.save_pretrained(args.out)
-    tokenizer.save_pretrained(args.out)
-    # 保存任务元信息，推理时自动识别
-    with open(os.path.join(args.out, "task_meta.json"), "w", encoding="utf-8") as f:
-        json.dump({"task": args.task, "model": args.model, "max_len": args.max_len}, f)
+    # ===== 第 3 步：训练与评估都通过后，才把权重和配套留出 ID 一起发布 =====
+    meta = {
+        "task": args.task, "model": args.model, "max_len": args.max_len,
+        "train_rows": len(train_rows), "eval_rows": len(eval_rows),
+        "train_reviews": len({r[0] for r in train_rows if r[0]}),
+        "holdout_reviews": len(holdout_ids),
+        # 留出 ID 的指纹写进 task_meta，评估时可校验"这组 ID 是否与当前权重同批发布"
+        "holdout_sha256": _ids_sha256(holdout_ids) if holdout_ids else "",
+        "train_file": os.path.abspath(args.train),
+        "eval_file": os.path.abspath(args.eval) if args.eval else "",
+        "saved_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+    }
 
-    # 留出集 ID 必须来自『本次训练实际用的 eval 文件』，而不是固定读 gold_eval_ids.json。
-    # 否则用银标/自定义 eval 训练后，评估仍拿旧金标 ID，可能把训练见过的评论当留出集。
-    holdout_ids = []
-    if args.eval and os.path.exists(args.eval):
-        eval_texts = set()
-        with open(args.eval, encoding="utf-8-sig") as f:
-            for row in csv.DictReader(f):
-                if row.get("review_text"):
-                    eval_texts.add(row["review_text"].strip())
-        ann = os.path.normpath(os.path.join(HERE, "..", "data", "annotation", "annotation_tasks.csv"))
-        if os.path.exists(ann) and eval_texts:
-            with open(ann, encoding="utf-8-sig") as f:
-                for row in csv.DictReader(f):
-                    if (row.get("review_text") or "").strip() in eval_texts:
-                        try:
-                            holdout_ids.append(int(row["review_id"]))
-                        except (TypeError, ValueError):
-                            pass
+    def _save_to(d):
+        model.save_pretrained(d)
+        tokenizer.save_pretrained(d)
+        if holdout_ids:
+            with open(os.path.join(d, "holdout_ids.json"), "w", encoding="utf-8") as f:
+                json.dump(holdout_ids, f)
 
-    # 校验 1：train 与 eval 的评论文本不得重叠（防止"用学生做过的题给他打分"）
-    if args.eval and os.path.exists(args.eval):
-        train_texts = {t.strip() for t, _k, _s in train_rows}
-        overlap = train_texts & eval_texts
-        if overlap:
-            raise SystemExit(
-                f"[ERROR] 训练集与验证集有 {len(overlap)} 条相同评论文本，不能作为严格留出集。"
-                f" 请重新按评论切分（prepare_gold_3way.py --source gold）。"
-            )
-        print(f"留出校验: train/eval 评论文本零重叠（train {len(train_texts)} / eval {len(eval_texts)}）")
-
-    # 校验 2：与金标留出 ID 对照，只提示、不强行采用（银标训练时两者本就不同）
-    ids_path = os.path.normpath(os.path.join(HERE, "..", "data", "annotation", "gold_eval_ids.json"))
-    if os.path.exists(ids_path):
-        with open(ids_path, encoding="utf-8") as f:
-            gold_ids = set(json.load(f))
-        if holdout_ids and set(holdout_ids) != gold_ids:
-            print(f"提示: 本次 eval 评论({len(set(holdout_ids))}条)与 gold_eval_ids.json({len(gold_ids)}条)不同，"
-                  f"已按实际 eval 生成留出 ID（银标/自定义训练属正常情况）。")
+    publish_model(args.out, _save_to, meta)
 
     if holdout_ids:
-        with open(os.path.join(args.out, "holdout_ids.json"), "w", encoding="utf-8") as f:
-            json.dump(sorted(set(holdout_ids)), f)
-        print(f"留出集 ID 已随模型保存: {len(set(holdout_ids))} 条（来源：本次 --eval 文件）")
+        print(f"留出集 ID 已随模型同批发布: {len(holdout_ids)} 条（来源：本次 --eval 文件）")
+        # 与金标留出 ID 对照，只提示不强制（银标/自定义训练时两者本就不同）
+        ids_path = os.path.normpath(os.path.join(HERE, "..", "data", "annotation", "gold_eval_ids.json"))
+        if os.path.exists(ids_path):
+            with open(ids_path, encoding="utf-8") as f:
+                gold_ids = set(json.load(f))
+            if set(holdout_ids) != gold_ids:
+                print(f"提示: 本次 eval 评论({len(holdout_ids)}条)与 gold_eval_ids.json"
+                      f"({len(gold_ids)}条)不同，已按实际 eval 生成留出 ID（银标/自定义训练属正常情况）。")
+    else:
+        print("警告: 本次训练未产出 holdout_ids.json，严格留出集评估将拒绝在该模型上运行。")
 
     print(f"\n模型已保存: {args.out}")
 

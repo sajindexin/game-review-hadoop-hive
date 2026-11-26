@@ -92,6 +92,62 @@ def load_data():
     return data
 
 
+def _sha256_ids(ids):
+    import hashlib
+    return hashlib.sha256(json.dumps(sorted(ids)).encode("utf-8")).hexdigest()
+
+
+def resolve_holdout_ids(args):
+    """确定严格评估用的留出集 ID，并校验它确实属于当前模型。
+
+    优先级：--eval-ids 显式指定 > 模型目录 holdout_ids.json >（需显式放行）标注集 gold_eval_ids.json。
+    默认不再静默回退：模型目录没有 holdout_ids.json 时直接中止，否则会把训练见过的评论
+    当成"模型没见过"来报告。
+    """
+    model_dir = args.rbt3_model if os.path.isdir(args.rbt3_model) else \
+        os.path.dirname(os.path.abspath(args.rbt3_model))
+    model_ids = os.path.join(model_dir, "holdout_ids.json")
+    fallback = os.path.join(ANN, "gold_eval_ids.json")
+
+    if args.eval_ids:
+        ids_path = args.eval_ids
+    elif os.path.exists(model_ids):
+        ids_path = model_ids
+    elif args.allow_fallback_ids and os.path.exists(fallback):
+        ids_path = fallback
+        print("[警告] 模型目录没有 holdout_ids.json，已按 --allow-fallback-ids 回退到 "
+              "gold_eval_ids.json；这些评论是否参与过该模型训练无法证明，数字只能当参考。")
+    else:
+        raise SystemExit(
+            f"[ERROR] 模型目录缺少 holdout_ids.json：{model_dir}\n"
+            f"        无法证明留出集是该模型未见过的评论，严格评估已中止。\n"
+            f"        处理方式：用新版 train_rbt3_v2.py 重训（留出 ID 与权重同批写出），\n"
+            f"        或用 --eval-ids 显式指定，或加 --allow-fallback-ids 接受旧口径。")
+
+    if not os.path.exists(ids_path):
+        raise SystemExit(f"[ERROR] 留出集 ID 文件不存在：{ids_path}")
+    with open(ids_path, encoding="utf-8") as f:
+        eval_ids = set(json.load(f))
+    if not eval_ids:
+        raise SystemExit(f"[ERROR] 留出集为空：{ids_path}；0 条评论的评估没有意义，"
+                         f"--eval-ids 指向空列表时不会再退出码 0 静默通过。")
+
+    # 与模型指纹比对：task_meta.json 记录了训练时该组留出 ID 的 sha256
+    meta_path = os.path.join(model_dir, "task_meta.json")
+    if ids_path == model_ids and os.path.exists(meta_path):
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+        want = (meta or {}).get("holdout_sha256") or ""
+        if want:
+            got = _sha256_ids(eval_ids)
+            if got != want:
+                raise SystemExit(
+                    f"[ERROR] holdout_ids.json 与模型 task_meta.json 记录的指纹不一致：\n"
+                    f"        实际文件 {got[:16]}… ≠ 元数据 {want[:16]}…\n"
+                    f"        说明这组留出 ID 与当前权重不是同批发布，评估结果不可信。")
+    return ids_path, eval_ids
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--rbt3", action="store_true", help="是否评估 RBT3 模型")
@@ -99,19 +155,17 @@ def main():
     ap.add_argument("--heldout", action="store_true",
                     help="严格口径：只在模型训练时未见过的 eval 评论上评估三个方法")
     ap.add_argument("--eval-ids", default="",
-                    help="留出集 ID JSON；默认读取模型目录的 holdout_ids.json，再回退标注集 gold_eval_ids.json")
+                    help="留出集 ID JSON；默认读取模型目录的 holdout_ids.json")
+    ap.add_argument("--allow-fallback-ids", action="store_true",
+                    help="模型目录没有 holdout_ids.json 时，允许回退到标注集 gold_eval_ids.json（不保证与模型对应）")
     args = ap.parse_args()
 
     data = load_data()
     if args.heldout:
-        ids_path = args.eval_ids
-        if not ids_path:
-            model_dir = args.rbt3_model if os.path.isdir(args.rbt3_model) else os.path.dirname(os.path.abspath(args.rbt3_model))
-            model_ids = os.path.join(model_dir, "holdout_ids.json")
-            ids_path = model_ids if os.path.exists(model_ids) else os.path.join(ANN, "gold_eval_ids.json")
-        with open(ids_path, encoding="utf-8") as f:
-            eval_ids = set(json.load(f))
+        ids_path, eval_ids = resolve_holdout_ids(args)
         data = [d for d in data if d["id"] in eval_ids]
+        if not data:
+            raise SystemExit(f"[ERROR] 留出集 ID（{len(eval_ids)} 个）与语义金标样本没有交集，无法评估。")
         print(f"严格留出集评估：模型未见过的 {len(data)} 条评论（三方法口径一致）")
         print(f"留出集来源: {ids_path}\n")
     else:

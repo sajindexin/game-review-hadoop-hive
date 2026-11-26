@@ -75,10 +75,12 @@ def build(neg_per_review=3, ratio=0.8, seed=42):
     def write(path, revs):
         with open(path, "w", encoding="utf-8-sig", newline="") as f:
             w = csv.writer(f)
-            w.writerow(["review_text", "aspect", "sentiment"])
-            for _rid, triples in revs:
-                for t in triples:
-                    w.writerow(t)
+            # review_id 必须落盘：留出集 ID 应从训练数据直接取，
+            # 不能再靠 review_text 回查标注集（证据文本与整条评论常不相等，回查会得到空集）。
+            w.writerow(["review_id", "review_text", "aspect", "sentiment"])
+            for rid, triples in revs:
+                for text, a, sent in triples:
+                    w.writerow([rid, text, a, sent])
 
     tp = os.path.join(ANN, "rbt3_aspect_train.csv")
     ep = os.path.join(ANN, "rbt3_aspect_eval.csv")

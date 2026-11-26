@@ -229,14 +229,21 @@ $env:HF_ENDPOINT = "https://hf-mirror.com"
   - 测试集：`rbt3_aspect_eval.csv`，251 个三元组 / **48 条评论**
     （positive 64 / negative 35 / neutral 152）
   - 训练与测试的评论文本交集为 0（已校验）。
-- 严格留出集 ID：`data/annotation/gold_eval_ids.json`（48 条），
-  训练脚本按**本次实际 `--eval` 文件的评论文本**回查 review_id，写入模型目录
-  `data/rbt3_model_aspect/holdout_ids.json`，评估脚本 `--heldout` 优先读模型目录那份，
-  保证模型与留出集配套；训练前还会校验 train/eval 评论文本零重叠，有重叠直接报错。
+- 严格留出集 ID：训练数据 CSV 首列即 `review_id`，训练脚本直接取**本次 `--eval` 文件里
+  实际出现的 review_id**，与权重同批写入模型目录 `data/rbt3_model_aspect/holdout_ids.json`，
+  并在 `task_meta.json` 记录这组 ID 的 `holdout_sha256` 指纹；评估脚本 `--heldout` 只读模型目录那份，
+  缺文件、留出集为空、或指纹与元数据不符都会直接报错退出（不再静默回退旧留出集），
+  确需沿用旧口径要显式加 `--allow-fallback-ids`。
+- 训练前校验（**全部在创建模型目录之前完成**）：train/eval 的评论文本集合与 review_id 集合
+  双双零重叠，验证集必须带 `review_id`；任一项不过立即非零退出，已有模型权重原样保留。
+  权重与 `holdout_ids.json` 先写临时目录、成功后再整体替换目标目录，不会出现
+  "校验失败但权重已覆盖、留出 ID 还是旧的"这种错配。
 - 金标唯一来源：`annotation_tasks.csv` 的 `gold_aspects_json`。新增标注用
   `merge_gold.py` 合并后，训练与评估都会自动纳入，无需改代码里的固定字典。
 - 银标演示（可选）：`prepare_rbt3_data_v2.py --source rule --item-only --limit 20000`
   只写 `rbt3_item_silver_*.csv`，**不覆盖**金标 train/eval 与留出 ID。
+  银标切分按 review_id 分组（并查集把同一评论、同一文本连成一组整组切分），
+  `--limit` 也按组抽样，所以同一评论的多个条目不会一半在训练集、一半在验证集。
 
 ### 3.6 复跑评估结果（严格留出集，48 条评论，三方法同口径）
 

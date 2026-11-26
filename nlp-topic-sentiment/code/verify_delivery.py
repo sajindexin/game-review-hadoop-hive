@@ -132,6 +132,41 @@ def main():
     ok &= check("raise SystemExit(2)" in src_eval,
                 "--rbt3 评估失败时返回非零退出码")
 
+    print("\n=== 5c. 切分与留出集守卫（第三轮复审）===")
+    src_train_v2 = open(os.path.join(HERE, "train_rbt3_v2.py"), encoding="utf-8").read()
+    # 1) 先校验、后保存：校验调用必须出现在发布调用之前
+    i_val = src_train_v2.find("load_and_validate(args)")
+    i_save = src_train_v2.find("publish_model(args.out")
+    ok &= check(0 <= i_val < i_save, "训练先完成数据校验再发布模型（校验在保存之前）")
+    ok &= check("def publish_model" in src_train_v2 and
+                "save_pretrained(args.out)" not in src_train_v2,
+                "模型权重走原子发布，失败不覆盖旧模型")
+    # 2) 留出 ID 取验证集 review_id 列，不再靠文本回查标注集
+    ok &= check('r.get("review_id")' in src_train_v2 and
+                "annotation_tasks.csv" not in src_train_v2,
+                "留出 ID 直接取验证集 review_id，不再回查标注集")
+    # 3) 银标按 review_id 分组切分（含按组抽样）
+    ok &= check("def group_by_review" in src_prep and "def _sample_by_group" in src_prep,
+                "银标按 review_id 分组切分与分组抽样")
+    # 4) 严格评估默认不回退旧留出集，并校验留出指纹
+    ok &= check("--allow-fallback-ids" in src_eval and "holdout_sha256" in src_eval,
+                "严格评估默认不回退旧留出集，并校验留出指纹")
+    # 5) 训练数据首列带 review_id
+    gt = os.path.join(ROOT, "data", "annotation", "rbt3_aspect_train.csv")
+    if os.path.exists(gt):
+        with open(gt, encoding="utf-8-sig") as f:
+            ok &= check(next(csv.reader(f))[:1] == ["review_id"], "金标训练集首列为 review_id")
+    # 6) 真跑一遍守卫回归测试
+    import subprocess
+    guard = subprocess.run([sys.executable, os.path.join(HERE, "verify_split_guard.py")],
+                           cwd=ROOT, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace")
+    ok &= check(guard.returncode == 0,
+                "verify_split_guard.py 全部通过（分组切分/前置校验/留出集守卫）")
+    if guard.returncode != 0:
+        print((guard.stdout or "")[-1500:])
+        print((guard.stderr or "")[-800:])
+
     print("\n=== 6. 脚本可导入 ===")
     for m in ("item_matcher", "build_item_results", "build_item_taxonomy",
               "prepare_rbt3_data_v2", "train_rbt3_v2", "infer_rbt3_v2", "merge_gold"):
