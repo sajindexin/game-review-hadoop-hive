@@ -157,6 +157,10 @@ class Router:
         # 问题里明确写了阶段，就以问题为准，覆盖模型给的阶段
         if explicit:
             phases = explicit
+        else:
+            # 模型偶尔把“更新差评”误判成发布当天；没有明确发布日/发布当天就丢掉 release
+            if "release" in phases and not RELEASE_RE.search(q):
+                phases = [p for p in phases if p != "release"]
         allowed_items = {it["item_id"] for it in items}
         item_ids = [i for i in (data.get("item_ids") or []) if i in allowed_items]
         lang = data.get("language")

@@ -220,6 +220,18 @@ class RouterTest(unittest.TestCase):
         items = self.kb.catalog.items_of("steam_2358720_20241214")
         self.assertIn("2358720_20241214_02", agent._named_item_ids("为什么吐槽旅行图？", items))
 
+    def test_release_hallucination_does_not_break_why(self) -> None:
+        payload = json.dumps({
+            "intent": "why", "phases": ["release"], "item_ids": [],
+            "language": "all", "ranking": None,
+        }, ensure_ascii=False)
+        agent = Agent(self.kb, router=Router(client=_FakeClient(payload)))
+        res = agent.ask("为什么 CS2 军械库更新差评变多了？", appid="730",
+                        patch_id="steam_730_20241002")
+        reviews = [c for c in res["citations"] if c["type"] == "review"]
+        self.assertEqual(res["route"]["phases"], [])
+        self.assertEqual(len(reviews), 3)
+
     def test_agent_uses_compare_route(self) -> None:
         payload = json.dumps({
             "intent": "review", "phases": ["before", "after"],

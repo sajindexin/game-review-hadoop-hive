@@ -134,7 +134,7 @@ $env:GRA_LLM_BASE_URL="https://api.deepseek.com/v1"  # 可选，OpenAI 兼容即
 | 项目 | 怎么验的 | 结果 |
 |---|---|---|
 | 48 道验收题 | `python eval/run_acceptance.py` | ✅ 48/48，见 `eval/REPORT.md` |
-| 冒烟测试 | `python -m unittest discover -s tests` | ✅ 29/29 |
+| 冒烟测试 | `python -m unittest discover -s tests` | ✅ 30/30 |
 | 已复核引文 | 469 条全部入索引，20 个版本 37 项改动 | ✅ 引用带 `verified=true` 与 Steam 链接 |
 | 阶段编辑规则 | 469 条里 55 条按原 `find_evidence` 规则会被排除 | ✅ 已保留字段并在 `search_verified` 同步过滤 |
 | 同义词词典 | `python eval/run_lexicon_eval.py`（39 条同义/繁体/英文/错字问法） | ✅ Hit@1 39/39 |
