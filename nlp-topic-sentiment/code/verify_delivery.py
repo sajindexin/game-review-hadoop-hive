@@ -145,12 +145,25 @@ def main():
     ok &= check('r.get("review_id")' in src_train_v2 and
                 "annotation_tasks.csv" not in src_train_v2,
                 "留出 ID 直接取验证集 review_id，不再回查标注集")
-    # 3) 银标按 review_id 分组切分（含按组抽样）
-    ok &= check("def group_by_review" in src_prep and "def _sample_by_group" in src_prep,
-                "银标按 review_id 分组切分与分组抽样")
-    # 4) 严格评估默认不回退旧留出集，并校验留出指纹
-    ok &= check("--allow-fallback-ids" in src_eval and "holdout_sha256" in src_eval,
-                "严格评估默认不回退旧留出集，并校验留出指纹")
+    # 3) 金标与银标共用 split_utils 的分组切分（含按组抽样）
+    src_gold = open(os.path.join(HERE, "prepare_gold_3way.py"), encoding="utf-8").read()
+    ok &= check("from split_utils import" in src_prep and "_sample_by_group" in src_prep,
+                "银标复用 split_utils 分组切分，并支持按组抽样")
+    ok &= check("from split_utils import" in src_gold and "split_grouped" in src_gold,
+                "金标同样按组切分（不同 review_id 的相同文本不跨集合）")
+    # 3b) 训练两侧 ID 都要完整合法、按整数比较
+    ok &= check("def _check_ids" in src_train_v2 and "int(x)" in src_train_v2,
+                "训练前置校验检查两侧 review_id 并按整数比较")
+    # 3c) 发布只替换模型产物，保留用户文件
+    ok &= check("def _is_model_artifact" in src_train_v2 and "normpath(os.path.abspath(out_dir))" in src_train_v2,
+                "模型发布只替换模型产物（保留用户文件、规范化输出路径）")
+    # 4) 严格评估：必须有可用指纹，且按实际选中的 ID 集合校验
+    ok &= check("def _load_meta" in src_eval and "holdout_sha256" in src_eval,
+                "严格评估必须有可用的模型留出指纹（缺失/空串不再放行）")
+    ok &= check("_sha256_ids(eval_ids)" in src_eval,
+                "留出指纹按实际选中的 ID 集合校验（不依赖文件路径）")
+    ok &= check("allow_unverified_holdout" in src_eval and "参考评估" in src_eval,
+                "显式放行未验证留出集时标为参考评估")
     # 5) 训练数据首列带 review_id
     gt = os.path.join(ROOT, "data", "annotation", "rbt3_aspect_train.csv")
     if os.path.exists(gt):

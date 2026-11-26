@@ -9,6 +9,8 @@
 import os, csv, json, random, argparse
 from collections import defaultdict
 
+from split_utils import group_by_review, split_grouped
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ANN = os.path.normpath(os.path.join(HERE, "..", "data", "annotation"))
 TASKS = os.path.join(ANN, "annotation_tasks.csv")
@@ -68,9 +70,25 @@ def build(neg_per_review=3, ratio=0.8, seed=42):
         triples += [(text, a, "neutral") for a in sampled_neg]
         reviews.append((rid, triples))
 
-    random.shuffle(reviews)
-    n_train = int(len(reviews) * ratio)
-    train, ev = reviews[:n_train], reviews[n_train:]
+    # 按「评论组」整组切分：把同一个 review_id 与文本完全相同的评论连成一组。
+    # 只按 review_id 切分不够——标注集里存在不同 review_id、文本一字不差的两条评论
+    # （如 93940703 与 33393799），分开后会分别落进 train/eval，训练前置校验必然拒绝。
+    nodes = [(rid, text, 0, 0) for rid, text in texts.items()]
+    groups = group_by_review(nodes)
+    review_map = dict(reviews)
+    grouped = {root: [(n[0], review_map[n[0]]) for n in ns] for root, ns in groups.items()}
+    train, ev, target, total = split_grouped(grouped, ratio, seed)
+
+    # 自检：切分结果必须满足"评论 ID 与文本双双不相交"，否则后面的训练一定会被拦。
+    tr_ids = {rid for rid, _ in train}
+    ev_ids = {rid for rid, _ in ev}
+    tr_tx = {t for _rid, rv in train for t, _a, _s in rv}
+    ev_tx = {t for _rid, rv in ev for t, _a, _s in rv}
+    print(f"    按组切分: {len(groups)} 组 / {total} 条评论，目标 train {target} 条")
+    print(f"    train/eval = {len(train)}/{len(ev)} 条评论 | "
+          f"评论 ID 重叠 {len(tr_ids & ev_ids)} | 文本重叠 {len(tr_tx & ev_tx)}")
+    if tr_ids & ev_ids or tr_tx & ev_tx:
+        raise SystemExit("[ERROR] 金标切分仍存在跨集合样本，请检查 split_utils.group_by_review。")
 
     def write(path, revs):
         with open(path, "w", encoding="utf-8-sig", newline="") as f:

@@ -82,7 +82,7 @@ CPU 版即可（RBT3-small 在 CPU 上也能训，只是慢）：
 ```powershell
 # 先装 CPU 版 torch（官方 CPU 源，避免默认拉到 CUDA 大包），再装其余
 python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-python -m pip install -i https://mirrors.aliyun.com/pypi/simple -r requirements-train.txt
+python -m pip install -i https://mirrors.aliyun.com/pypi/simple -r nlp-topic-sentiment/requirements-train.txt
 python -c "import torch,transformers; print(torch.__version__, 'CUDA=', torch.cuda.is_available())"
 ```
 
@@ -118,7 +118,8 @@ cd (Join-Path $REPO "nlp-topic-sentiment\code")
 
 # --- 以下需先装 torch；金标已合并进 annotation_tasks.csv，无需手动标注 ---
 
-# 5) 主题层训练数据：复用 prepare_gold_3way 按评论切分，train/eval 评论零重叠
+# 5) 主题层训练数据：按「评论组」整组切分（同一 review_id、以及文本完全相同的不同 review_id
+#    都整组进同一侧），切分后脚本会自检并打印"评论 ID 重叠 0 / 文本重叠 0"
 & $PY prepare_rbt3_data_v2.py --source gold
 #    条目层目前没有人工金标：脚本会删除旧的空训练文件并提示；条目层验收请用第 4 步规则模式
 #    若只想训一个可演示的条目层模型，用银标（写独立 *_silver 文件，绝不覆盖上面的金标 train/eval）：
@@ -128,12 +129,18 @@ cd (Join-Path $REPO "nlp-topic-sentiment\code")
 
 # 6) 主题层 RBT3 微调；训练脚本会把本次 eval 的 review_id 写入模型目录 holdout_ids.json
 #    校验全部前置：评论文本、review_id 双零重叠，验证集必须带 review_id，
-#    任何一项不过直接在训练前退出，且不会创建或覆盖已有模型目录（权重走原子发布）。
+#    任何一项不过直接在训练前退出，且不会创建或覆盖已有模型目录。
+#    发布时只替换模型产物（权重/分词器/task_meta/holdout_ids），目录里其它文件（自己的
+#    train.csv、notes.txt 等）会原样保留；输出路径带尾部反斜杠也能正常发布。
 & $PY train_rbt3_v2.py --task aspect --train ..\data\annotation\rbt3_aspect_train.csv --eval ..\data\annotation\rbt3_aspect_eval.csv --epochs 3
 
 # 7) 严格留出集评估：自动读取模型目录 holdout_ids.json（可用 --eval-ids 覆盖）
-#    模型目录没有 holdout_ids.json、留出集为空、或指纹与 task_meta.json 不符时直接报错退出；
-#    确实要沿用旧口径可显式加 --allow-fallback-ids
+#    以下情况一律报错退出（不再静默放行）：
+#      - task_meta.json 缺失 / 为 {} / 缺 holdout_sha256 / 值为空串 / 指纹与留出 ID 不符
+#      - 留出集为空，或留出 ID 有部分在标注集里找不到金标
+#    指纹按「实际选中的 ID 集合」现算，因此 --eval-ids 指向别处、或把过期文件复制到
+#    其他路径，同样会被识破。确实只要参考数字时显式加 --allow-unverified-holdout
+#    （或 --allow-fallback-ids），输出会明确标为「参考评估」，不会写成严格留出集结论。
 #    显式 --rbt3 时若模型加载/评估失败会返回非零退出码，不会误报成功
 & $PY evaluate_full.py --rbt3 --heldout
 
@@ -173,14 +180,16 @@ cd (Join-Path $REPO "nlp-topic-sentiment\code")
 
 | 方法 | micro-F1 | macro-F1 |
 |---|---|---|
-| baseline_voted_up | 0.6542 | 0.5885 |
-| rule_absm（规则）| 0.2687 | 0.2122 |
-| **rbt3-aspect（金标微调）** | **0.6256** | **0.5518** |
+| baseline_voted_up | 0.8169 | 0.8299 |
+| rule_absm（规则）| 0.2836 | 0.2936 |
+| **rbt3-aspect（金标微调）** | **0.5361** | **0.5255** |
 
-> 金标由语义理解逐条标注 240 条（`code/gold_annotations.py`），已合并进标注集，**用户无需手动标注**。
-> RBT3 远超规则引擎（+36 点），略低于 voted_up 基线（受限于 192 条训练样本 + 整体情感评论多）。
-> 早期 5 条样例上规则 F1=0.92 是虚高，240 条真实金标暴露了规则召回缺陷（0.17）。
-> 若不带 `--heldout` 会在全部 240 条上评估（含训练用过的评论，数字偏乐观：rbt3 0.6887），**写报告请用严格口径**。
+> 金标来自标注集 `annotation_tasks.csv` 的 `gold_aspects_json`（240 条），**无需手动标注**。
+> RBT3 明显高于规则引擎（0.5361 vs 0.2836），但低于 voted_up 基线：本留出集 39/48 是推荐评论，
+> 整体情感与主题情感高度重叠，voted_up 把整体情感复制给所有主题即可得分，却指不出是哪个主题被批评；
+> RBT3 不做规则门控、需逐主题判别，召回偏低（0.486），这是该方法的真实短板，报告里如实写即可。
+> 早期 5 条样例上规则 F1=0.92 是虚高，240 条真实金标暴露了规则召回缺陷（0.18）。
+> 若不带 `--heldout` 会在全部 240 条上评估（含训练用过的评论，数字偏乐观：rbt3 0.5985），**写报告请用严格口径**。
 
 ## 六、注意事项
 

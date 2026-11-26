@@ -96,6 +96,34 @@ def make_prompt(task, key):
     return f"评价方面：{ASPECT_PROMPT[key]}" if task == "aspect" else item_prompt(key)
 
 
+def _check_ids(rows, side, strict=True):
+    """校验一侧数据的 review_id 完整合法，并统一转成 int 集合返回。
+
+    只要求验证集完整是不够的：训练集里缺 ID 的行会被跳过，两边 ID 也就比不出交集，
+    同一评论照样能跨集合。所以两侧都要查，且必须转成 int 再比（"0161798229" 与
+    "161798229" 是同一评论，字符串比较会漏掉）。
+
+    strict=True  ：缺 ID / 非数字一律报错（提供 --eval 时的两侧都走这条）
+    strict=False ：仅无 --eval 的纯训练场景，缺 ID 降为警告，非数字仍报错
+    """
+    raw = [r[0] for r in rows]
+    bad = sorted({x for x in raw if x and not x.isdigit()})
+    if bad:
+        raise SystemExit(
+            f"[ERROR] {side} review_id 含非数字值: {bad[:5]}（共 {len(bad)} 种）。"
+            f" review_id 必须是原始评论的整数 ID。")
+    missing = sum(1 for x in raw if not x)
+    if missing:
+        msg = (f"{side}有 {missing}/{len(raw)} 行缺少 review_id。"
+               f"留出集必须能按原始评论 ID 核对，缺 ID 会让重叠校验失效。")
+        if strict:
+            raise SystemExit(
+                f"[ERROR] {msg} 请用当前版本的 prepare_gold_3way.py / prepare_rbt3_data_v2.py"
+                f" 重新生成数据（两者都会写出 review_id 列）。")
+        print(f"[警告] {msg}")
+    return {int(x) for x in raw if x}
+
+
 def load_and_validate(args):
     """读入训练/验证数据并完成全部前置校验，返回 (train_rows, eval_rows, holdout_ids)。
 
@@ -115,7 +143,8 @@ def load_and_validate(args):
     eval_rows, holdout_ids = [], []
     if not args.eval:
         print("[提示] 未提供 --eval，本次不产出留出集 ID；严格留出集评估将无法进行。")
-        return train_rows, eval_rows, holdout_ids
+        train_ids = _check_ids(train_rows, "训练集", strict=False)
+        return train_rows, eval_rows, holdout_ids, train_ids
 
     if not os.path.exists(args.eval):
         raise SystemExit(f"[ERROR] --eval 文件不存在: {args.eval}")
@@ -132,33 +161,24 @@ def load_and_validate(args):
             f" 请用 prepare_rbt3_data_v2.py / prepare_gold_3way.py 按评论分组切分。"
         )
 
-    eval_id_list = [r[0] for r in eval_rows]
-    missing_id = sum(1 for x in eval_id_list if not x)
-    if missing_id:
-        raise SystemExit(
-            f"[ERROR] 验证集有 {missing_id}/{len(eval_id_list)} 行缺少 review_id 列。"
-            f" 留出集 ID 必须来自验证数据本身，不能再靠 review_text 回查标注集"
-            f"（证据文本是评论片段，回查命中率为 0，会静默沿用上一轮的旧留出集）。"
-            f" 请用当前版本的 prepare_gold_3way.py / prepare_rbt3_data_v2.py 重新生成数据。"
-        )
+    # 两侧的 review_id 都必须完整、合法，并统一转成 int 再比较交集。
+    # 旧实现只查验证集、且用字符串比较：训练集里缺 ID 会被 {r[0] for r in rows if r[0]} 直接跳过，
+    # "0161798229" 与 "161798229" 也被当成不同评论，于是同一评论能同时出现在两边。
+    train_ids = _check_ids(train_rows, "训练集", strict=True)
+    eval_ids = _check_ids(eval_rows, "验证集", strict=True)
 
-    train_ids = {r[0] for r in train_rows if r[0]}
-    eval_ids = {x for x in eval_id_list if x}
     overlap_id = train_ids & eval_ids
     if overlap_id:
         raise SystemExit(
             f"[ERROR] 训练集与验证集有 {len(overlap_id)} 条相同 review_id，同一评论跨了 train/eval"
-            f"（常见于按三元组随机切分）。请按 review_id 分组切分。"
+            f"（常见于按三元组随机切分，或 ID 前导零/格式不一致）。示例: {sorted(overlap_id)[:5]}"
         )
 
-    bad = [x for x in eval_ids if not x.isdigit()]
-    if bad:
-        raise SystemExit(f"[ERROR] 验证集 review_id 含非数字值: {bad[:5]}")
-    holdout_ids = sorted({int(x) for x in eval_ids})
+    holdout_ids = sorted(eval_ids)
 
     print(f"留出校验: train/eval 文本零重叠（{len(train_texts)} / {len(eval_texts)}），"
           f"review_id 零重叠（{len(train_ids)} / {len(holdout_ids)}）")
-    return train_rows, eval_rows, holdout_ids
+    return train_rows, eval_rows, holdout_ids, train_ids
 
 
 def _ids_sha256(ids):
@@ -183,43 +203,123 @@ def _rel_to_root(path):
     return p if rel.startswith("..") else rel.replace(os.sep, "/")
 
 
-def publish_model(out_dir, save_fn, meta):
-    """先把模型与配套元数据全部写到临时目录，成功后再整体替换 out_dir。
+# 发布时允许被覆盖/清理的"模型产物"白名单。
+# 不在名单内的文件（用户自己放的 train.csv、notes.txt 等）一律保留。
+_MODEL_ARTIFACTS = {
+    "config.json", "model.safetensors", "pytorch_model.bin",
+    "task_meta.json", "holdout_ids.json",
+    "tokenizer.json", "tokenizer_config.json", "special_tokens_map.json",
+    "vocab.txt", "added_tokens.json", "spiece.model", "sentencepiece.bpe.model",
+    "generation_config.json", "training_args.bin", "config_sentencepiece.model",
+}
 
-    这样"权重"与"holdout_ids.json / task_meta.json"永远同批发布：
-    中途失败只会留下一个临时目录，已有模型保持原状。
+
+def _is_model_artifact(name):
+    if name in _MODEL_ARTIFACTS:
+        return True
+    # 分片权重：model-00001-of-00002.safetensors / pytorch_model-00001-of-00002.bin
+    if name.endswith((".safetensors", ".bin")) and \
+            (name.startswith("model-") or name.startswith("pytorch_model-")):
+        return True
+    if name.endswith((".safetensors.index.json", ".bin.index.json")):
+        return True
+    return False
+
+
+def publish_model(out_dir, save_fn, meta):
+    """发布模型产物到 out_dir，保留目录内用户自己的文件。
+
+    与旧实现的区别（旧实现是整目录改名→替换→删备份）：
+      - 只替换「模型产物」白名单内的文件；train.csv / notes.txt 等不会被删。
+      - 先把新产物完整写到同级临时目录，再逐个移入，失败时删除新文件并把备份移回。
+      - 输出路径先规范化：`...\\rbt3_model_aspect\\` 这类尾部带分隔符的写法，
+        旧实现会拼出 `...\\rbt3_model_aspect\\.rbt3_model_aspect.old-*`（落在原目录内部），
+        改名必然失败（Windows 报 WinError 87）。
     """
     import shutil
     import time
 
-    parent = os.path.dirname(os.path.abspath(out_dir)) or "."
+    out_dir = os.path.normpath(os.path.abspath(out_dir))
+    if os.path.exists(out_dir) and not os.path.isdir(out_dir):
+        raise SystemExit(f"[ERROR] 输出路径已存在且不是目录: {out_dir}")
+
+    parent = os.path.dirname(out_dir) or "."
+    base = os.path.basename(out_dir)
     os.makedirs(parent, exist_ok=True)
-    tmp = os.path.join(parent, f".{os.path.basename(out_dir)}.tmp-{os.getpid()}-{int(time.time())}")
+    stamp = int(time.time())
+    tmp = os.path.join(parent, f".{base}.tmp-{os.getpid()}-{stamp}")
     shutil.rmtree(tmp, ignore_errors=True)
     os.makedirs(tmp, exist_ok=True)
-    backup = None
+
     try:
         save_fn(tmp)
         with open(os.path.join(tmp, "task_meta.json"), "w", encoding="utf-8") as f:
             json.dump(meta, f, ensure_ascii=False, indent=2)
-        if os.path.exists(out_dir):
-            backup = f"{out_dir}.old-{int(time.time())}"
-            os.replace(out_dir, backup)
-        # Windows 上目录仍被其他进程占用时这里会抛异常：旧模型此时已经被改名，
-        # 必须回滚回去，否则"保存失败"会变成"模型目录凭空消失"。
-        os.replace(tmp, out_dir)
     except BaseException:
         shutil.rmtree(tmp, ignore_errors=True)
-        if backup and os.path.exists(backup) and not os.path.exists(out_dir):
-            try:
-                os.replace(backup, out_dir)
-                print(f"[警告] 发布失败，已回滚到原模型目录: {out_dir}")
-            except OSError as e:
-                print(f"[严重] 发布失败且回滚失败，旧模型仍保留在: {backup}（{e}）")
         raise
-    if backup:
+
+    # 目标不存在：整体改名，最干净
+    if not os.path.exists(out_dir):
+        os.replace(tmp, out_dir)
+        return out_dir
+
+    # 目标已存在：只换模型产物
+    entries = os.listdir(out_dir)
+    stale = sorted(f for f in entries
+                   if _is_model_artifact(f) and os.path.isfile(os.path.join(out_dir, f)))
+    keep = sorted(f for f in entries if f not in stale)
+
+    backup = os.path.join(parent, f".{base}.old-{stamp}")
+    shutil.rmtree(backup, ignore_errors=True)
+    os.makedirs(backup, exist_ok=True)
+    moved_out, placed = [], []
+    try:
+        for f in stale:
+            shutil.move(os.path.join(out_dir, f), os.path.join(backup, f))
+            moved_out.append(f)
+        for f in sorted(os.listdir(tmp)):
+            shutil.move(os.path.join(tmp, f), os.path.join(out_dir, f))
+            placed.append(f)
+    except BaseException:
+        # 回滚：删掉刚放进去的新产物，把备份移回原位
+        for f in placed:
+            try:
+                os.remove(os.path.join(out_dir, f))
+            except OSError:
+                pass
+        for f in moved_out:
+            try:
+                shutil.move(os.path.join(backup, f), os.path.join(out_dir, f))
+            except OSError:
+                pass
+        shutil.rmtree(tmp, ignore_errors=True)
         shutil.rmtree(backup, ignore_errors=True)
+        raise
+    shutil.rmtree(tmp, ignore_errors=True)
+    shutil.rmtree(backup, ignore_errors=True)
+    if keep:
+        print(f"[提示] 输出目录保留了 {len(keep)} 个非模型文件: {keep[:6]}"
+              f"{' …' if len(keep) > 6 else ''}")
     return out_dir
+
+
+def _report_gold_compare(holdout_ids):
+    """与 gold_eval_ids.json 做辅助对照，任何异常都只警告（该文件仅供人看）。"""
+    ids_path = os.path.normpath(os.path.join(HERE, "..", "data", "annotation", "gold_eval_ids.json"))
+    if not os.path.exists(ids_path):
+        print("提示: 未找到 gold_eval_ids.json，跳过与金标留出集的对照。")
+        return
+    try:
+        with open(ids_path, encoding="utf-8") as f:
+            gold_ids = {int(x) for x in json.load(f)}
+    except Exception as e:
+        print(f"[警告] gold_eval_ids.json 读取失败（{type(e).__name__}: {e}），已跳过对照；"
+              f"该文件只是辅助信息，不影响本次训练与发布。")
+        return
+    if set(holdout_ids) != gold_ids:
+        print(f"提示: 本次 eval 评论({len(holdout_ids)}条)与 gold_eval_ids.json"
+              f"({len(gold_ids)}条)不同，已按实际 eval 生成留出 ID（银标/自定义训练属正常情况）。")
 
 
 def main():
@@ -233,7 +333,7 @@ def main():
     # 必须在训练、尤其是落盘保存之前做完：旧实现把重叠校验放在 save_pretrained 之后，
     # 校验失败退出时新权重已经覆盖旧模型，而 holdout_ids.json 仍是上一轮的 ID，
     # 于是"训练时说不行、评估时却拿旧留出集当模型没见过的数据"。
-    train_rows, eval_rows, holdout_ids = load_and_validate(args)
+    train_rows, eval_rows, holdout_ids, train_ids = load_and_validate(args)
     print(f"任务: {args.task} | 训练样本: {len(train_rows)}, 验证样本: {len(eval_rows)}")
 
     try:
@@ -248,6 +348,11 @@ def main():
         raise SystemExit(f"ImportError: {e}")
 
     np.random.seed(args.seed)
+    # 只固定 random / numpy 不够：dropout 与权重初始化走 torch 的 RNG，
+    # 不设种子时同一份数据两次训练会得到不同模型（实测 macro-F1 可差 0.05 以上）。
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"设备: {device}")
     if device.type == "cuda":
@@ -311,7 +416,7 @@ def main():
         "model": _rel_to_root(args.model) if os.path.exists(args.model) else args.model,
         "max_len": args.max_len,
         "train_rows": len(train_rows), "eval_rows": len(eval_rows),
-        "train_reviews": len({r[0] for r in train_rows if r[0]}),
+        "train_reviews": len(train_ids),
         "holdout_reviews": len(holdout_ids),
         # 留出 ID 的指纹写进 task_meta，评估时可校验"这组 ID 是否与当前权重同批发布"
         "holdout_sha256": _ids_sha256(holdout_ids) if holdout_ids else "",
@@ -327,21 +432,18 @@ def main():
             with open(os.path.join(d, "holdout_ids.json"), "w", encoding="utf-8") as f:
                 json.dump(holdout_ids, f)
 
-    publish_model(args.out, _save_to, meta)
-
+    # 与金标留出 ID 的对照只是辅助检查，放在发布之前，且任何异常都降为警告：
+    # 旧实现放在发布之后且没有 try/except，gold_eval_ids.json 一旦损坏，
+    # 调用方会看到非零退出码，但模型其实已经被替换，很容易误判"训练失败"。
     if holdout_ids:
-        print(f"留出集 ID 已随模型同批发布: {len(holdout_ids)} 条（来源：本次 --eval 文件）")
-        # 与金标留出 ID 对照，只提示不强制（银标/自定义训练时两者本就不同）
-        ids_path = os.path.normpath(os.path.join(HERE, "..", "data", "annotation", "gold_eval_ids.json"))
-        if os.path.exists(ids_path):
-            with open(ids_path, encoding="utf-8") as f:
-                gold_ids = set(json.load(f))
-            if set(holdout_ids) != gold_ids:
-                print(f"提示: 本次 eval 评论({len(holdout_ids)}条)与 gold_eval_ids.json"
-                      f"({len(gold_ids)}条)不同，已按实际 eval 生成留出 ID（银标/自定义训练属正常情况）。")
+        _report_gold_compare(holdout_ids)
     else:
         print("警告: 本次训练未产出 holdout_ids.json，严格留出集评估将拒绝在该模型上运行。")
 
+    args.out = publish_model(args.out, _save_to, meta)
+
+    if holdout_ids:
+        print(f"留出集 ID 已随模型同批发布: {len(holdout_ids)} 条（来源：本次 --eval 文件）")
     print(f"\n模型已保存: {args.out}")
 
 

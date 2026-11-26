@@ -221,23 +221,37 @@ $env:HF_ENDPOINT = "https://hf-mirror.com"
 
 - 金标：语义理解逐条标注 240 条评论（跨 12 款游戏），
   合并进 `data/annotation/annotation_tasks.csv` 的 `gold_aspects_json` 列；
-  唯一评论文本 239 条（1 条重复文本）。
-- 切分：`prepare_gold_3way.py` 按**评论** 8:2 划分（不是按三元组，避免同一评论
-  同时出现在训练和测试），每条评论抽取未提及主题作 neutral 负例（默认 3 个）。
-  - 训练集：`rbt3_aspect_train.csv`，957 个三元组 / **192 条评论**
-    （positive 195 / negative 156 / neutral 606）
-  - 测试集：`rbt3_aspect_eval.csv`，251 个三元组 / **48 条评论**
-    （positive 64 / negative 35 / neutral 152）
-  - 训练与测试的评论文本交集为 0（已校验）。
+  唯一评论文本 239 条：其中评论 93940703 与 33393799 的文本完全相同，切分时按同一组处理。
+- 切分：`prepare_gold_3way.py` 按**评论组** 8:2 划分，每条评论抽取未提及主题作 neutral
+  负例（默认 3 个）。分组用并查集（`code/split_utils.py`，金标与银标共用）把
+  「同一 review_id」与「文本完全相同的不同 review_id」连成一组，整组同进同出。
+  标注集里恰有一组重复文本（评论 93940703 与 33393799 内容一字不差），只按 review_id
+  切分会让它俩分处两侧，训练前置校验必然拒绝——现在两者固定落在同一侧。
+  - 训练集：`rbt3_aspect_train.csv`，958 个三元组 / **192 条评论**
+    （positive 193 / negative 157 / neutral 608）
+  - 测试集：`rbt3_aspect_eval.csv`，250 个三元组 / **48 条评论**
+    （positive 66 / negative 34 / neutral 150）
+  - 训练与测试的评论文本交集为 0、review_id 交集为 0（切分脚本运行时会自检并打印）。
 - 严格留出集 ID：训练数据 CSV 首列即 `review_id`，训练脚本直接取**本次 `--eval` 文件里
   实际出现的 review_id**，与权重同批写入模型目录 `data/rbt3_model_aspect/holdout_ids.json`，
-  并在 `task_meta.json` 记录这组 ID 的 `holdout_sha256` 指纹；评估脚本 `--heldout` 只读模型目录那份，
-  缺文件、留出集为空、或指纹与元数据不符都会直接报错退出（不再静默回退旧留出集），
-  确需沿用旧口径要显式加 `--allow-fallback-ids`。
-- 训练前校验（**全部在创建模型目录之前完成**）：train/eval 的评论文本集合与 review_id 集合
-  双双零重叠，验证集必须带 `review_id`；任一项不过立即非零退出，已有模型权重原样保留。
-  权重与 `holdout_ids.json` 先写临时目录、成功后再整体替换目标目录，不会出现
-  "校验失败但权重已覆盖、留出 ID 还是旧的"这种错配。
+  并在 `task_meta.json` 记录这组 ID 的 `holdout_sha256` 指纹。
+- 严格评估的指纹校验（不再有"元数据缺失就放行"的缺口）：
+  - `task_meta.json` 缺失 / 内容为 `{}` / 缺 `holdout_sha256` / 值为空串 / 指纹与留出 ID 不符，
+    一律非零退出；
+  - 校验对象是**实际选中的 ID 集合**（用该集合现算 sha256 与模型记录比对），因此
+    `--eval-ids` 指向别处、把过期文件复制到其他路径，同样会被识破；
+  - 留出 ID 有部分在标注集里找不到金标时，会打印缺失条数并默认报错，避免悄悄少评一部分；
+  - 确实只要参考数字时显式加 `--allow-unverified-holdout`（或沿用 `--allow-fallback-ids`），
+    输出会明确标为「参考评估」，不会再写成"模型未见过的评论"。
+- 训练前校验（**全部在创建模型目录之前完成**）：
+  - train/eval 的评论文本集合与 review_id 集合双双零重叠；
+  - **两侧**的 `review_id` 都必须完整、为纯数字，并统一转成 int 再比（`"0161798229"` 与
+    `"161798229"` 是同一评论，字符串比较会漏）；
+  - 任一项不过立即非零退出，已有模型权重原样保留。
+- 模型发布契约：权重、分词器、`holdout_ids.json`、`task_meta.json` 先写同级临时目录，
+  再只替换「模型产物」白名单内的文件——输出目录里用户自己的 `train.csv`、`notes.txt`
+  等不会被删；输出路径的尾部反斜杠会先规范化（旧实现会因此拼出目录内部的备份路径，
+  Windows 报 WinError 87）；替换中途失败会删除新文件并把旧产物移回。
 - 金标唯一来源：`annotation_tasks.csv` 的 `gold_aspects_json`。新增标注用
   `merge_gold.py` 合并后，训练与评估都会自动纳入，无需改代码里的固定字典。
 - 银标演示（可选）：`prepare_rbt3_data_v2.py --source rule --item-only --limit 20000`
@@ -248,9 +262,10 @@ $env:HF_ENDPOINT = "https://hf-mirror.com"
 **交付前自检加固（本轮补充，均可用命令直接验证）**
 
 - `code/verify_split_guard.py` 为**纯标准库**实现（不需要 torch / numpy / pandas / pyarrow），
-  干净 Python 解释器即可跑完 27 项回归；`evaluate_full.py` 不带 `--rbt3` 时同样零第三方依赖。
-- 原子发布补了**回滚分支**：目标目录被占用导致替换失败时，会把旧模型目录改回来，
-  不会出现"保存失败 → 模型目录消失"。守卫测试用例 6 用打桩 `os.replace` 覆盖了这条路径。
+  干净 Python 解释器即可跑完 49 项回归；`evaluate_full.py` 不带 `--rbt3` 时同样零第三方依赖。
+- 原子发布补了**回滚分支**：只替换模型产物（权重/分词器/元数据），目录里的用户文件原样保留；
+  替换中途失败会删除新文件并把旧产物移回。守卫测试用例 6 用打桩 `shutil.move` 覆盖了这条路径，
+  同时覆盖"输出路径尾部带分隔符"（旧实现会因此报 WinError 87）与"目录内非模型文件保留"。
 - 切分随机性按层固定种子：`--item-only` 与"两层全跑"得到的条目层切分**完全一致**
   （615/154，可直接 `diff` 两个文件验证），不再依赖前面那层跑没跑。
 - `task_meta.json` 里的 `train_file` / `eval_file` / `model` 改为仓库相对路径，
@@ -264,9 +279,9 @@ $env:HF_ENDPOINT = "https://hf-mirror.com"
 
 | 方法 | micro-F1 | macro-F1 |
 |---|---:|---:|
-| voted_up（基线） | 0.6542 | 0.5885 |
-| rule_absm（规则） | 0.2687 | 0.2122 |
-| RBT3（金标微调） | 0.6256 | 0.5518 |
+| voted_up（基线） | 0.8169 | 0.8299 |
+| rule_absm（规则） | 0.2836 | 0.2936 |
+| RBT3（金标微调） | 0.5361 | 0.5255 |
 
 > RBT3 比纯规则高约 36 个百分点，证明模型路线有效；
 > 略低于 voted_up 是因为金标样本仅 240 条、且整体好评占比高，

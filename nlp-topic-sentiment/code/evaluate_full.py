@@ -97,12 +97,42 @@ def _sha256_ids(ids):
     return hashlib.sha256(json.dumps(sorted(ids)).encode("utf-8")).hexdigest()
 
 
+def _load_meta(model_dir):
+    """读取模型元数据，返回 (meta, 问题描述)。问题描述为空串表示指纹可用。"""
+    p = os.path.join(model_dir, "task_meta.json")
+    if not os.path.exists(p):
+        return None, "模型目录缺少 task_meta.json"
+    try:
+        with open(p, encoding="utf-8") as f:
+            meta = json.load(f)
+    except Exception as e:
+        return None, f"task_meta.json 解析失败（{type(e).__name__}）"
+    if not isinstance(meta, dict):
+        return None, "task_meta.json 不是 JSON 对象"
+    want = str(meta.get("holdout_sha256") or "").strip()
+    if not want:
+        return meta, "task_meta.json 缺少可用的 holdout_sha256"
+    if len(want) != 64 or any(c not in "0123456789abcdef" for c in want.lower()):
+        return meta, "task_meta.json 的 holdout_sha256 格式非法"
+    return meta, ""
+
+
 def resolve_holdout_ids(args):
     """确定严格评估用的留出集 ID，并校验它确实属于当前模型。
 
-    优先级：--eval-ids 显式指定 > 模型目录 holdout_ids.json >（需显式放行）标注集 gold_eval_ids.json。
-    默认不再静默回退：模型目录没有 holdout_ids.json 时直接中止，否则会把训练见过的评论
-    当成"模型没见过"来报告。
+    返回 (ids_path, eval_ids, verified, reason)：
+      verified=True  → 留出集指纹与模型记录一致，可作严格口径
+      verified=False → 只能作参考评估（调用方必须把结论改成"参考"）
+
+    与旧实现的关键差别：
+      - 指纹校验**必须**有：task_meta.json 缺失 / 内容为 {} / 缺 holdout_sha256 /
+        值为空串，都视为无法验证，默认直接中止。旧实现只在"文件存在且字段非空"时
+        才比较，四种异常状态全都静默放行，训练评论会被当成留出集。
+      - 校验对象是**实际选中的 ID 集合**（用该集合现算 sha256 与模型记录比对），
+        而不是"文件路径是否等于模型目录那一份"。这样 --eval-ids 指向别处、
+        或把过期文件复制到其他路径，同样会被识破。
+      - 确实需要未验证的 ID 时，必须显式 --allow-unverified-holdout（或沿用
+        --allow-fallback-ids），此时输出明确标为参考评估。
     """
     model_dir = args.rbt3_model if os.path.isdir(args.rbt3_model) else \
         os.path.dirname(os.path.abspath(args.rbt3_model))
@@ -110,13 +140,13 @@ def resolve_holdout_ids(args):
     fallback = os.path.join(ANN, "gold_eval_ids.json")
 
     if args.eval_ids:
-        ids_path = args.eval_ids
+        ids_path, src = args.eval_ids, "--eval-ids 显式指定"
     elif os.path.exists(model_ids):
-        ids_path = model_ids
+        ids_path, src = model_ids, "模型目录 holdout_ids.json"
     elif args.allow_fallback_ids and os.path.exists(fallback):
-        ids_path = fallback
+        ids_path, src = fallback, "gold_eval_ids.json（--allow-fallback-ids 回退）"
         print("[警告] 模型目录没有 holdout_ids.json，已按 --allow-fallback-ids 回退到 "
-              "gold_eval_ids.json；这些评论是否参与过该模型训练无法证明，数字只能当参考。")
+              "gold_eval_ids.json；这组评论是否参与过该模型训练无法证明。")
     else:
         raise SystemExit(
             f"[ERROR] 模型目录缺少 holdout_ids.json：{model_dir}\n"
@@ -126,40 +156,44 @@ def resolve_holdout_ids(args):
 
     if not os.path.exists(ids_path):
         raise SystemExit(f"[ERROR] 留出集 ID 文件不存在：{ids_path}")
-    with open(ids_path, encoding="utf-8") as f:
-        eval_ids = set(json.load(f))
+    try:
+        with open(ids_path, encoding="utf-8") as f:
+            eval_ids = {int(x) for x in json.load(f)}
+    except Exception as e:
+        raise SystemExit(f"[ERROR] 留出集 ID 文件无法解析（{type(e).__name__}: {e}）：{ids_path}")
     if not eval_ids:
         raise SystemExit(f"[ERROR] 留出集为空：{ids_path}；0 条评论的评估没有意义，"
                          f"--eval-ids 指向空列表时不会再退出码 0 静默通过。")
 
-    # 与模型指纹比对：task_meta.json 记录了训练时该组留出 ID 的 sha256
-    meta_path = os.path.join(model_dir, "task_meta.json")
-    same_as_model = os.path.abspath(ids_path) == os.path.abspath(model_ids)
-    if same_as_model and os.path.exists(meta_path):
-        with open(meta_path, encoding="utf-8") as f:
-            meta = json.load(f)
-        want = (meta or {}).get("holdout_sha256") or ""
-        if want:
-            got = _sha256_ids(eval_ids)
-            if got != want:
-                raise SystemExit(
-                    f"[ERROR] holdout_ids.json 与模型 task_meta.json 记录的指纹不一致：\n"
-                    f"        实际文件 {got[:16]}… ≠ 元数据 {want[:16]}…\n"
-                    f"        说明这组留出 ID 与当前权重不是同批发布，评估结果不可信。")
+    meta, meta_err = _load_meta(model_dir)
+    want = str((meta or {}).get("holdout_sha256") or "").strip()
+    got = _sha256_ids(eval_ids)
+    verified = bool(want) and got == want
+    reason = ""
+    if not verified:
+        reason = meta_err if not want else (
+            f"留出集 ID 指纹与模型不符（本次选中 {len(eval_ids)} 条，指纹 {got[:16]}… ≠ "
+            f"模型记录 {want[:16]}…）")
 
-    # --eval-ids 是显式覆盖，无法验证它与当前模型配套，但至少要提示差异，
-    # 免得有人把别的模型的留出集套过来当成"模型没见过的数据"。
-    if not same_as_model and os.path.exists(model_ids):
-        try:
-            with open(model_ids, encoding="utf-8") as f:
-                cur = set(json.load(f))
-        except Exception:
-            cur = set()
-        if cur and cur != eval_ids:
-            print(f"[警告] --eval-ids（{len(eval_ids)} 条）与模型目录 holdout_ids.json"
-                  f"（{len(cur)} 条）不一致，已按 --eval-ids 执行；\n"
-                  f"        请自行确认这组评论确实未参与该模型训练，否则数字会偏乐观。")
-    return ids_path, eval_ids
+    if not verified:
+        allow = args.allow_unverified_holdout or args.allow_fallback_ids
+        head = (f"[警告] 无法验证这组留出集是否与当前模型配套：{reason}\n"
+                f"        留出集来源: {src}（{len(eval_ids)} 条）\n"
+                f"        模型目录: {model_dir}")
+        if not allow:
+            raise SystemExit(
+                f"[ERROR] 严格留出集评估已中止。\n"
+                f"        {reason}\n"
+                f"        说明：task_meta.json 里的 holdout_sha256 是训练时与权重同批写出的，\n"
+                f"        缺失或为空就无法证明留出集配套（旧实现会静默放行，把训练见过的评论\n"
+                f"        当成模型没见过）。\n"
+                f"        处理方式：① 用新版 train_rbt3_v2.py 重训；② 若只是想要参考数字，\n"
+                f"        加 --allow-unverified-holdout，输出会明确标为「参考评估」。")
+        flag = "--allow-unverified-holdout" if args.allow_unverified_holdout else "--allow-fallback-ids"
+        print(head)
+        print(f"        已按 {flag} 继续，但本次只能作为参考评估，")
+        print("        不能声称这些评论是模型未见过的。")
+    return ids_path, eval_ids, verified, reason
 
 
 def main():
@@ -171,16 +205,37 @@ def main():
     ap.add_argument("--eval-ids", default="",
                     help="留出集 ID JSON；默认读取模型目录的 holdout_ids.json")
     ap.add_argument("--allow-fallback-ids", action="store_true",
-                    help="模型目录没有 holdout_ids.json 时，允许回退到标注集 gold_eval_ids.json（不保证与模型对应）")
+                    help="模型目录没有 holdout_ids.json 时，允许回退到标注集 gold_eval_ids.json（不保证与模型对应，输出标为参考评估）")
+    ap.add_argument("--allow-unverified-holdout", action="store_true",
+                    help="留出集无法通过模型指纹校验时仍继续评估；输出会明确标为「参考评估」")
+    ap.add_argument("--allow-partial-holdout", action="store_true",
+                    help="留出集 ID 有部分在金标里找不到时仍继续（默认在严格模式下报错）")
     args = ap.parse_args()
 
     data = load_data()
+    verified = False
     if args.heldout:
-        ids_path, eval_ids = resolve_holdout_ids(args)
+        ids_path, eval_ids, verified, reason = resolve_holdout_ids(args)
         data = [d for d in data if d["id"] in eval_ids]
+        matched = {d["id"] for d in data}
+        missing = eval_ids - matched
         if not data:
             raise SystemExit(f"[ERROR] 留出集 ID（{len(eval_ids)} 个）与语义金标样本没有交集，无法评估。")
-        print(f"严格留出集评估：模型未见过的 {len(data)} 条评论（三方法口径一致）")
+        if missing:
+            print(f"[警告] 留出集有 {len(missing)}/{len(eval_ids)} 条 ID 在标注集中找不到对应金标："
+                  f"{sorted(missing)[:5]}{' …' if len(missing) > 5 else ''}")
+            if verified and not args.allow_partial_holdout:
+                raise SystemExit(
+                    f"[ERROR] 严格口径要求留出集 ID 全部能匹配金标，实际缺失 {len(missing)} 条。\n"
+                    f"        常见原因：留出集来自另一份标注数据，或标注集被裁剪过，\n"
+                    f"        照此评估会悄悄少评一部分评论。确认可接受时加 --allow-partial-holdout。")
+        print(f"留出集匹配金标: {len(matched)}/{len(eval_ids)} 条")
+        if verified:
+            print(f"严格留出集评估：模型未见过的 {len(data)} 条评论（三方法口径一致）")
+        else:
+            print(f"参考评估：{len(data)} 条评论（留出集未通过模型指纹校验，"
+                  f"不能声称模型未见过这些评论）")
+            print(f"未通过原因: {reason}")
         print(f"留出集来源: {ids_path}\n")
     else:
         print(f"语义金标样本: {len(data)} 条\n")
@@ -253,9 +308,12 @@ def main():
         if rbt3_failed:
             print("说明：本次仅完成 ① voted_up 与 ② rule_absm 两个基线；RBT3 评估失败，")
             print("      三项对比尚未完成，不能据此写'三方法均已评估'的结论。")
-        else:
+        elif verified:
             print(f"说明：严格留出集口径。三方法都在 RBT3 未见过的 {len(data)} 条 eval 评论上评估，")
-            print("      留出集以模型目录 holdout_ids.json（或 --eval-ids）为准，可直接写进报告。")
+            print("      留出集指纹与模型 task_meta.json 一致，可直接写进报告。")
+        else:
+            print("说明：参考评估。留出集未能与模型指纹对上（见上方警告），")
+            print("      这些评论是否参与过该模型训练无法证明，不可作为严格留出集结论写入报告。")
     else:
         print(f"说明：在全体 {len(data)} 条语义金标上评估（含 RBT3 训练用过的评论，数字偏乐观）。")
         print("      写报告请用 --heldout 的严格留出集数字。")

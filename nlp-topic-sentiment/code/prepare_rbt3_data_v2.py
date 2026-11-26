@@ -27,6 +27,10 @@ import json
 import random
 import argparse
 
+# 分组切分逻辑与金标共用一份实现（split_utils.py）。
+# 不同 review_id 但文本完全相同时，也必须整组同进同出，否则仍会产出无法训练的数据。
+from split_utils import group_by_review
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ANN_DIR = os.path.normpath(os.path.join(HERE, "..", "data", "annotation"))
 RESULT_DIR = os.path.normpath(os.path.join(HERE, "..", "data", "result"))
@@ -141,36 +145,6 @@ def split_write(triples, prefix, ratio, suffix="", seed=None):
     print(f"    分组 {len(groups)} 个 | 评论 ID 重叠 {len(tr_ids & ev_ids)} | "
           f"文本重叠 {len(tr_tx & ev_tx)}")
     return len(train), len(ev)
-
-
-def group_by_review(triples):
-    """并查集：把 review_id 与文本连成连通分量，返回 {组根: [三元组...]}。"""
-    parent = {}
-
-    def find(x):
-        parent.setdefault(x, x)
-        root = x
-        while parent[root] != root:
-            root = parent[root]
-        while parent[x] != root:      # 路径压缩
-            parent[x], x = root, parent[x]
-        return root
-
-    def union(a, b):
-        ra, rb = find(a), find(b)
-        if ra != rb:
-            parent[rb] = ra
-
-    for rid, text, _key, _sent in triples:
-        # 没有 review_id 时退化为纯按文本分组
-        union(("r", rid) if rid else ("t", text), ("t", text))
-
-    groups = {}
-    for t in triples:
-        rid, text = t[0], t[1]
-        node = ("r", rid) if rid else ("t", text)
-        groups.setdefault(find(node), []).append(t)
-    return groups
 
 
 def main():
