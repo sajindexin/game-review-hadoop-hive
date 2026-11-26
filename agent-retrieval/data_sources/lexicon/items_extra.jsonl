@@ -1,0 +1,75 @@
+{"item_id": "D01", "patch_id": "rust_20230706_deep_sea", "synonyms": ["海浪", "水面", "浪花", "水花", "海面", "water", "waves", "ocean", "海浪改版", "水面效果", "水面过渡", "半浸没水面"], "negative": ["出海", "航海", "船只", "潜水", "河流"], "source": "manual+llm"}
+{"item_id": "D02", "patch_id": "rust_20230706_deep_sea", "synonyms": ["tug", "可驾驶拖船", "拖船建家", "拖船放置物品", "拖船安门"], "negative": ["小艇", "货船", "渡轮", "帆船"], "source": "manual+llm"}
+{"item_id": "D03", "patch_id": "rust_20230706_deep_sea", "synonyms": ["码头", "渡轮", "ferry", "渡轮码头据点", "码头回收机", "渡轮地铁", "渡轮码头回收机"], "negative": ["港口", "一般码头", "地铁站", "回收机"], "source": "manual+llm"}
+{"item_id": "D04", "patch_id": "rust_20230706_deep_sea", "synonyms": ["深渊皮肤", "潜水服", "深渊包", "外观包", "skin pack", "深渊物品包", "深渊外观", "深渊工具外观"], "negative": ["dlc", "价格", "商店", "外观包"], "source": "manual+llm"}
+{"item_id": "W01", "patch_id": "rust_20241003_world_2", "synonyms": ["辐射镇回归", "新辐射镇", "辐射镇重做", "辐射镇路线"], "negative": ["辐射区", "辐射伤害", "辐射废土", "辐射怪物"], "source": "manual+llm"}
+{"item_id": "W02", "patch_id": "rust_20241003_world_2", "synonyms": ["悬崖重做", "悬崖地形", "悬崖通行", "攀爬悬崖"], "negative": ["岩石", "山脉", "斜坡", "地形生成"], "source": "manual+llm"}
+{"item_id": "W03", "patch_id": "rust_20241003_world_2", "synonyms": ["大型岩石", "大型岩石地貌", "岩石组合"], "negative": ["采石", "小岩石", "矿石", "石头"], "source": "manual+llm"}
+{"item_id": "W04", "patch_id": "rust_20241003_world_2", "synonyms": ["绿洲", "峡谷", "湖泊", "程序生成峡谷", "沙漠湖泊"], "negative": ["河流", "河道", "海洋", "丛林"], "source": "manual+llm"}
+{"item_id": "W05", "patch_id": "rust_20241003_world_2", "synonyms": ["河流改版", "河道延长", "河流流向", "自然河流"], "negative": ["过河", "丛林", "湖泊", "峡谷"], "source": "manual+llm"}
+{"item_id": "J01", "patch_id": "rust_20250501_jungle", "synonyms": ["丛林生物群系", "新手海岸丛林", "温带海岸丛林", "丛林海岸"], "negative": ["出生点", "海岸", "温带", "丛林动物"], "source": "manual+llm"}
+{"item_id": "J02", "patch_id": "rust_20250501_jungle", "synonyms": ["虎豹鳄蛇", "新野生动物", "丛林动物"], "negative": ["玩家昵称", "宠物", "家畜", "动物园"], "source": "manual+llm"}
+{"item_id": "J03", "patch_id": "rust_20250501_jungle", "synonyms": ["藤蔓移动", "藤蔓荡跃", "攀爬树木", "藤蔓下地", "树枝间移动"], "negative": ["滑索", "梯子", "攀岩", "绳索"], "source": "manual+llm"}
+{"item_id": "J04", "patch_id": "rust_20250501_jungle", "synonyms": ["塔庙", "阶梯塔庙", "丛林神庙", "遗迹探索", "新遗迹", "丛林地点"], "negative": ["沙漠遗迹", "海底遗迹", "矿洞", "普通神庙"], "source": "manual+llm"}
+{"item_id": "J05", "patch_id": "rust_20250501_jungle", "synonyms": ["过河要游泳", "河流加宽", "涉水变游泳", "游泳渡河", "河流通行"], "negative": ["划船", "桥梁", "钓鱼", "瀑布"], "source": "manual+llm"}
+{"item_id": "J06", "patch_id": "rust_20250501_jungle", "synonyms": ["吹镖", "投掷回旋镖", "多种吹箭"], "negative": ["弓箭", "飞镖", "弹弓", "长矛"], "source": "manual+llm"}
+{"item_id": "J07", "patch_id": "rust_20250501_jungle", "synonyms": ["丛林包", "丛林dlc", "付费丛林包", "丛林主题包"], "negative": ["其他dlc", "月度订阅", "免费更新", "游戏本体"], "source": "manual+llm"}
+{"item_id": "J08", "patch_id": "rust_20250501_jungle", "synonyms": ["售货机当冰箱", "冷冻图标", "售货机冰箱", "物品冷藏提示"], "negative": ["普通售卖", "自动售货", "冰箱购买", "饮料机"], "source": "manual+llm"}
+{"item_id": "J09", "patch_id": "rust_20250501_jungle", "synonyms": ["鸡舍尺寸", "鸡舍布局", "鸡光照加快", "鸡舍调整", "鸡舍吸附"], "negative": ["鸡舍购买", "养鸡数量", "鸡蛋产出", "动物饲料"], "source": "manual+llm"}
+{"item_id": "J10", "patch_id": "rust_20250501_jungle", "synonyms": ["传送带性能", "网络缓存", "工业传送带优化", "通电传送带", "电路实体性能"], "negative": ["笼统掉帧", "服务器延迟", "显卡性能", "普通卡顿"], "source": "manual+llm"}
+{"item_id": "S14_01", "patch_id": "sdv_20191126_14", "synonyms": ["四块区域农场", "分区农场", "多人分区农场", "四角布局"], "negative": ["联机模式", "标准农场", "其他农场地图", "多人存档"], "source": "manual+llm"}
+{"item_id": "S14_02", "patch_id": "sdv_20191126_14", "synonyms": ["养鱼塘", "鱼塘建筑", "农场鱼塘", "鱼类养殖"], "negative": ["野外水塘", "室内鱼缸", "鱼缸", "池塘", "钓鱼点"], "source": "manual+llm"}
+{"item_id": "S14_03", "patch_id": "sdv_20191126_14", "synonyms": ["影院", "电影馆", "movie cinema", "解锁电影院"], "negative": ["影视作品", "评测类比", "电视", "电影海报", "影院评价"], "source": "manual+llm"}
+{"item_id": "S14_04", "patch_id": "sdv_20191126_14", "synonyms": ["服装染色", "制衣", "做衣服", "染色衣服"], "negative": ["家具染色", "墙壁染色", "帽子", "鞋子", "外观模组"], "source": "manual+llm"}
+{"item_id": "S14_05", "patch_id": "sdv_20191126_14", "synonyms": ["配偶十四心", "十四心剧情", "14心剧情", "配偶事件"], "negative": ["十心事件", "结婚事件", "送礼", "一般结婚", "好感度"], "source": "manual+llm"}
+{"item_id": "S15_01", "patch_id": "sdv_20201221_15", "synonyms": ["姜岛探索", "姜岛地图", "ginger island farm", "姜岛任务", "岛屿探索"], "negative": ["出海", "金核桃", "火山地牢", "海滩农场", "姜岛农场", "普通农场"], "source": "manual+llm"}
+{"item_id": "S15_02", "patch_id": "sdv_20201221_15", "synonyms": ["金色核桃", "walnut", "金核桃收集", "金核桃解锁", "金核桃区域", "核桃解锁"], "negative": ["金色鹦鹉", "普通核桃", "姜岛探索", "火山地牢", "解锁区域"], "source": "manual+llm"}
+{"item_id": "S15_03", "patch_id": "sdv_20201221_15", "synonyms": ["火山", "火山洞", "volcano", "火山洞穴", "火山迷宫", "volcano cave", "姜岛火山", "火山层"], "negative": ["普通矿井", "骷髅洞穴", "矿洞", "沙漠矿洞", "地牢布局"], "source": "manual+llm"}
+{"item_id": "S15_04", "patch_id": "sdv_20201221_15", "synonyms": ["beach", "沙灘農場", "海滩地图", "沙地农场", "海滩开局"], "negative": ["姜岛农场", "草原农场", "普通农场", "海滩农场开局", "洒水器"], "source": "manual+llm"}
+{"item_id": "S15_05", "patch_id": "sdv_20201221_15", "synonyms": ["分屏", "本地合作", "本地联机", "分屏合作", "同设备合作"], "negative": ["远程联机", "在线联机", "多人模式", "普通联机", "服务器"], "source": "manual+llm"}
+{"item_id": "S16_01", "patch_id": "sdv_20240319_16", "synonyms": ["草原地图", "蓝草", "开局鸡舍"], "negative": ["海滩农场", "姜岛农场", "普通农场", "养鸡", "鸡舍"], "source": "manual+llm"}
+{"item_id": "S16_02", "patch_id": "sdv_20240319_16", "synonyms": ["沙漠慶典", "沙漠节日", "沙漠節日", "春季沙漠节", "巴士修好后的节日"], "negative": ["沙漠探矿", "沙漠矿洞", "绿洲", "桑迪"], "source": "manual+llm"}
+{"item_id": "S16_03", "patch_id": "sdv_20240319_16", "synonyms": ["精通机制", "精通能力", "精通奖励", "精通区域"], "negative": ["技能升级", "技能树", "职业选择", "经验值"], "source": "manual+llm"}
+{"item_id": "S16_04", "patch_id": "sdv_20240319_16", "synonyms": ["八人", "多人联机", "multiplayer", "co-op", "八人合作", "八人多人", "联机人数上限", "八人联机模式"], "negative": ["四人联机", "多人模式", "合作模式", "联机功能"], "source": "manual+llm"}
+{"item_id": "S16_05", "patch_id": "sdv_20240319_16", "synonyms": ["多宠物", "养多只宠物", "第二只宠物", "宠物上限"], "negative": ["农场动物", "牲畜", "宠物好感", "宠物领养"], "source": "manual+llm"}
+{"item_id": "S16_06", "patch_id": "sdv_20240319_16", "synonyms": ["书摊", "书商到访", "书商进城", "卖书的商人"], "negative": ["技能书", "捡到书", "图书馆", "博物馆"], "source": "manual+llm"}
+{"item_id": "105600_20200516_01", "patch_id": "steam_105600_20200516", "synonyms": ["旅途难度", "旅行难度", "journey模式", "复制物品模式", "研究物品模式"], "negative": ["大师模式", "专家模式", "普通模式", "难度选择"], "source": "manual+llm"}
+{"item_id": "105600_20200516_02", "patch_id": "steam_105600_20200516", "synonyms": ["大师难度", "大师模式难度", "master模式", "最高难度"], "negative": ["专家模式", "旅途模式", "普通模式", "难度选择"], "source": "manual+llm"}
+{"item_id": "105600_20220928_01", "patch_id": "steam_105600_20220928", "synonyms": ["装备配置切换", "装备切换", "配装切换", "装备方案", "loadout切换"], "negative": ["装备栏", "背包整理", "快捷栏", "饰品栏"], "source": "manual+llm"}
+{"item_id": "105600_20220928_02", "patch_id": "steam_105600_20220928", "synonyms": ["碎石机装饰", "装饰工具", "自然装饰物", "放置装饰", "碎石机制作"], "negative": ["碎石", "石头", "装饰物", "建造工具"], "source": "manual+llm"}
+{"item_id": "1245620_20221207_01", "patch_id": "steam_1245620_20221207", "synonyms": ["竞技场对战", "斗技场对战", "决斗", "混战", "竞技场"], "negative": ["pvp", "联机对战", "入侵", "合作模式"], "source": "manual+llm"}
+{"item_id": "1245620_20221207_02", "patch_id": "steam_1245620_20221207", "synonyms": ["新增发型", "角色发型", "捏脸发型", "创建角色发型", "编辑角色发型", "发型选项", "发型新增"], "negative": ["发型颜色", "发型长度", "发型mod", "角色捏脸", "外观调整"], "source": "manual+llm"}
+{"item_id": "1245620_20240620_01", "patch_id": "steam_1245620_20240620", "synonyms": ["最近获得物品页", "最近物品栏", "最近获得", "最近取得道具", "背包新分页", "最近入手物品", "最近物品分页"], "negative": ["背包整理", "物品排序", "仓库系统", "道具合成", "装备栏"], "source": "manual+llm"}
+{"item_id": "1245620_20240620_02", "patch_id": "steam_1245620_20240620", "synonyms": ["艾兽战灵马", "艾尔登之兽召唤马", "最终战骑马", "骑马打最终boss", "艾尔登之兽战可骑乘", "灵马打艾兽"], "negative": ["骑马战斗", "灵马召唤", "艾尔登之兽打法", "最终boss攻略", "骑马mod"], "source": "manual+llm"}
+{"item_id": "2358720_20240923_01", "patch_id": "steam_2358720_20240923", "synonyms": ["百眼魔君", "百眼", "魔君", "boss", "hundred-eyed", "百眼魔君战斗调整", "百眼魔君难度", "百眼魔君战斗体验", "百眼魔君改动", "百眼魔君削弱", "百眼魔君增强"], "negative": ["百眼魔君位置", "百眼魔君掉落", "百眼魔君剧情", "百眼魔君外观", "百眼魔君任务"], "source": "manual+llm"}
+{"item_id": "2358720_20240923_02", "patch_id": "steam_2358720_20240923", "synonyms": ["狼牙棒", "法力上限", "蓝量", "mana", "wolf fang", "狼牙棒加蓝", "狼牙棒30法力", "狼牙棒属性", "狼牙棒增强", "狼牙棒法力加成"], "negative": ["狼牙棒获取", "狼牙棒位置", "狼牙棒外观", "狼牙棒合成", "狼牙棒其他属性"], "source": "manual+llm"}
+{"item_id": "2358720_20241214_01", "patch_id": "steam_2358720_20241214", "synonyms": ["土地庙", "挑战", "boss 连战", "shrine", "gauntlet", "土地庙挑战", "土地庙复战", "土地庙连战", "挑战旧对手", "连续挑战", "土地庙再战"], "negative": ["土地庙传送", "土地庙存档", "土地庙商店", "土地庙休息", "土地庙功能"], "source": "manual+llm"}
+{"item_id": "2358720_20241214_02", "patch_id": "steam_2358720_20241214", "synonyms": ["旅行图", "travel map", "map", "区域地图", "探索地图", "地图系统", "行旅图功能", "地图查看"], "negative": ["地图标记", "地图传送", "地图mod", "小地图", "地图收集"], "source": "manual+llm"}
+{"item_id": "271590_20230613_01", "patch_id": "steam_271590_20230613", "synonyms": ["颠覆计划任务", "查理里德任务", "对抗梅利威瑟", "颠覆行动", "新任务颠覆计划", "颠覆计划系列", "查理任务"], "negative": ["洛圣都天使行动", "保金执法", "梅利威瑟差事", "查理里德角色", "其他新任务"], "source": "manual+llm"}
+{"item_id": "271590_20230613_02", "patch_id": "steam_271590_20230613", "synonyms": ["lsa任务", "天使行动", "洛圣都天使任务", "天使行动任务", "lsa行动任务"], "negative": ["颠覆计划", "保金执法", "洛圣都天使角色", "天使行动奖励", "其他行动任务"], "source": "manual+llm"}
+{"item_id": "271590_20240625_01", "patch_id": "steam_271590_20240625", "synonyms": ["保金执法事务所", "执法事务所", "追捕悬赏", "保金事务所"], "negative": ["保金执法奖励", "保金执法角色", "保金执法车辆", "保金执法武器", "其他事务所"], "source": "manual+llm"}
+{"item_id": "271590_20240625_02", "patch_id": "steam_271590_20240625", "synonyms": ["警车派遣任务", "警察派遣", "警车任务", "警务派遣", "自由模式派遣"], "negative": ["出租车任务", "消防车任务", "救护车任务", "送货任务"], "source": "manual+llm"}
+{"item_id": "359550_20231206_01", "patch_id": "steam_359550_20231206", "synonyms": ["液氮装置", "液氮罐", "冷冻装置", "减速装置", "tubarão装置"], "negative": ["烟雾弹", "闪光弹", "铁丝网", "防弹摄像头"], "source": "manual+llm"}
+{"item_id": "359550_20231206_02", "patch_id": "steam_359550_20231206", "synonyms": ["巢穴", "新地图", "lair", "巢穴排位", "新地图巢穴", "lair排位", "巢穴地图排位"], "negative": ["俱乐部地图", "边境地图", "木屋地图", "银行地图"], "source": "manual+llm"}
+{"item_id": "359550_20240312_01", "patch_id": "steam_359550_20240312", "synonyms": ["追踪探测器", "追踪器", "标记探测器", "deimos追踪"], "negative": ["心跳传感器", "无人机", "摄像头", "阔剑地雷"], "source": "manual+llm"}
+{"item_id": "359550_20240312_02", "patch_id": "steam_359550_20240312", "synonyms": ["盾牌", "持盾", "shield", "盾牌机制重做", "持盾冲刺", "盾牌改动", "盾牌机制"], "negative": ["盾牌干员", "盾牌皮肤", "盾牌配件", "盾牌伤害"], "source": "manual+llm"}
+{"item_id": "4000_20240313_01", "patch_id": "steam_4000_20240313", "synonyms": ["分享插件预设", "插件预设", "分享预设", "模组预设分享"], "negative": ["插件安装", "插件下载", "插件更新", "插件删除"], "source": "manual+llm"}
+{"item_id": "4000_20240313_02", "patch_id": "steam_4000_20240313", "synonyms": ["复制器保存npc生命值", "复制器生命值", "npc血量保存", "复制器保存血量"], "negative": ["玩家生命值", "复制器模型", "复制器工具", "npc伤害"], "source": "manual+llm"}
+{"item_id": "4000_20250326_01", "patch_id": "steam_4000_20250326", "synonyms": ["treason", "叛徒", "资源挂载", "挂载treason资源", "treason地图", "treason模型", "treason挂载"], "negative": ["挂载其他资源", "treason模组", "treason武器", "treason皮肤"], "source": "manual+llm"}
+{"item_id": "4000_20250326_02", "patch_id": "steam_4000_20250326", "synonyms": ["着色器", "shader", "shaders", "部分自定义着色器支持", "着色器支持", "自定义shader", "模组着色器", "部分着色器"], "negative": ["着色器错误", "着色器编译", "着色器性能", "着色器预设"], "source": "manual+llm"}
+{"item_id": "440_20171020_01", "patch_id": "steam_440_20171020", "synonyms": ["佣兵公园地图", "新地图佣兵公园", "官方地图佣兵公园", "佣兵公园cp"], "negative": ["沙漠地图", "矿山地图", "峡谷地图", "小镇地图"], "source": "manual+llm"}
+{"item_id": "440_20171020_02", "patch_id": "steam_440_20171020", "synonyms": ["喷气背包", "火焰兵推进器", "pyro thruster", "喷气推进器", "火焰兵飞行包", "热能背包"], "negative": ["火箭兵", "士兵火箭跳", "工程师传送器", "侦察兵二段跳"], "source": "manual+llm"}
+{"item_id": "440_20230712_01", "patch_id": "steam_440_20230712", "synonyms": ["新增社区地图", "社区地图", "夏季社区地图", "新地图"], "negative": ["夏季战绘箱", "热能推进器", "地图平衡调整", "官方地图"], "source": "manual+llm"}
+{"item_id": "440_20230712_02", "patch_id": "steam_440_20230712", "synonyms": ["夏季2023战绘箱", "战绘箱", "夏季箱子", "2023夏箱", "战绘收藏箱"], "negative": ["新增社区地图", "热能推进器", "饰品箱", "万圣节箱子"], "source": "manual+llm"}
+{"item_id": "550_20200924_01", "patch_id": "steam_550_20200924", "synonyms": ["灯塔生存战役", "灯塔地图战役", "新战役"], "negative": ["铁铲与草叉", "手柄跳过片头", "生存模式", "对抗模式"], "source": "manual+llm"}
+{"item_id": "550_20200924_02", "patch_id": "steam_550_20200924", "synonyms": ["铁铲与草叉", "近战草叉", "近战铁铲", "铲子近战"], "negative": ["灯塔战役", "手柄跳过片头", "枪械", "投掷物"], "source": "manual+llm"}
+{"item_id": "550_20210708_01", "patch_id": "steam_550_20210708", "synonyms": ["手柄跳过片头崩溃修复", "手柄开场动画崩溃", "片头跳过崩溃", "手柄跳过动画修复"], "negative": ["视野设置可保存", "灯塔战役", "铁铲与草叉", "游戏启动崩溃"], "source": "manual+llm"}
+{"item_id": "550_20210708_02", "patch_id": "steam_550_20210708", "synonyms": ["视野设置可保存", "fov持久化", "视野保存", "fov不重置"], "negative": ["手柄跳过片头崩溃修复", "灯塔战役", "分辨率设置", "灵敏度设置"], "source": "manual+llm"}
+{"item_id": "570_20230420_01", "patch_id": "steam_570_20230420", "synonyms": ["地图变大", "地图扩展", "新地图", "map", "map size", "对战地图扩展", "地图面积扩大", "地图尺寸增加"], "negative": ["全才英雄属性", "先天技能", "地图重做", "新地图"], "source": "manual+llm"}
+{"item_id": "570_20230420_02", "patch_id": "steam_570_20230420", "synonyms": ["全才", "universal", "hero attribute", "全才英雄属性", "全属性英雄", "新英雄属性"], "negative": ["先天技能", "对战地图扩展", "力量英雄", "敏捷英雄"], "source": "manual+llm"}
+{"item_id": "570_20240523_01", "patch_id": "steam_570_20240523", "synonyms": ["先天", "innate", "英雄先天技能", "开局技能", "天生技能", "先天技"], "negative": ["全才英雄属性", "对战地图扩展", "命石", "天赋树"], "source": "manual+llm"}
+{"item_id": "570_20240523_02", "patch_id": "steam_570_20240523", "synonyms": ["命石", "facet", "facets", "选命石", "英雄命石怎么选", "命石系统", "赛前命石"], "negative": ["天赋树", "英雄技能", "版本更新", "命石掉落"], "source": "manual+llm"}
+{"item_id": "730_20240207_01", "patch_id": "steam_730_20240207", "synonyms": ["军备竞赛模式", "军备模式", "军备竞赛地图", "打军备", "军备竞赛玩法"], "negative": ["竞技模式", "休闲模式", "死亡竞赛", "武器升级"], "source": "manual+llm"}
+{"item_id": "730_20240207_02", "patch_id": "steam_730_20240207", "synonyms": ["贴纸自由摆放", "贴纸旋转", "贴纸角度", "贴纸摆放", "自由放贴纸"], "negative": ["贴纸刮擦", "贴纸胶囊", "印花", "贴纸市场"], "source": "manual+llm"}
+{"item_id": "730_20241002_01", "patch_id": "steam_730_20241002", "synonyms": ["军械库", "通行证", "battle pass", "军械库点数", "武库点数", "军械库兑换"], "negative": ["大行动通行证", "战斗通行证", "优先状态", "经验加成"], "source": "manual+llm"}
+{"item_id": "730_20241002_02", "patch_id": "steam_730_20241002", "synonyms": ["挂件", "吊饰", "挂饰", "charm", "charms", "枪挂件", "挂件拆卸", "拆卸工具", "枪械挂件"], "negative": ["外挂", "开挂", "贴纸", "印花", "喷漆", "挂件箱"], "source": "manual+llm"}
