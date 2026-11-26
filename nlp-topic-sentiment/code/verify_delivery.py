@@ -7,6 +7,7 @@ import os
 import sys
 import json
 import csv
+import gzip
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, ".."))
@@ -51,12 +52,17 @@ def main():
              ("topic_distribution.csv", 20), ("item_sentiment_detail.csv", 100),
              ("item_distribution.csv", 10), ("item_patch_summary.csv", 5)]
     for f, min_rows in specs:
+        # 大表只提交 .csv.gz（未压缩版被 .gitignore 排除），干净 clone 里需要用 gz 兜底
         p = os.path.join(res, f)
-        exists = os.path.exists(p)
-        if exists:
-            with open(p, encoding="utf-8-sig") as fh:
+        if not os.path.exists(p):
+            p_gz = p + ".gz"
+            p = p_gz if os.path.exists(p_gz) else p
+        if os.path.exists(p):
+            opener = gzip.open if p.endswith(".gz") else open
+            with opener(p, "rt", encoding="utf-8-sig") as fh:
                 n = sum(1 for _ in fh) - 1
-            ok &= check(n >= min_rows, f"{f}: {n} 行")
+            tag = "（gz）" if p.endswith(".gz") else ""
+            ok &= check(n >= min_rows, f"{f}: {n} 行{tag}")
         else:
             ok &= check(False, f"{f} 不存在")
 
@@ -96,6 +102,35 @@ def main():
                 "Hive SQL 使用引号 CSV SerDe 并跳过表头")
     ok &= check("主题层匹配数" in sql and "主题层未匹配数" in sql,
                 "Hive 指标 11 输出两层匹配/未匹配数")
+
+    print("\n=== 5b. 本轮复审修复不变量 ===")
+    # 1) escapeChar 不能是反斜杠（否则 OpenCSV 2.3 破坏 JSON 里的 \"）
+    import re
+    esc_vals = re.findall(r'"escapeChar"\s*=\s*"([^"]*)"', sql)
+    ok &= check(bool(esc_vals) and all(v != "\\\\" for v in esc_vals),
+                f"Hive escapeChar 非反斜杠（实际 {esc_vals}）")
+    # 2) 指标 10 显式按 window_bucket 过滤窗口内阶段
+    ok &= check("window_bucket IN ('pre_14d', 'release_day', 'post_14d')" in sql,
+                "Hive 指标 10 已限定窗口内阶段（排除 out_of_window）")
+    # 3) 所有中文别名均已加反引号
+    unquoted = [l.strip() for l in sql.splitlines()
+                if re.search(r'AS\s+[\u4e00-\u9fff]', l) or re.search(r'ORDER BY\s+[\u4e00-\u9fff]', l)]
+    ok &= check(not unquoted, "Hive 中文别名全部加反引号")
+    # 4) 训练/评估统一从标注集读 gold，不再依赖固定 GOLD 字典
+    src_train = open(os.path.join(HERE, "prepare_gold_3way.py"), encoding="utf-8").read()
+    src_eval = open(os.path.join(HERE, "evaluate_full.py"), encoding="utf-8").read()
+    ok &= check("from gold_annotations import GOLD" not in src_train and
+                "from gold_annotations import GOLD" not in src_eval,
+                "训练与评估均不再使用固定 GOLD 字典")
+    ok &= check("def load_gold" in src_train and "def load_gold" in src_eval,
+                "训练与评估均从标注集读取 gold")
+    # 5) 银标写独立文件，不覆盖金标
+    src_prep = open(os.path.join(HERE, "prepare_rbt3_data_v2.py"), encoding="utf-8").read()
+    ok &= check('suffix="_silver"' in src_prep and "--item-only" in src_prep,
+                "银标写独立 *_silver 文件并支持 --item-only")
+    # 6) 评估失败返回非零
+    ok &= check("raise SystemExit(2)" in src_eval,
+                "--rbt3 评估失败时返回非零退出码")
 
     print("\n=== 6. 脚本可导入 ===")
     for m in ("item_matcher", "build_item_results", "build_item_taxonomy",

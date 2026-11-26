@@ -42,16 +42,20 @@ def parse_args():
                     help="gold 模式下每条评论抽多少个未提及主题作 neutral 负例")
     ap.add_argument("--limit", type=int, default=0,
                     help="每层最多保留多少三元组（随机抽样），0=全部；银标演示建议 20000")
+    ap.add_argument("--item-only", action="store_true",
+                    help="只生成条目层银标数据，不触碰主题层金标 train/eval（推荐用于银标演示）")
     return ap.parse_args()
 
 
-def split_write(triples, prefix, ratio):
+def split_write(triples, prefix, ratio, suffix=""):
+    """suffix='' 写金标文件；suffix='_silver' 写银标独立文件，绝不覆盖金标。"""
     random.shuffle(triples)
     split = int(len(triples) * ratio)
     train, ev = triples[:split], triples[split:]
     cols = {"aspect": ["review_text", "aspect", "sentiment"],
             "item": ["review_text", "item_id", "sentiment"]}[prefix]
-    for name, rows in [(f"rbt3_{prefix}_train.csv", train), (f"rbt3_{prefix}_eval.csv", ev)]:
+    for name, rows in [(f"rbt3_{prefix}{suffix}_train.csv", train),
+                       (f"rbt3_{prefix}{suffix}_eval.csv", ev)]:
         path = os.path.join(ANN_DIR, name)
         with open(path, "w", encoding="utf-8-sig", newline="") as f:
             w = csv.writer(f)
@@ -138,11 +142,18 @@ def main():
             print("  条目层验收请使用规则模式：infer_rbt3_v2.py --rule-fallback")
             print("  如需训练条目模型，请先补充 gold_items_json 再重跑本脚本。")
     else:
-        print(f"第一层(主题)三元组: {len(aspect_triples)}")
-        n1 = split_write(aspect_triples, "aspect", args.ratio)
-        print(f"第二层(条目)三元组: {len(item_triples)}")
-        n2 = split_write(item_triples, "item", args.ratio)
-        print(f"\n完成: 主题层 train/eval={n1}, 条目层 train/eval={n2}")
+        # 银标一律写独立 *_silver 文件，绝不覆盖金标 train/eval 与 gold_eval_ids.json
+        n1 = (0, 0)
+        if not args.item_only:
+            print(f"第一层(主题)银标三元组: {len(aspect_triples)}")
+            n1 = split_write(aspect_triples, "aspect", args.ratio, suffix="_silver")
+        else:
+            print("第一层(主题): --item-only，跳过主题层（金标 train/eval 保持不变）")
+        print(f"第二层(条目)银标三元组: {len(item_triples)}")
+        n2 = split_write(item_triples, "item", args.ratio, suffix="_silver")
+        print(f"\n完成: 主题层银标 train/eval={n1}, 条目层银标 train/eval={n2}")
+        print("注意: 银标文件独立保存，金标文件与 gold_eval_ids.json 未被改动；")
+        print("      训练时请用 --train/--eval 显式指向银标文件，留出 ID 将按实际 eval 文本生成。")
 
 
 if __name__ == "__main__":

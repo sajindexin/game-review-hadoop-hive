@@ -14,6 +14,12 @@ data/result/topic_sentiment_detail.csv
 你现在该怎么做.md
 data/annotation/tasks_embed.js
 
+# 银标演示产物（--source rule 生成，可随时重建；不覆盖金标，也不提交）
+data/annotation/rbt3_aspect_silver_train.csv
+data/annotation/rbt3_aspect_silver_eval.csv
+data/annotation/rbt3_item_silver_train.csv
+data/annotation/rbt3_item_silver_eval.csv
+
 # 运行缓存与备份
 __pycache__/
 *.py[cod]

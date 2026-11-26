@@ -19,6 +19,13 @@
 -- ------------------------------------------------------------
 -- 重要：交付 CSV 含表头、带引号字段、字段内逗号（如 aspects_json）。
 -- 先用 OpenCSVSerde 读原始文本（全 STRING、跳过表头），再显式 CAST 生成分析用表。
+--
+-- 转义规则（务必保持）：CSV 由 pandas/pyarrow 按 RFC4180 写出——字段内的双引号
+-- 用『双写引号 ""』表示，反斜杠只是普通字符。因此 escapeChar 不能设为 '\\'，
+-- 否则 OpenCSV 2.3（Hive 3.1.3 内置）会把 JSON 里的 \" 误当转义、破坏字段。
+-- 这里统一用 '!' 作 escapeChar：已核验四张交付 CSV 全文均不含 '!'，
+-- 故它不会触发任何转义，标准双写引号得以正确还原，aspects_json 可被 JSON 解析。
+-- 若将来数据可能含 '!'，需先用相同解析器验证，或改用不含的控制字符。
 -- ------------------------------------------------------------
 CREATE DATABASE IF NOT EXISTS nlp_topic;
 USE nlp_topic;
@@ -31,7 +38,7 @@ CREATE EXTERNAL TABLE topic_sentiment_detail_raw (
   confidence STRING, sentiment_word STRING, evidence STRING
 ) ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
   WITH SERDEPROPERTIES (
-    "separatorChar" = ",", "quoteChar" = "\"", "escapeChar" = "\\"
+    "separatorChar" = ",", "quoteChar" = "\"", "escapeChar" = "!"
   )
   STORED AS TEXTFILE
   LOCATION '/data/nlp_topic/topic_sentiment_detail'
@@ -44,7 +51,7 @@ CREATE EXTERNAL TABLE topic_sentiment_review_raw (
   neg_aspects STRING, primary_sentiment STRING, aspects_json STRING
 ) ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
   WITH SERDEPROPERTIES (
-    "separatorChar" = ",", "quoteChar" = "\"", "escapeChar" = "\\"
+    "separatorChar" = ",", "quoteChar" = "\"", "escapeChar" = "!"
   )
   STORED AS TEXTFILE
   LOCATION '/data/nlp_topic/topic_sentiment_review'
@@ -58,7 +65,7 @@ CREATE EXTERNAL TABLE item_sentiment_detail_raw (
   matched_term STRING, evidence STRING
 ) ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
   WITH SERDEPROPERTIES (
-    "separatorChar" = ",", "quoteChar" = "\"", "escapeChar" = "\\"
+    "separatorChar" = ",", "quoteChar" = "\"", "escapeChar" = "!"
   )
   STORED AS TEXTFILE
   LOCATION '/data/nlp_topic/item_sentiment_detail'
@@ -69,7 +76,7 @@ CREATE EXTERNAL TABLE item_dict_raw (
   item_id STRING, title STRING, appid STRING, game STRING, aspect STRING, description STRING
 ) ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
   WITH SERDEPROPERTIES (
-    "separatorChar" = ",", "quoteChar" = "\"", "escapeChar" = "\\"
+    "separatorChar" = ",", "quoteChar" = "\"", "escapeChar" = "!"
   )
   STORED AS TEXTFILE
   LOCATION '/data/nlp_topic/item_dict'
@@ -116,46 +123,46 @@ FROM item_dict_raw;
 -- ============================================================
 USE nlp_topic;
 SELECT
-  name_zh AS 主题,
-  aspect  AS 主题ID,
-  COUNT(*) AS 标注总数,
-  SUM(CASE WHEN sentiment='positive' THEN 1 ELSE 0 END) AS 正向,
-  SUM(CASE WHEN sentiment='negative' THEN 1 ELSE 0 END) AS 负向,
-  SUM(CASE WHEN sentiment='neutral'  THEN 1 ELSE 0 END) AS 中性,
-  ROUND(SUM(CASE WHEN sentiment='positive' THEN 1 ELSE 0 END)/COUNT(*), 4) AS 正向占比,
-  ROUND(SUM(CASE WHEN sentiment='negative' THEN 1 ELSE 0 END)/COUNT(*), 4) AS 负向占比
+  name_zh AS `主题`,
+  aspect  AS `主题ID`,
+  COUNT(*) AS `标注总数`,
+  SUM(CASE WHEN sentiment='positive' THEN 1 ELSE 0 END) AS `正向`,
+  SUM(CASE WHEN sentiment='negative' THEN 1 ELSE 0 END) AS `负向`,
+  SUM(CASE WHEN sentiment='neutral'  THEN 1 ELSE 0 END) AS `中性`,
+  ROUND(SUM(CASE WHEN sentiment='positive' THEN 1 ELSE 0 END)/COUNT(*), 4) AS `正向占比`,
+  ROUND(SUM(CASE WHEN sentiment='negative' THEN 1 ELSE 0 END)/COUNT(*), 4) AS `负向占比`
 FROM topic_sentiment_detail
 GROUP BY name_zh, aspect
-ORDER BY 标注总数 DESC;
+ORDER BY `标注总数` DESC;
 
 
 -- ============================================================
 -- 指标 2：按游戏 × 主题的情感分布（12 款游戏横向对比）
 -- ============================================================
 SELECT
-  game_name AS 游戏,
-  name_zh   AS 主题,
-  COUNT(*)  AS 提及数,
-  SUM(CASE WHEN sentiment='positive' THEN 1 ELSE 0 END) AS 正向,
-  SUM(CASE WHEN sentiment='negative' THEN 1 ELSE 0 END) AS 负向,
-  ROUND(AVG(confidence), 3) AS 平均置信度
+  game_name AS `游戏`,
+  name_zh   AS `主题`,
+  COUNT(*)  AS `提及数`,
+  SUM(CASE WHEN sentiment='positive' THEN 1 ELSE 0 END) AS `正向`,
+  SUM(CASE WHEN sentiment='negative' THEN 1 ELSE 0 END) AS `负向`,
+  ROUND(AVG(confidence), 3) AS `平均置信度`
 FROM topic_sentiment_detail
 GROUP BY game_name, name_zh
-ORDER BY game_name, 提及数 DESC;
+ORDER BY game_name, `提及数` DESC;
 
 
 -- ============================================================
 -- 指标 3：主题情感随时间趋势（按天，可看更新前后变化）
 -- ============================================================
 SELECT
-  created_date AS 日期,
-  name_zh      AS 主题,
-  COUNT(*)     AS 提及数,
-  ROUND(SUM(CASE WHEN sentiment='positive' THEN 1 ELSE 0 END)/COUNT(*), 4) AS 正向占比
+  created_date AS `日期`,
+  name_zh      AS `主题`,
+  COUNT(*)     AS `提及数`,
+  ROUND(SUM(CASE WHEN sentiment='positive' THEN 1 ELSE 0 END)/COUNT(*), 4) AS `正向占比`
 FROM topic_sentiment_detail
 WHERE created_date >= '2026-10-01'
 GROUP BY created_date, name_zh
-ORDER BY 主题, 日期;
+ORDER BY `主题`, `日期`;
 
 
 -- ============================================================
@@ -166,16 +173,16 @@ ORDER BY 主题, 日期;
 -- 4a 按 game_version 分组看主题情感（版本维度）
 -- ============================================================
 SELECT
-  game_name   AS 游戏,
-  game_version AS 版本,
-  name_zh     AS 主题,
-  COUNT(*)    AS 提及数,
-  ROUND(SUM(CASE WHEN sentiment='positive' THEN 1 ELSE 0 END)/COUNT(*), 4) AS 正向占比,
-  ROUND(SUM(CASE WHEN sentiment='negative' THEN 1 ELSE 0 END)/COUNT(*), 4) AS 负向占比
+  game_name   AS `游戏`,
+  game_version AS `版本`,
+  name_zh     AS `主题`,
+  COUNT(*)    AS `提及数`,
+  ROUND(SUM(CASE WHEN sentiment='positive' THEN 1 ELSE 0 END)/COUNT(*), 4) AS `正向占比`,
+  ROUND(SUM(CASE WHEN sentiment='negative' THEN 1 ELSE 0 END)/COUNT(*), 4) AS `负向占比`
 FROM topic_sentiment_detail
 WHERE game_version IS NOT NULL AND game_version <> ''
 GROUP BY game_name, game_version, name_zh
-ORDER BY game_name, game_version, 提及数 DESC;
+ORDER BY game_name, game_version, `提及数` DESC;
 
 -- ------------------------------------------------------------
 -- 4b 更新前/后各 14 天窗口对比（示例：黑神话某版本节点 2026-11-10）
@@ -186,11 +193,11 @@ SELECT
     WHEN created_date >= '2026-10-27' AND created_date <  '2026-11-10' THEN '更新前14天'
     WHEN created_date >= '2026-11-10' AND created_date <= '2026-11-23' THEN '更新后14天'
     ELSE '窗口外'
-  END AS 窗口,
-  name_zh AS 主题,
-  COUNT(*) AS 提及数,
-  ROUND(SUM(CASE WHEN sentiment='positive' THEN 1 ELSE 0 END)/COUNT(*), 4) AS 正向占比,
-  ROUND(SUM(CASE WHEN sentiment='negative' THEN 1 ELSE 0 END)/COUNT(*), 4) AS 负向占比
+  END AS `窗口`,
+  name_zh AS `主题`,
+  COUNT(*) AS `提及数`,
+  ROUND(SUM(CASE WHEN sentiment='positive' THEN 1 ELSE 0 END)/COUNT(*), 4) AS `正向占比`,
+  ROUND(SUM(CASE WHEN sentiment='negative' THEN 1 ELSE 0 END)/COUNT(*), 4) AS `负向占比`
 FROM topic_sentiment_detail
 WHERE game_name = 'Black Myth: Wukong'
   AND created_date >= '2026-10-27'
@@ -201,7 +208,7 @@ GROUP BY
     ELSE '窗口外'
   END,
   name_zh
-ORDER BY 窗口, 提及数 DESC;
+ORDER BY `窗口`, `提及数` DESC;
 
 
 -- ============================================================
@@ -209,27 +216,27 @@ ORDER BY 窗口, 提及数 DESC;
 --   用评论级汇总表，检查"整体好评但某主题差"的比例
 -- ============================================================
 SELECT
-  game_name AS 游戏,
-  COUNT(*) AS 中文评论数,
-  ROUND(AVG(CASE WHEN voted_up THEN 1.0 ELSE 0.0 END), 4) AS 整体推荐率,
-  ROUND(AVG(CASE WHEN neg_aspects > 0 THEN 1.0 ELSE 0.0 END), 4) AS 含负向主题占比,
-  ROUND(AVG(CASE WHEN pos_aspects > 0 THEN 1.0 ELSE 0.0 END), 4) AS 含正向主题占比,
-  ROUND(AVG(n_aspects), 2) AS 平均主题数
+  game_name AS `游戏`,
+  COUNT(*) AS `中文评论数`,
+  ROUND(AVG(CASE WHEN voted_up THEN 1.0 ELSE 0.0 END), 4) AS `整体推荐率`,
+  ROUND(AVG(CASE WHEN neg_aspects > 0 THEN 1.0 ELSE 0.0 END), 4) AS `含负向主题占比`,
+  ROUND(AVG(CASE WHEN pos_aspects > 0 THEN 1.0 ELSE 0.0 END), 4) AS `含正向主题占比`,
+  ROUND(AVG(n_aspects), 2) AS `平均主题数`
 FROM topic_sentiment_review
 GROUP BY game_name
-ORDER BY 中文评论数 DESC;
+ORDER BY `中文评论数` DESC;
 
 
 -- ============================================================
 -- 指标 6：混合情感评论数（一句里既有正又有负，如"新关卡好玩但联机掉线"）
 -- ============================================================
 SELECT
-  game_name AS 游戏,
-  COUNT(*) AS 混合情感评论数
+  game_name AS `游戏`,
+  COUNT(*) AS `混合情感评论数`
 FROM topic_sentiment_review
 WHERE pos_aspects > 0 AND neg_aspects > 0
 GROUP BY game_name
-ORDER BY 混合情感评论数 DESC;
+ORDER BY `混合情感评论数` DESC;
 
 
 -- ============================================================
@@ -256,24 +263,28 @@ WHERE a.aspect = 'content'
 -- 演示："哪个官方改动被讨论最多、态度如何"
 -- ------------------------------------------------------------
 SELECT
-  d.game            AS 游戏,
-  i.item_title      AS 更新条目,
-  i.aspect          AS 归属主题,
-  COUNT(*)          AS 提及数,
-  SUM(CASE WHEN i.sentiment='positive' THEN 1 ELSE 0 END) AS 正向,
-  SUM(CASE WHEN i.sentiment='negative' THEN 1 ELSE 0 END) AS 负向,
-  ROUND(SUM(CASE WHEN i.sentiment='positive' THEN 1 ELSE 0 END)/COUNT(*), 4) AS 正向占比,
-  ROUND(SUM(CASE WHEN i.sentiment='negative' THEN 1 ELSE 0 END)/COUNT(*), 4) AS 负向占比
+  d.game            AS `游戏`,
+  i.item_title      AS `更新条目`,
+  i.aspect          AS `归属主题`,
+  COUNT(*)          AS `提及数`,
+  SUM(CASE WHEN i.sentiment='positive' THEN 1 ELSE 0 END) AS `正向`,
+  SUM(CASE WHEN i.sentiment='negative' THEN 1 ELSE 0 END) AS `负向`,
+  ROUND(SUM(CASE WHEN i.sentiment='positive' THEN 1 ELSE 0 END)/COUNT(*), 4) AS `正向占比`,
+  ROUND(SUM(CASE WHEN i.sentiment='negative' THEN 1 ELSE 0 END)/COUNT(*), 4) AS `负向占比`
 FROM item_sentiment_detail i
 JOIN item_dict d ON i.item_id = d.item_id
 GROUP BY d.game, i.item_title, i.aspect
-ORDER BY 提及数 DESC;
+ORDER BY `提及数` DESC;
 
 
 -- ------------------------------------------------------------
 -- 指标 9：更新后有多少评论谈到某条具体改动（用户核心需求）
 --   以姜岛探索(S15_01)为例，结合版本窗口看"更新前 vs 更新后"
 --   把 'S15_01' 换成任意 item_id 即可复用
+--   注意：GROUP BY 只返回实际有记录的窗口；某阶段零条时不会生成对应行，
+--         不能据此说明"四阶段均有值"。需要固定四阶段（含零条补 0）时，
+--         请用 item_patch_summary.csv（已固定四列并补零），或把本查询
+--         LEFT JOIN 到一张 (pre_14d,release_day,post_14d,out_of_window) 维表。
 -- ------------------------------------------------------------
 SELECT
   CASE
@@ -281,10 +292,10 @@ SELECT
     WHEN window_bucket='release_day'THEN '更新当天'
     WHEN window_bucket='post_14d'   THEN '更新后14天'
     ELSE '窗口外'
-  END AS 窗口,
-  COUNT(*) AS 谈到该条目的评论数,
-  ROUND(SUM(CASE WHEN sentiment='positive' THEN 1 ELSE 0 END)/COUNT(*), 4) AS 正向占比,
-  ROUND(SUM(CASE WHEN sentiment='negative' THEN 1 ELSE 0 END)/COUNT(*), 4) AS 负向占比
+  END AS `窗口`,
+  COUNT(*) AS `谈到该条目的评论数`,
+  ROUND(SUM(CASE WHEN sentiment='positive' THEN 1 ELSE 0 END)/COUNT(*), 4) AS `正向占比`,
+  ROUND(SUM(CASE WHEN sentiment='negative' THEN 1 ELSE 0 END)/COUNT(*), 4) AS `负向占比`
 FROM item_sentiment_detail
 WHERE item_id = 'S15_01'
 GROUP BY window_bucket
@@ -294,17 +305,21 @@ ORDER BY window_bucket;
 -- ------------------------------------------------------------
 -- 指标 10：某版本更新后，各具体条目的讨论热度与情感（联动黄静雯版本窗口）
 --   以星露谷 1.5 更新(patch)为例，看窗口内每条改动被谈了多少、态度如何
+--   注意：patch_id 表示『条目自身所属版本』，不再等价于『评论在窗口内』。
+--         必须显式用 window_bucket 限制为窗口内阶段，否则 out_of_window
+--         记录会被计入版本统计（星露谷 1.5 的 764 条里 759 条是窗口外）。
 -- ------------------------------------------------------------
 SELECT
-  patch_id       AS 版本,
-  item_title     AS 更新条目,
-  window_bucket  AS 窗口,
-  COUNT(*)       AS 提及数,
-  ROUND(SUM(CASE WHEN sentiment='positive' THEN 1 ELSE 0 END)/COUNT(*), 4) AS 正向占比
+  patch_id       AS `版本`,
+  item_title     AS `更新条目`,
+  window_bucket  AS `窗口`,
+  COUNT(*)       AS `提及数`,
+  ROUND(SUM(CASE WHEN sentiment='positive' THEN 1 ELSE 0 END)/COUNT(*), 4) AS `正向占比`
 FROM item_sentiment_detail
 WHERE patch_id <> ''
+  AND window_bucket IN ('pre_14d', 'release_day', 'post_14d')
 GROUP BY patch_id, item_title, window_bucket
-ORDER BY patch_id, 提及数 DESC;
+ORDER BY patch_id, `提及数` DESC;
 
 
 -- ------------------------------------------------------------
@@ -312,13 +327,13 @@ ORDER BY patch_id, 提及数 DESC;
 --   检查"姜岛探索(内容)、八人联机(联机)"等条目层结果，聚合后是否与主题层一致
 -- ------------------------------------------------------------
 SELECT
-  i.aspect AS 归属通用主题,
-  COUNT(*) AS 条目层标注数,
-  COUNT(DISTINCT i.review_id) AS 涉及评论数,
-  SUM(CASE WHEN t.review_id IS NOT NULL THEN 1 ELSE 0 END) AS 主题层匹配数,
-  SUM(CASE WHEN t.review_id IS NULL THEN 1 ELSE 0 END) AS 主题层未匹配数,
-  ROUND(SUM(CASE WHEN t.review_id IS NOT NULL THEN 1 ELSE 0 END)/COUNT(*), 4) AS 匹配占比,
-  ROUND(SUM(CASE WHEN i.sentiment='positive' THEN 1 ELSE 0 END)/COUNT(*), 4) AS 条目层正向占比
+  i.aspect AS `归属通用主题`,
+  COUNT(*) AS `条目层标注数`,
+  COUNT(DISTINCT i.review_id) AS `涉及评论数`,
+  SUM(CASE WHEN t.review_id IS NOT NULL THEN 1 ELSE 0 END) AS `主题层匹配数`,
+  SUM(CASE WHEN t.review_id IS NULL THEN 1 ELSE 0 END) AS `主题层未匹配数`,
+  ROUND(SUM(CASE WHEN t.review_id IS NOT NULL THEN 1 ELSE 0 END)/COUNT(*), 4) AS `匹配占比`,
+  ROUND(SUM(CASE WHEN i.sentiment='positive' THEN 1 ELSE 0 END)/COUNT(*), 4) AS `条目层正向占比`
 FROM item_sentiment_detail i
 LEFT JOIN (
   SELECT DISTINCT appid, review_id, aspect
@@ -328,4 +343,4 @@ LEFT JOIN (
  AND i.review_id = t.review_id
  AND i.aspect = t.aspect
 GROUP BY i.aspect
-ORDER BY 条目层标注数 DESC;
+ORDER BY `条目层标注数` DESC;

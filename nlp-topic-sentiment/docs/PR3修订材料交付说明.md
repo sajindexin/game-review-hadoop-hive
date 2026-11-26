@@ -73,6 +73,8 @@ CREATE DATABASE IF NOT EXISTS nlp_topic;
 USE nlp_topic;
 
 -- 原始层：OpenCSVSerde 支持引号与字段内逗号，跳过表头
+-- 注意 escapeChar 必须是数据里不出现的字符（这里用 '!'）：交付 CSV 按 RFC4180
+-- 用双写引号 "" 转义，若设 '\\' 会破坏 aspects_json 里的 \"（已用 OpenCSV 2.3 实测）。
 CREATE EXTERNAL TABLE item_sentiment_detail_raw (
   review_id STRING, appid STRING, game_name STRING, created_date STRING,
   game_version STRING, patch_id STRING, window_bucket STRING, item_id STRING,
@@ -80,7 +82,7 @@ CREATE EXTERNAL TABLE item_sentiment_detail_raw (
   matched_term STRING, evidence STRING
 ) ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
   WITH SERDEPROPERTIES (
-    "separatorChar" = ",", "quoteChar" = "\"", "escapeChar" = "\\"
+    "separatorChar" = ",", "quoteChar" = "\"", "escapeChar" = "!"
   )
   STORED AS TEXTFILE
   LOCATION '/data/nlp_topic/item_sentiment_detail'
@@ -116,19 +118,19 @@ WHERE a.aspect = 'content'
 
 ```sql
 SELECT
-  i.aspect AS 归属通用主题,
-  COUNT(*) AS 条目层标注数,
-  COUNT(DISTINCT i.review_id) AS 涉及评论数,
-  SUM(CASE WHEN t.review_id IS NOT NULL THEN 1 ELSE 0 END) AS 主题层匹配数,
-  SUM(CASE WHEN t.review_id IS NULL THEN 1 ELSE 0 END) AS 主题层未匹配数,
-  ROUND(SUM(CASE WHEN t.review_id IS NOT NULL THEN 1 ELSE 0 END)/COUNT(*), 4) AS 匹配占比,
-  ROUND(SUM(CASE WHEN i.sentiment='positive' THEN 1 ELSE 0 END)/COUNT(*), 4) AS 条目层正向占比
+  i.aspect AS `归属通用主题`,
+  COUNT(*) AS `条目层标注数`,
+  COUNT(DISTINCT i.review_id) AS `涉及评论数`,
+  SUM(CASE WHEN t.review_id IS NOT NULL THEN 1 ELSE 0 END) AS `主题层匹配数`,
+  SUM(CASE WHEN t.review_id IS NULL THEN 1 ELSE 0 END) AS `主题层未匹配数`,
+  ROUND(SUM(CASE WHEN t.review_id IS NOT NULL THEN 1 ELSE 0 END)/COUNT(*), 4) AS `匹配占比`,
+  ROUND(SUM(CASE WHEN i.sentiment='positive' THEN 1 ELSE 0 END)/COUNT(*), 4) AS `条目层正向占比`
 FROM item_sentiment_detail i
 LEFT JOIN (
   SELECT DISTINCT appid, review_id, aspect FROM topic_sentiment_detail
 ) t ON i.appid = t.appid AND i.review_id = t.review_id AND i.aspect = t.aspect
 GROUP BY i.aspect
-ORDER BY 条目层标注数 DESC;
+ORDER BY `条目层标注数` DESC;
 ```
 
 结果（本地等价复算，导出见 `data/result/hive_export/metric11_result.csv`）：
@@ -222,14 +224,19 @@ $env:HF_ENDPOINT = "https://hf-mirror.com"
   唯一评论文本 239 条（1 条重复文本）。
 - 切分：`prepare_gold_3way.py` 按**评论** 8:2 划分（不是按三元组，避免同一评论
   同时出现在训练和测试），每条评论抽取未提及主题作 neutral 负例（默认 3 个）。
-  - 训练集：`rbt3_aspect_train.csv`，957 个三元组 / **191 条评论**
+  - 训练集：`rbt3_aspect_train.csv`，957 个三元组 / **192 条评论**
     （positive 195 / negative 156 / neutral 606）
   - 测试集：`rbt3_aspect_eval.csv`，251 个三元组 / **48 条评论**
     （positive 64 / negative 35 / neutral 152）
   - 训练与测试的评论文本交集为 0（已校验）。
 - 严格留出集 ID：`data/annotation/gold_eval_ids.json`（48 条），
-  训练脚本会把它写入模型目录 `data/rbt3_model_aspect/holdout_ids.json`，
-  评估脚本 `--heldout` 优先读模型目录那份，保证模型与留出集配套。
+  训练脚本按**本次实际 `--eval` 文件的评论文本**回查 review_id，写入模型目录
+  `data/rbt3_model_aspect/holdout_ids.json`，评估脚本 `--heldout` 优先读模型目录那份，
+  保证模型与留出集配套；训练前还会校验 train/eval 评论文本零重叠，有重叠直接报错。
+- 金标唯一来源：`annotation_tasks.csv` 的 `gold_aspects_json`。新增标注用
+  `merge_gold.py` 合并后，训练与评估都会自动纳入，无需改代码里的固定字典。
+- 银标演示（可选）：`prepare_rbt3_data_v2.py --source rule --item-only --limit 20000`
+  只写 `rbt3_item_silver_*.csv`，**不覆盖**金标 train/eval 与留出 ID。
 
 ### 3.6 复跑评估结果（严格留出集，48 条评论，三方法同口径）
 

@@ -177,15 +177,10 @@ def main():
     with open(os.path.join(args.out, "task_meta.json"), "w", encoding="utf-8") as f:
         json.dump({"task": args.task, "model": args.model, "max_len": args.max_len}, f)
 
-    # 把本次 eval 对应的评论 ID 写进模型目录，评估脚本优先读它，避免模型与留出集错配
-    ids_path = os.path.normpath(os.path.join(HERE, "..", "data", "annotation", "gold_eval_ids.json"))
+    # 留出集 ID 必须来自『本次训练实际用的 eval 文件』，而不是固定读 gold_eval_ids.json。
+    # 否则用银标/自定义 eval 训练后，评估仍拿旧金标 ID，可能把训练见过的评论当留出集。
     holdout_ids = []
-    if args.task == "aspect" and os.path.exists(ids_path):
-        # 主题层 eval 由 prepare_gold_3way 按评论切分，gold_eval_ids.json 是权威来源
-        with open(ids_path, encoding="utf-8") as f:
-            holdout_ids = json.load(f)
-    elif args.eval and os.path.exists(args.eval):
-        # 条目层/自定义 eval：按原文回查 review_id
+    if args.eval and os.path.exists(args.eval):
         eval_texts = set()
         with open(args.eval, encoding="utf-8-sig") as f:
             for row in csv.DictReader(f):
@@ -200,10 +195,31 @@ def main():
                             holdout_ids.append(int(row["review_id"]))
                         except (TypeError, ValueError):
                             pass
+
+    # 校验 1：train 与 eval 的评论文本不得重叠（防止"用学生做过的题给他打分"）
+    if args.eval and os.path.exists(args.eval):
+        train_texts = {t.strip() for t, _k, _s in train_rows}
+        overlap = train_texts & eval_texts
+        if overlap:
+            raise SystemExit(
+                f"[ERROR] 训练集与验证集有 {len(overlap)} 条相同评论文本，不能作为严格留出集。"
+                f" 请重新按评论切分（prepare_gold_3way.py --source gold）。"
+            )
+        print(f"留出校验: train/eval 评论文本零重叠（train {len(train_texts)} / eval {len(eval_texts)}）")
+
+    # 校验 2：与金标留出 ID 对照，只提示、不强行采用（银标训练时两者本就不同）
+    ids_path = os.path.normpath(os.path.join(HERE, "..", "data", "annotation", "gold_eval_ids.json"))
+    if os.path.exists(ids_path):
+        with open(ids_path, encoding="utf-8") as f:
+            gold_ids = set(json.load(f))
+        if holdout_ids and set(holdout_ids) != gold_ids:
+            print(f"提示: 本次 eval 评论({len(set(holdout_ids))}条)与 gold_eval_ids.json({len(gold_ids)}条)不同，"
+                  f"已按实际 eval 生成留出 ID（银标/自定义训练属正常情况）。")
+
     if holdout_ids:
         with open(os.path.join(args.out, "holdout_ids.json"), "w", encoding="utf-8") as f:
             json.dump(sorted(set(holdout_ids)), f)
-        print(f"留出集 ID 已随模型保存: {len(set(holdout_ids))} 条")
+        print(f"留出集 ID 已随模型保存: {len(set(holdout_ids))} 条（来源：本次 --eval 文件）")
 
     print(f"\n模型已保存: {args.out}")
 

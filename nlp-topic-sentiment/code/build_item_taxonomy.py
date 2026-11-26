@@ -212,6 +212,18 @@ def main():
     patches_src = _abs_from_root(args.patches) if args.patches else (
         os.path.join(src_dir, "patches", "patches.jsonl") if src_dir else "")
 
+    # 显式指定的输入文件必须存在，否则直接报错，避免静默回退误用旧数据
+    explicit_missing = []
+    if args.items and not os.path.exists(items_src):
+        explicit_missing.append(f"--items: {items_src}")
+    if args.patches and not os.path.exists(patches_src):
+        explicit_missing.append(f"--patches: {patches_src}")
+    if args.source_dir and not src_dir:
+        explicit_missing.append(f"--source-dir: {_abs_from_root(args.source_dir)}（未找到 items/items.jsonl 与 patches/patches.jsonl）")
+    if explicit_missing:
+        raise SystemExit("[ERROR] 显式指定的词典输入不存在，已停止（不回退旧数据）：\n  " +
+                         "\n  ".join(explicit_missing))
+
     use_raw = bool(items_src and patches_src and os.path.exists(items_src) and os.path.exists(patches_src))
     if use_raw:
         print(f"版本源: {src_dir or os.path.dirname(items_src)}")

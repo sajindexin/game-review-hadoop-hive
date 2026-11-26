@@ -113,13 +113,16 @@ $PY = "C:\Users\hgj\.workbuddy\binaries\python\envs\default\Scripts\python.exe"
 # 5) 主题层训练数据：复用 prepare_gold_3way 按评论切分，train/eval 评论零重叠
 & $PY prepare_rbt3_data_v2.py --source gold
 #    条目层目前没有人工金标：脚本会删除旧的空训练文件并提示；条目层验收请用第 4 步规则模式
-#    若只想训一个可演示的条目层模型，可用银标（非金标）：
-#    & $PY prepare_rbt3_data_v2.py --source rule --limit 20000
+#    若只想训一个可演示的条目层模型，用银标（写独立 *_silver 文件，绝不覆盖上面的金标 train/eval）：
+#    & $PY prepare_rbt3_data_v2.py --source rule --item-only --limit 20000
+#    银标训练时 train/eval 要指向 rbt3_item_silver_*.csv；留出 ID 按实际 eval 文本生成。
 
 # 6) 主题层 RBT3 微调；训练脚本会把本次 eval 的评论 ID 写入模型目录 holdout_ids.json
+#    （会先校验 train/eval 评论文本零重叠，有重叠直接报错退出）
 & $PY train_rbt3_v2.py --task aspect --train ..\data\annotation\rbt3_aspect_train.csv --eval ..\data\annotation\rbt3_aspect_eval.csv --epochs 3
 
 # 7) 严格留出集评估：自动读取模型目录 holdout_ids.json（可用 --eval-ids 覆盖）
+#    显式 --rbt3 时若模型加载/评估失败会返回非零退出码，不会误报成功
 & $PY evaluate_full.py --rbt3 --heldout
 
 # 8) 推理：默认按层检测权重，缺权重自动规则回退；--rule-fallback 强制两层规则

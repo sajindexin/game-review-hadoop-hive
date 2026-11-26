@@ -8,11 +8,35 @@
 """
 import os, csv, json, random, argparse
 from collections import defaultdict
-from gold_annotations import GOLD
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ANN = os.path.normpath(os.path.join(HERE, "..", "data", "annotation"))
 TASKS = os.path.join(ANN, "annotation_tasks.csv")
+
+
+def load_gold():
+    """从标注集 gold_aspects_json 读取主题层金标（唯一权威来源）。
+
+    这样 merge_gold.py 合并进来的新增/修改标注都会生效；不再依赖
+    gold_annotations.py 里的固定 GOLD 字典。
+    返回 {review_id(int): [(aspect, sentiment), ...]}
+    """
+    gold = {}
+    with open(TASKS, encoding="utf-8-sig") as f:
+        for r in csv.DictReader(f):
+            gj = (r.get("gold_aspects_json") or "").strip()
+            if not gj:
+                continue
+            try:
+                items = json.loads(gj)
+            except Exception:
+                continue
+            pairs = [(a["aspect"], a["sentiment"]) for a in items
+                     if a.get("aspect") and a.get("sentiment") in ("positive", "negative", "neutral")]
+            # 空数组 [] 表示"该评论已标注、但无可标注主题"，也是一条金标评论，
+            # 需保留（旧 GOLD 字典同样含空列表条目），否则训练评论数会少 4 条。
+            gold[int(r["review_id"])] = pairs
+    return gold
 
 
 def build(neg_per_review=3, ratio=0.8, seed=42):
@@ -24,17 +48,18 @@ def build(neg_per_review=3, ratio=0.8, seed=42):
     from lexicon import ASPECTS
     asp_ids = list(ASPECTS.keys())
 
+    gold_all = load_gold()
     texts = {}
     with open(TASKS, encoding="utf-8-sig") as f:
         for r in csv.DictReader(f):
             rid = int(r["review_id"])
-            if rid in GOLD:
+            if rid in gold_all:
                 texts[rid] = r["review_text"].strip()
 
     random.seed(seed)
     reviews = []
     for rid, text in texts.items():
-        gold = dict(GOLD[rid])  # aspect -> sentiment
+        gold = dict(gold_all[rid])  # aspect -> sentiment（同一 aspect 多条时取最后一条）
         pos_aspects = set(gold.keys())
         neg_candidates = [a for a in asp_ids if a not in pos_aspects]
         random.shuffle(neg_candidates)

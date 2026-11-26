@@ -11,10 +11,32 @@ import os, csv, json, sys, argparse
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from rule_labeler import label_review
-from gold_annotations import GOLD
 
 ANN = os.path.normpath(os.path.join(HERE, "..", "data", "annotation"))
 TASKS = os.path.join(ANN, "annotation_tasks.csv")
+
+
+def load_gold():
+    """从标注集 gold_aspects_json 读取主题层金标（与训练数据同一来源）。
+
+    merge_gold.py 合并进来的新增标注会同时进入训练与评估，避免两者口径不一致。
+    """
+    gold = {}
+    with open(TASKS, encoding="utf-8-sig") as f:
+        for r in csv.DictReader(f):
+            gj = (r.get("gold_aspects_json") or "").strip()
+            if not gj:
+                continue
+            try:
+                items = json.loads(gj)
+            except Exception:
+                continue
+            pairs = [(a["aspect"], a["sentiment"]) for a in items
+                     if a.get("aspect") and a.get("sentiment") in ("positive", "negative", "neutral")]
+            # 空数组 [] 表示"该评论已标注、但无可标注主题"，也是一条金标评论，
+            # 需保留（旧 GOLD 字典同样含空列表条目），否则训练评论数会少 4 条。
+            gold[int(r["review_id"])] = pairs
+    return gold
 
 
 def to_set(aspects):
@@ -57,16 +79,16 @@ def macro_prf(preds, golds):
 
 
 def load_data():
+    gold_all = load_gold()
     data = []
     with open(TASKS, encoding="utf-8-sig") as f:
         for r in csv.DictReader(f):
             rid = int(r["review_id"])
-            if rid not in GOLD:
+            if rid not in gold_all:
                 continue
-            gold = [(a, s) for a, s in GOLD[rid]]
             data.append({"id": rid, "text": r["review_text"],
                          "voted_up": r.get("voted_up", ""),
-                         "gold": set(gold)})
+                         "gold": set(gold_all[rid])})
     return data
 
 
@@ -122,6 +144,7 @@ def main():
     print(f"  macro-F1:     {mf1:.4f}\n")
 
     # ---- 3. rbt3 ----
+    rbt3_failed = False
     if args.rbt3:
         try:
             os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
@@ -155,14 +178,23 @@ def main():
             print(f"  micro-P/R/F1: {p:.4f} / {r:.4f} / {f1:.4f}")
             print(f"  macro-F1:     {mf1:.4f}\n")
         except Exception as e:
-            print(f"RBT3 评估失败: {e}\n")
+            rbt3_failed = True
+            print(f"RBT3 评估失败: {e}\n", file=sys.stderr)
 
     if args.heldout:
-        print(f"说明：严格留出集口径。三方法都在 RBT3 未见过的 {len(data)} 条 eval 评论上评估，")
-        print("      留出集以模型目录 holdout_ids.json（或 --eval-ids）为准，可直接写进报告。")
+        if rbt3_failed:
+            print("说明：本次仅完成 ① voted_up 与 ② rule_absm 两个基线；RBT3 评估失败，")
+            print("      三项对比尚未完成，不能据此写'三方法均已评估'的结论。")
+        else:
+            print(f"说明：严格留出集口径。三方法都在 RBT3 未见过的 {len(data)} 条 eval 评论上评估，")
+            print("      留出集以模型目录 holdout_ids.json（或 --eval-ids）为准，可直接写进报告。")
     else:
-        print("说明：在全体 240 条语义金标上评估（含 RBT3 训练用过的评论，数字偏乐观）。")
+        print(f"说明：在全体 {len(data)} 条语义金标上评估（含 RBT3 训练用过的评论，数字偏乐观）。")
         print("      写报告请用 --heldout 的严格留出集数字。")
+
+    # 显式要求 --rbt3 却没跑成：返回非零退出码，避免自动验收把失败当成成功
+    if args.rbt3 and rbt3_failed:
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":
