@@ -14,6 +14,14 @@
 用法：
   python code/verify_split_guard.py
 退出码 0 表示全部通过（可直接接进 CI 或交付前自检）。
+
+断言口径（防假绿）：
+  「应被拦截」的用例不能只比退出码——缺依赖、缺数据时任何路径都会非零退出，
+  守卫被绕过也照样"通过"。所以每条拦截用例同时要求：
+    ① 日志出现对应报错（[ERROR] / 具体原因）
+    ② 日志没有后续阶段的横幅（训练 "训练样本:" / 评估 "留出集匹配金标"）
+    ③ 未创建模型目录、未改写已有权重
+  这些用例本身是否有效，由 code/verify_guard_mutation.py 注入历史缺陷来验证。
 """
 from __future__ import annotations
 import csv
@@ -151,6 +159,7 @@ def main():
     check(rc != 0, f"文本重叠时退出码非零（实际 {rc}）")
     check("相同评论文本" in log, "报错信息指出评论文本重叠")
     check(not os.path.exists(out_a), "校验失败后没有创建模型目录")
+    check("训练样本:" not in log, "未进入训练阶段（无训练横幅）")
 
     write_csv(os.path.join(tmp, "eval_idoverlap.csv"), hdr, [
         ("1", "姜岛探索太好玩了", "content", "positive"),
@@ -164,6 +173,7 @@ def main():
     check(rc != 0, f"review_id 重叠时退出码非零（实际 {rc}）")
     check("相同 review_id" in log, "报错信息指出 review_id 交叉")
     check(not os.path.exists(out_b), "校验失败后没有创建模型目录")
+    check("训练样本:" not in log, "未进入训练阶段（无训练横幅）")
 
     write_csv(os.path.join(tmp, "eval_noid.csv"), ["review_text", "aspect", "sentiment"], [
         ("音乐很好听", "audio", "positive"),
@@ -176,6 +186,7 @@ def main():
     check(rc != 0, f"验证集缺 review_id 时退出码非零（实际 {rc}）")
     check("缺少 review_id" in log, "报错信息提示缺 review_id 列")
     check(not os.path.exists(out_c), "校验失败后没有创建模型目录")
+    check("训练样本:" not in log, "未进入训练阶段（无训练横幅）")
 
     # 训练集缺 ID：旧实现会跳过这些行，导致两边比不出交集
     write_csv(os.path.join(tmp, "train_noid.csv"), hdr, [
@@ -190,6 +201,7 @@ def main():
     check(rc != 0, f"训练集缺 review_id 时退出码非零（实际 {rc}）")
     check("训练集有" in log and "缺少 review_id" in log, "报错信息指出训练集缺 ID")
     check(not os.path.exists(out_e), "校验失败后没有创建模型目录")
+    check("训练样本:" not in log, "未进入训练阶段（无训练横幅）")
 
     # 前导零：字符串比较会漏，"0161798229" 与 "161798229" 是同一评论
     write_csv(os.path.join(tmp, "train_zeropad.csv"), hdr, [
@@ -207,6 +219,7 @@ def main():
                    "--out", out_f])
     check(rc != 0, f"前导零 ID 被识别为同一评论（退出码 {rc}）")
     check("相同 review_id" in log, "报错信息指出 ID 交叉（按整数比较）")
+    check("训练样本:" not in log, "未进入训练阶段（无训练横幅）")
 
     out_d = os.path.join(tmp, "model_d")
     os.makedirs(out_d, exist_ok=True)
@@ -229,6 +242,7 @@ def main():
     rc, log = run(["code/evaluate_full.py", "--heldout", "--rbt3-model", noids])
     check(rc != 0, f"模型目录缺 holdout_ids.json 时退出码非零（实际 {rc}）")
     check("holdout_ids.json" in log, "报错信息指出缺少 holdout_ids.json")
+    check("留出集匹配金标" not in log, "未进入评估阶段（先拦截再评估）")
 
     empty = os.path.join(tmp, "empty_ids.json")
     with open(empty, "w", encoding="utf-8") as f:
@@ -236,6 +250,7 @@ def main():
     rc, log = run(["code/evaluate_full.py", "--heldout", "--eval-ids", empty])
     check(rc != 0, f"留出集为空时退出码非零（实际 {rc}）")
     check("留出集为空" in log, "报错信息指出留出集为空")
+    check("留出集匹配金标" not in log, "未进入评估阶段（先拦截再评估）")
 
     # 5c. 元数据四种异常：缺失 / {} / 缺字段 / 空串，都不得放行
     for name in ("missing", "empty_obj", "no_sha", "blank_sha"):
@@ -259,6 +274,11 @@ def main():
         rc, log = run(["code/evaluate_full.py", "--heldout", "--rbt3-model", d])
         check(rc != 0 and "严格留出集评估已中止" in log,
               f"元数据异常（{name}）时中止（退出码 {rc}）")
+        # 只看退出码不够：缺依赖/缺数据同样非零退出，会掩盖"守卫被绕过"。
+        # 必须同时要求中止原因指向元数据，且没有进入评估阶段。
+        check("holdout_sha256" in log or "task_meta.json" in log,
+              f"中止原因指向元数据/指纹（{name}）")
+        check("留出集匹配金标" not in log, f"元数据异常时未进入评估（{name}）")
 
     # 5d. 指纹不符（有效但错误的值）
     badhash = os.path.join(tmp, "model_badhash")
@@ -270,6 +290,7 @@ def main():
     rc, log = run(["code/evaluate_full.py", "--heldout", "--rbt3-model", badhash])
     check(rc != 0, f"留出集与模型指纹不符时退出码非零（实际 {rc}）")
     check("指纹与模型不符" in log, "报错信息指出指纹不符")
+    check("留出集匹配金标" not in log, "未进入评估阶段（先拦截再评估）")
 
     # 5e. --eval-ids 指向训练评论（指纹按内容校验，不按路径）
     ids_bad = os.path.join(tmp, "ids_train.json")
@@ -278,6 +299,7 @@ def main():
     rc, log = run(["code/evaluate_full.py", "--heldout", "--rbt3-model", badhash,
                    "--eval-ids", ids_bad])
     check(rc != 0, f"--eval-ids 与模型指纹不符时中止（退出码 {rc}）")
+    check("留出集匹配金标" not in log, "--eval-ids 指纹不符时未进入评估")
 
     # 5f. 显式允许未验证 → 必须有"参考评估"字样，且不得出现"严格留出集评估"
     rc, log = run(["code/evaluate_full.py", "--heldout", "--rbt3-model", badhash,
