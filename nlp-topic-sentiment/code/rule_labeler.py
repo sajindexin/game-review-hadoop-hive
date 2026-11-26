@@ -19,6 +19,10 @@ from lexicon import (
     ASPECTS, POSITIVE_WORDS, NEGATIVE_WORDS, NEGATIONS,
     INTENSIFIERS, CONTRAST_WORDS, CLAUSE_SPLIT_CHARS,
 )
+from lexicon_en import (
+    ASPECT_KEYWORDS_EN, POSITIVE_WORDS_EN, NEGATIVE_WORDS_EN, NEGATIONS_EN,
+    INTENSIFIERS_EN, CONTRAST_WORDS_EN, CONTRAST_SPLIT_RE_EN,
+)
 from item_matcher import match_items, attach_sentiment
 
 # 预编译：主题关键词 -> aspect（长词优先，避免"新地图"被"地图"抢先）
@@ -28,6 +32,12 @@ for _aid, _meta in ASPECTS.items():
         _KW2ASPECT.append((_kw, _aid))
 _KW2ASPECT.sort(key=lambda x: -len(x[0]))
 
+# 英文：每个主题一条 alternation 正则（长词在前），词边界匹配
+_EN_ASPECT_RES: list[tuple[re.Pattern, str]] = []
+for _aid, _kws in ASPECT_KEYWORDS_EN.items():
+    _alts = "|".join(re.escape(k) for k in sorted(set(_kws), key=lambda x: -len(x)))
+    _EN_ASPECT_RES.append((re.compile(r"\b(?:" + _alts + r")\b", re.I), _aid))
+
 # 情感词 -> 极性
 _SENT_WORD2POL: dict[str, int] = {}
 for w in POSITIVE_WORDS:
@@ -35,7 +45,43 @@ for w in POSITIVE_WORDS:
 for w in NEGATIVE_WORDS:
     _SENT_WORD2POL[w] = -1
 
+# 英文情感：合并 alternation（长词在前，保证 "waste of time" 优先于 "waste"）
+def _en_alt(words: list[str]) -> re.Pattern:
+    alts = "|".join(re.escape(w) for w in sorted(set(words), key=lambda x: -len(x)))
+    return re.compile(r"\b(?:" + alts + r")\b", re.I)
+
+_EN_POS_RE = _en_alt(POSITIVE_WORDS_EN)
+_EN_NEG_RE = _en_alt(NEGATIVE_WORDS_EN)
+# 英文否定检测正则（用于情感词前窗口翻转）
+_EN_NEGATION_RE = _en_alt(NEGATIONS_EN)
+_EN_INTENS_RE = _en_alt(INTENSIFIERS_EN)
+
+# 否定/程度词检测窗口：中文按字符（4 字），英文按字符（25 字符，覆盖
+# "not very good" / "isn't really all that good" 这类间隔）
+_NEG_WINDOW = {"zh": 4, "en": 25}
+
 _SPLIT_RE = re.compile("[" + re.escape(CLAUSE_SPLIT_CHARS) + "]")
+# 转折切分：中文关键词 + 英文词边界
+_CONTRAST_SPLIT_RE = re.compile(
+    r"(但|但是|不过|然而|只是|就是|可惜|美中不足|唯一的问题是|" + CONTRAST_SPLIT_RE_EN + r")"
+)
+_CONTRAST_SET = set(CONTRAST_WORDS) | {w.lower() for w in CONTRAST_WORDS_EN}
+# 子句起始是否为转折词：英文用词边界（避免 "button..." 误配 "but"），中文直接匹配
+_CONTRAST_START_RE = re.compile(
+    r"^(?:" + CONTRAST_SPLIT_RE_EN + r"|" +
+    "|".join(re.escape(w) for w in sorted(CONTRAST_WORDS, key=lambda x: -len(x))) +
+    r")", re.I)
+
+
+def detect_language(text: str) -> str:
+    """简单语言判定：ASCII 字母占比高 -> 英文，否则中文。"""
+    text = (text or "").strip()
+    if not text:
+        return "zh"
+    ascii_alpha = sum(1 for c in text if c.isascii() and c.isalpha())
+    if ascii_alpha >= 8 and ascii_alpha >= 0.5 * len(text.replace(" ", "")):
+        return "en"
+    return "zh"
 
 
 def split_clauses(text: str) -> list[str]:
@@ -46,13 +92,13 @@ def split_clauses(text: str) -> list[str]:
     raw = [c.strip() for c in _SPLIT_RE.split(text) if c.strip()]
     clauses: list[str] = []
     for seg in raw:
-        # 在段内按转折词再切，转折词并回后半句
-        parts = re.split(r"(但|但是|不过|然而|只是|就是|可惜|美中不足|唯一的问题是)", seg)
+        # 在段内按转折词再切（中英通用，英文按词边界），转折词并回后半句
+        parts = _CONTRAST_SPLIT_RE.split(seg)
         buf = ""
         for p in parts:
             if not p:
                 continue
-            if p in CONTRAST_WORDS:
+            if p.lower() in _CONTRAST_SET:
                 if buf.strip():
                     clauses.append(buf.strip())
                 buf = p
@@ -63,24 +109,29 @@ def split_clauses(text: str) -> list[str]:
     return clauses or [text]
 
 
-def _scan_aspects(clause: str) -> list[str]:
+def _scan_aspects(clause: str, lang: str = "zh") -> list[str]:
     """返回该子句命中的主题（去重，保持首次出现顺序）。
 
-    处理关键词嵌套：若短关键词的匹配位置完全落在某个更长关键词的匹配区间内，
-    且两者主题不同，则只保留更长（更具体）的关键词，避免"新关卡"同时被
-    content 和 level_design 的"关卡"重复认领。
+    中文：关键词子串匹配（长词优先，被更长区间覆盖的短词丢弃，
+    避免"新关卡"同时被 content 和 level_design 的"关卡"重复认领）。
+    英文：每主题一条词边界正则，同样按跨度去重。
     """
-    lower = clause.lower()
     matched: list[tuple[int, int, str]] = []  # (start, end, aspect)
-    for kw, aid in _KW2ASPECT:
-        kl = kw.lower()
-        start = 0
-        while True:
-            idx = lower.find(kl, start)
-            if idx < 0:
-                break
-            matched.append((idx, idx + len(kl), aid))
-            start = idx + len(kl)
+    if lang == "en":
+        for pat, aid in _EN_ASPECT_RES:
+            for m in pat.finditer(clause):
+                matched.append((m.start(), m.end(), aid))
+    else:
+        lower = clause.lower()
+        for kw, aid in _KW2ASPECT:
+            kl = kw.lower()
+            start = 0
+            while True:
+                idx = lower.find(kl, start)
+                if idx < 0:
+                    break
+                matched.append((idx, idx + len(kl), aid))
+                start = idx + len(kl)
 
     # 长词优先：按跨度降序，被更长区间覆盖的匹配丢弃
     matched.sort(key=lambda x: -(x[1] - x[0]))
@@ -100,24 +151,35 @@ def _scan_aspects(clause: str) -> list[str]:
     return hits
 
 
-def _scan_sentiment(clause: str) -> tuple[int, float, str]:
+def _scan_sentiment(clause: str, lang: str = "zh") -> tuple[int, float, str]:
     """返回 (极性 -1/0/1, 置信度, 命中情感词)。"""
     found: list[tuple[int, int, str, bool]] = []  # (pos, pol, word, negated)
-    lower = clause.lower()
-    for word, pol in _SENT_WORD2POL.items():
-        start = 0
-        wl = word.lower()
-        while True:
-            idx = lower.find(wl, start)
-            if idx < 0:
-                break
-            # 检查情感词前 4 字窗口内的否定词
-            window = clause[max(0, idx - 4):idx]
-            negated = any(n in window for n in NEGATIONS)
-            found.append((idx, pol, word, negated))
-            start = idx + len(wl)
-    if not found:
-        return 0, 0.0, ""
+    win = _NEG_WINDOW[lang]
+    if lang == "en":
+        for pat, pol in ((_EN_POS_RE, 1), (_EN_NEG_RE, -1)):
+            for m in pat.finditer(clause):
+                window = clause[max(0, m.start() - win):m.start()]
+                negated = bool(_EN_NEGATION_RE.search(window))
+                found.append((m.start(), pol, m.group(0).lower(), negated))
+        if not found:
+            return 0, 0.0, ""
+        found.sort(key=lambda x: x[0])
+    else:
+        lower = clause.lower()
+        for word, pol in _SENT_WORD2POL.items():
+            start = 0
+            wl = word.lower()
+            while True:
+                idx = lower.find(wl, start)
+                if idx < 0:
+                    break
+                # 检查情感词前窗口内的否定词
+                window = clause[max(0, idx - win):idx]
+                negated = any(n in window for n in NEGATIONS)
+                found.append((idx, pol, word, negated))
+                start = idx + len(wl)
+        if not found:
+            return 0, 0.0, ""
 
     score = 0.0
     hit_words = []
@@ -125,12 +187,16 @@ def _scan_sentiment(clause: str) -> tuple[int, float, str]:
         eff = -pol if negated else pol
         conf = 1.0
         # 程度副词增强
-        if any(w in clause for w in INTENSIFIERS):
+        if lang == "en":
+            if _EN_INTENS_RE.search(clause):
+                conf = 1.3
+        elif any(w in clause for w in INTENSIFIERS):
             conf = 1.3
         if negated:
             conf = max(conf, 1.1)
         score += eff * conf
-        hit_words.append(("不" if negated else "") + word)
+        hit_words.append(("not " if negated else "") + word if lang == "en"
+                         else ("不" if negated else "") + word)
 
     if score > 0.25:
         return 1, min(1.0, 0.5 + 0.15 * score), "/".join(hit_words[:3])
@@ -140,8 +206,13 @@ def _scan_sentiment(clause: str) -> tuple[int, float, str]:
     return 0, 0.3, "/".join(hit_words[:3])
 
 
-def label_review(text: str, appid=None) -> dict:
-    """对一条评论做两层情感标注：通用主题(11) + 具体更新条目(75)。"""
+def label_review(text: str, appid=None, lang: str | None = None) -> dict:
+    """对一条评论做两层情感标注：通用主题(11) + 具体更新条目(75)。
+
+    lang: "zh" / "en"；None 时自动检测（ASCII 字母占比高按英文处理）。
+    """
+    if lang is None:
+        lang = detect_language(text)
     clauses = split_clauses(text)
     # aspect -> 最佳证据（置信度最高的子句）
     best: dict[str, dict] = {}
@@ -149,12 +220,12 @@ def label_review(text: str, appid=None) -> dict:
     clause_sent: dict[int, dict] = {}
 
     for ci, clause in enumerate(clauses):
-        pol, conf, sent_word = _scan_sentiment(clause)
+        pol, conf, sent_word = _scan_sentiment(clause, lang)
         clause_sent[ci] = {
             "sentiment": "positive" if pol == 1 else ("negative" if pol == -1 else "neutral"),
             "confidence": conf, "sentiment_word": sent_word,
         }
-        aspects = _scan_aspects(clause)
+        aspects = _scan_aspects(clause, lang)
         if not aspects:
             continue
         # 无情感词：中性，低置信度；有转折词且在段首：该子句权重更高
@@ -163,8 +234,8 @@ def label_review(text: str, appid=None) -> dict:
             sentiment = "neutral"
         else:
             sentiment = "positive" if pol == 1 else "negative"
-        # 位于转折后的子句，评价更"明确"，置信度加成
-        if clause and clause[0] in CONTRAST_WORDS:
+        # 位于转折后的子句，评价更"明确"，置信度加成（中英转折词都认）
+        if clause and _CONTRAST_START_RE.match(clause):
             conf = min(1.0, conf + 0.15)
 
         for aid in aspects:
@@ -212,16 +283,24 @@ def label_review(text: str, appid=None) -> dict:
 
 if __name__ == "__main__":
     tests = [
-        ("新关卡好玩，但联机老掉线", None),
-        ("姜岛探索很好玩，但是八人联机老是掉线", 413150),
-        ("海浪效果太惊艳了，拖船也很有意思", 252490),
-        ("军备竞赛模式好玩，武器挂件也挺有意思", 730),
-        ("盾牌重做之后平衡性一坨", 359550),
-        ("姜岛探索很好玩", 730),  # 跨游戏：不应命中条目
-        ("画面很棒，剧情也不错，就是优化太差老是闪退", None),
+        ("新关卡好玩，但联机老掉线", None, None),
+        ("姜岛探索很好玩，但是八人联机老是掉线", 413150, None),
+        ("海浪效果太惊艳了，拖船也很有意思", 252490, None),
+        ("军备竞赛模式好玩，武器挂件也挺有意思", 730, None),
+        ("盾牌重做之后平衡性一坨", 359550, None),
+        ("姜岛探索很好玩", 730, None),  # 跨游戏：不应命中条目
+        ("画面很棒，剧情也不错，就是优化太差老是闪退", None, None),
+        # ---- 英文 ----
+        ("Great new maps, but the servers keep disconnecting", None, "en"),
+        ("The combat feels amazing, however performance is a stuttering mess on my rig", None, "en"),
+        ("Story was boring and the ending ruined it for me", None, "en"),
+        ("Not worth the price, cash grab DLC with no real content", None, "en"),
+        ("Beautiful art style and incredible soundtrack", None, "en"),
+        ("Runs great after the patch, devs actually listen to the community", None, "en"),
+        ("The buttons are mushy and input lag is awful", None, "en"),  # "but"不误配 button
     ]
-    for t, aid in tests:
-        r = label_review(t, appid=aid)
+    for t, aid, lang in tests:
+        r = label_review(t, appid=aid, lang=lang)
         print("\n原文:", t, "| appid:", aid)
         print("  主情感:", r["primary_sentiment"], "| 主题数:", r["n_aspects"],
               "| 条目数:", r["n_items"])

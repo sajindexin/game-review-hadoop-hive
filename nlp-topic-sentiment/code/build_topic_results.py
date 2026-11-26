@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-批量主题情感打标：读取清洗后的 parquet，对中文评论做规则弱标注，
+批量主题情感打标：读取清洗后的 parquet，对评论做规则弱标注，
 输出主题情感结果表（明细 + 评论汇总 + 主题分布）。
 
 用法：
   python build_topic_results.py --limit 20000        # 小样本试跑
   python build_topic_results.py                       # 全量中文评论
   python build_topic_results.py --zh-only            # 仅简体（默认简体+繁体）
+  python build_topic_results.py --lang en            # 全量英文评论（输出 *_en.csv）
 """
 from __future__ import annotations
 import os
@@ -33,8 +34,10 @@ COLS = ["appid", "game_name", "review_id", "language_std", "review_text",
 def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("--parquet", default=DEFAULT_PARQUET)
-    ap.add_argument("--limit", type=int, default=0, help="最多处理多少条中文评论，0=全部")
+    ap.add_argument("--limit", type=int, default=0, help="最多处理多少条评论，0=全部")
     ap.add_argument("--zh-only", action="store_true", help="只处理简体中文")
+    ap.add_argument("--lang", choices=["zh", "en"], default="zh",
+                    help="zh=中文（默认，输出原文件名）；en=英文（输出 *_en.csv）")
     ap.add_argument("--chunk-rows", type=int, default=200000)
     return ap.parse_args()
 
@@ -43,7 +46,13 @@ def main():
     args = parse_args()
     os.makedirs(OUT, exist_ok=True)
     pf = pq.ParquetFile(args.parquet)
-    lang_set = {"zh-Hans"} if args.zh_only else {"zh-Hans", "zh-Hant"}
+    lang = args.lang
+    if lang == "en":
+        lang_set = {"en"}
+        suffix = "_en"
+    else:
+        lang_set = {"zh-Hans"} if args.zh_only else {"zh-Hans", "zh-Hant"}
+        suffix = ""
 
     # 输出缓冲
     detail_rows: list[dict] = []   # 主题情感明细（一条评论一个 aspect 一行）
@@ -63,8 +72,8 @@ def main():
         finally:
             sink.close()
 
-    detail_path = os.path.join(OUT, "topic_sentiment_detail.csv")
-    review_path = os.path.join(OUT, "topic_sentiment_review_summary.csv")
+    detail_path = os.path.join(OUT, f"topic_sentiment_detail{suffix}.csv")
+    review_path = os.path.join(OUT, f"topic_sentiment_review_summary{suffix}.csv")
     first_detail = True
 
     for rg in range(pf.metadata.num_row_groups):
@@ -80,7 +89,7 @@ def main():
             text = t["review_text"][j] or ""
             if not text.strip():
                 continue
-            res = label_review(text)
+            res = label_review(text, lang=lang)
             n_tagged += 1
             review_rows.append({
                 "review_id": t["review_id"][j],
@@ -119,7 +128,8 @@ def main():
             flush_detail_to_disk(detail_rows, detail_path, first_detail)
             first_detail = False
             detail_rows = []
-            print(f"  ...已扫描 {rg+1}/{pf.metadata.num_row_groups} 组，中文 {n_zh}，"
+            print(f"  ...已扫描 {rg+1}/{pf.metadata.num_row_groups} 组，"
+                  f"{'英文' if lang=='en' else '中文'} {n_zh}，"
                   f"打标 {n_tagged}，耗时 {time.time()-t0:.0f}s", flush=True)
 
         if args.limit and n_zh >= args.limit:
@@ -138,12 +148,12 @@ def main():
                 "aspect": aid, "name_zh": ASPECTS[aid]["name_zh"],
                 "sentiment": sent, "count": topic_counter.get((aid, sent), 0),
             })
-    dist_path = os.path.join(OUT, "topic_distribution.csv")
+    dist_path = os.path.join(OUT, f"topic_distribution{suffix}.csv")
     pacsv.write_csv(pa.Table.from_pylist(dist_rows), dist_path)
 
     # 单机可复现的效果说明
     print("\n=== 完成 ===")
-    print(f"中文评论扫描: {n_zh}, 实际打标: {n_tagged}")
+    print(f"{'英文' if lang=='en' else '中文'}评论扫描: {n_zh}, 实际打标: {n_tagged}")
     print(f"主题-情感标注条数: {sum(topic_counter.values())}")
     print(f"耗时: {time.time()-t0:.1f}s")
     print("\n主题分布:")
