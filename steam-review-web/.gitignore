@@ -1,0 +1,4 @@
+.shots/
+.chromeprofile/
+__pycache__/
+*.pyc
