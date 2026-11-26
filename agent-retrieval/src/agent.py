@@ -12,6 +12,7 @@ from typing import Any
 
 from .catalog import LANG_GROUPS, Catalog
 from .retrieval import KnowledgeBase
+from .router import Router
 from .tokenize import GENERIC_CJK, STOP_BIGRAMS, tokenize
 
 OUTSIDE_PATTERNS = [
@@ -23,9 +24,10 @@ METRIC_RE = re.compile(r"推荐率|好评率|差评率|百分之|百分点|样�
 REVIEW_RE = re.compile(r"玩家|评价|评论|反馈|吐槽|抱怨|差评|好评|怎么说|原话|骂|夸|觉得")
 ANNOUNCE_RE = re.compile(r"公告|改了什么|改了啥|改动|更新内容|版本内容|更新日志|补丁说明|加了什么|加了啥|有什么新|新内容|什么新|哪些内容")
 WHY_RE = re.compile(r"为什么|为啥|原因|怎么回事|导致")
-RANK_RE = re.compile(r"哪个版本|哪些版本|最多|最少|排名|排行|全组|所有版本|整体|对比一下版本")
-RANK_EXTREME_RE = re.compile(r"最高|最低|最好|最差|最大|最小")
+RANK_RE = re.compile(r"哪个版本|哪些版本|所有版本|全组|排名|排行|对比一下版本|哪次更新|哪个更新")
+RANK_EXTREME_RE = re.compile(r"最高|最低|最好|最差|最大|最小|最多|最少")
 PAGE_VERSION_RE = re.compile(r"这个版本|该版本|当前版本|本版本")
+PHASE_COMPARE_RE = re.compile(r"更新前后|发布前后|上线前后|前后对比|前后变化|前后差异")
 PHASE_RELEASE_RE = re.compile(r"发布当天|上线当天|发布日当天|更新当天")
 PHASE_BEFORE_RE = re.compile(r"更新前|发布前|上线前|版本前|之前")
 PHASE_AFTER_RE = re.compile(r"更新后|发布后|上线后|版本后|之后")
@@ -54,9 +56,10 @@ def _fmt_pp(x: float | None) -> str:
 
 
 class Agent:
-    def __init__(self, kb: KnowledgeBase) -> None:
+    def __init__(self, kb: KnowledgeBase, router: Router | None = None) -> None:
         self.kb = kb
         self.catalog: Catalog = kb.catalog
+        self.router = router or Router()
 
     # ---- 入口 ---------------------------------------------------------
     def ask(self, question: str, appid: str | None = None, patch_id: str | None = None,
@@ -75,18 +78,12 @@ class Agent:
         }
         if not question:
             return self._fail(result, "need_context", "请先输入问题，例如“这个版本推荐率降了多少？”")
-        if phase not in ("before", "release", "after", "all", "release_day"):
+        if phase not in ("before", "release", "after", "all", "compare", "release_day"):
             phase = None
         if phase == "release_day":
             phase = "release"
-        if phase is None:
-            phase = self._phase_from_question(question)
 
-        if any(re.search(p, question, re.I) for p in OUTSIDE_PATTERNS):
-            return self._fail(result, "outside_catalog",
-                              "这个问题超出了游戏评测数据范围。我只能回答版本指标、官方改动和玩家评测相关的问题。")
-
-        # 1) 定位游戏与版本
+        # 1) 定位游戏与版本（版本解析仍用确定性规则，避免模型改错版本）
         if not appid:
             appid = self._appid_from_question(question)
         patch = self.catalog.patch(patch_id) if patch_id else None
@@ -98,11 +95,29 @@ class Agent:
             appid = str(patch["appid"])
         game = self.catalog.game(appid) if appid else None
 
-        intent = self._intent(question)
+        # 2) 意图/阶段/条目：LLM 优先，失败退回规则
+        items = self.catalog.items_of(patch["patch_id"]) if patch else []
+        route = self.router.route(question, patch, items, language)
+        result["route"] = {
+            "intent": route.intent, "phases": route.phases, "item_ids": route.item_ids,
+            "language": route.language, "ranking_phase": route.ranking_phase,
+            "ranking_direction": route.ranking_direction, "source": route.source,
+            "confidence": round(route.confidence, 3), "reason": route.reason,
+        }
 
-        # 2) 聚合问题（哪个版本跌得最多）优先于页面当前版本
-        if intent == "ranking":
-            return self._answer_ranking(result, question, language)
+        if route.intent == "outside":
+            return self._fail(result, "outside_catalog",
+                              "这个问题超出了游戏评测数据范围。我只能回答版本指标、官方改动和玩家评测相关的问题。")
+
+        if route.intent == "ranking":
+            return self._answer_ranking(result, question, language or route.language,
+                                        route.ranking_phase, route.ranking_direction)
+
+        if not patch:
+            if not appid:
+                return self._fail(result, "need_context",
+                                  "我还不知道你问的是哪款游戏、哪次更新。请先选择游戏和版本，或在问题里带上版本号（例如“1.12”）。")
+            return self._need_patch(result, appid, game)
 
         if not patch:
             if not appid:
@@ -131,10 +146,24 @@ class Agent:
         tool_log: list[dict] = []
         segments: list[str] = []
 
+        intent = route.intent
+        if phase in ("before", "release", "after"):
+            phases = [phase]
+        elif phase == "compare":
+            phases = ["before", "after"]
+        elif phase == "all":
+            phases = []
+        else:
+            phases = list(route.phases)
+        if intent == "why" and not phases:
+            phases = ["after"]  # 差评归因默认看更新后
+        lang = language if language in ("all", "chinese", "en") else route.language
+        lang_filter = lang if lang in ("chinese", "en") else None
+        group = lang_filter or self._language_group(question, None)
+
         metric = None
         want_metric = intent in ("metric", "mixed", "why")
         if want_metric:
-            group = self._language_group(question, language)
             metric = self.catalog.metrics_of(patch["patch_id"], group)
             tool_log.append({"name": "lookup_metrics", "args": {"patch_id": patch["patch_id"], "language_group": group},
                              "status": "ok" if metric else "missing"})
@@ -144,7 +173,7 @@ class Agent:
                 citations.append({
                     "id": len(citations) + 1, "type": "metric", "title": "更新前后推荐率",
                     "detail": f"{LANG_GROUPS[group]} · 更新前 14 天 / 发布当天 / 更新后 14 天",
-                    "source": "黄静雯 Hive 窗口统计（12 款游戏 26 个版本，数据版本 v1）",
+                    "source": "上游版本分析模块 Hive 窗口统计（12 款游戏 26 个版本，数据版本 v1）",
                     "url": "", "snippet": "",
                 })
                 result["links"]["stats"] += f"?lang={group}"
@@ -163,93 +192,43 @@ class Agent:
                 segments.append(text)
                 citations.extend(cits)
 
-        quotes: list[dict] = []
-        review_sort = "按相关度排序"
-        verified_mode = False
         want_review = intent in ("review", "mixed", "why")
-        prefer_zh = bool(re.search(r"[\u4e00-\u9fff]", question))
-        lang_filter = language if language in ("chinese", "en") else None
-        if language != "all":
-            if lang_filter is None:
-                if re.search(r"中文|汉语|简中|繁中", question):
-                    lang_filter = "chinese"
-                elif re.search(r"英文|英语", question, re.I):
-                    lang_filter = "en"
         if want_review:
-            candidates = self._resolve_items(question, patch)
-            sentiment = "negative" if (WHY_RE.search(question) or "差评" in question or "吐槽" in question) else None
-            patch_has_verified = self.kb.has_verified(patch["patch_id"])
-            # 明确阶段优先；归因问题默认更新后；其余不限制
-            search_phase = phase or ("after" if sentiment else None)
-            item = candidates[0] if candidates else None
-            item_id = item["item_id"] if item else None
-            pools: list[dict | None] = candidates or [None]
-
-            if patch_has_verified:
-                for cand in pools:
-                    cid = cand["item_id"] if cand else None
-                    vres = self.kb.search_verified(question, patch["patch_id"], item_id=cid,
-                                                   phase=search_phase, language=lang_filter,
-                                                   sentiment=sentiment, top_k=3, prefer_zh=prefer_zh)
-                    tool_log.append({"name": "search_verified_quotes",
-                                     "args": {"patch_id": patch["patch_id"], "item_id": cid,
-                                              "phase": search_phase, "language": lang_filter},
-                                     "status": vres["status"], "available": vres.get("available", 0)})
-                    if vres["status"] == "verified_quotes" and (not sentiment or len(vres["quotes"]) >= 2):
-                        quotes = vres["quotes"]
-                        verified_mode = True
-                        item, item_id = cand, cid
-                        review_sort = "按相关度排序"
-                        break
-
-            if not quotes and sentiment:
-                # 差评归因：条目明确时只在该条目内取，不拿整版本的其他差评冒充
-                for cand in pools:
-                    cid = cand["item_id"] if cand else None
-                    res = self.kb.top_reviews(patch["patch_id"], phase=search_phase, sentiment="negative",
-                                              language=lang_filter, item_id=cid,
-                                              limit=3, prefer_zh=prefer_zh)
-                    tool_log.append({"name": "top_negative_reviews",
-                                     "args": {"patch_id": patch["patch_id"], "phase": search_phase,
-                                              "language": lang_filter, "item_id": cid},
-                                     "status": res["status"]})
-                    if res.get("quotes"):
-                        quotes = res["quotes"]
-                        item, item_id = cand, cid
-                        break
-                prefix = {"before": "更新前", "release": "发布当天"}.get(search_phase or "", "更新后")
-                review_sort = f"{prefix}差评按点赞排序"
-
-            if not quotes and not patch_has_verified:
-                for cand in pools:
-                    cid = cand["item_id"] if cand else None
-                    q = self._strip_entity(question, cand) if cand else question
-                    res = self.kb.search_reviews(q or question, patch["patch_id"], item_id=cid,
-                                                 language=lang_filter, phase=phase, sentiment=sentiment,
-                                                 top_k=3, prefer_zh=prefer_zh)
-                    tool_log.append({"name": "search_reviews",
-                                     "args": {"patch_id": patch["patch_id"], "item_id": cid,
-                                              "query": q, "phase": phase, "language": lang_filter},
-                                     "status": res["status"], "candidates": res.get("candidates")})
-                    if res.get("quotes"):
-                        quotes = res["quotes"]
-                        item, item_id = cand, cid
-                        break
-
-            if quotes:
-                text, cits = self._review_block(quotes, len(citations) + 1, item, review_sort,
-                                                verified=verified_mode)
-                segments.append(text)
-                citations.extend(cits)
-                result["evidence_status"] = "verified_quotes" if verified_mode else "dataset_quotes"
+            sentiment = "negative" if (intent == "why" or "差评" in question or "吐槽" in question) else None
+            prefer_zh = bool(re.search(r"[\u4e00-\u9fff]", question))
+            candidates = (self._items_from_route(route.item_ids, patch)
+                          or self._resolve_items(question, patch, allow_bm25=(intent != "why")))
+            blocks, logs = self._collect_review_blocks(question, patch, candidates, phases,
+                                                       lang_filter, sentiment, prefer_zh)
+            tool_log.extend(logs)
+            any_quotes = any(b[2] for b in blocks)
+            any_verified = any(b[2] and b[3] for b in blocks)
+            for item, ph, quotes, verified, sort_label in blocks:
+                if quotes:
+                    text, cits = self._review_block(quotes, len(citations) + 1, item, sort_label,
+                                                    verified=verified)
+                    segments.append(text)
+                    citations.extend(cits)
+                elif len(blocks) > 1:
+                    title = f"《{item['title']}》" if item else "该版本"
+                    segments.append(f"{title}{self._phase_label(ph)}：暂无已复核引文。")
+            if any_quotes:
+                result["evidence_status"] = "verified_quotes" if any_verified else "dataset_quotes"
             else:
                 scope = []
                 if lang_filter:
                     scope.append({"chinese": "中文", "en": "英文"}[lang_filter])
-                if phase and phase != "all":
-                    scope.append({"before": "更新前", "release": "发布当天", "after": "更新后"}.get(phase, phase))
+                if phases:
+                    scope.append("、".join(self._phase_label(p) for p in phases))
                 where = f"（已按{'、'.join(scope)}筛选）" if scope else ""
                 segments.append(f"玩家原话：暂无已复核引文{where}。")
+
+        # 原文链接必须带实际关联条目，否则详情页只能列出该版本前 20 条
+        review_item_ids = [c.get("item_id") for c in citations
+                           if c.get("type") == "review" and c.get("item_id")]
+        if review_item_ids:
+            result["links"]["evidence"] = (f"/versions/{patch['patch_id']}"
+                                           f"?tab=feedback&item={review_item_ids[0]}")
 
         result["tools"] = tool_log
         result["numbers"] = numbers
@@ -311,14 +290,15 @@ class Agent:
             return "after"
         return None
 
-    def _resolve_items(self, question: str, patch: dict) -> list[dict]:
+    def _resolve_items(self, question: str, patch: dict, allow_bm25: bool = True) -> list[dict]:
         """按提及顺序返回候选条目；一个问题提到两个改动时，两个都留作候选。"""
         items = self.catalog.items_of(patch["patch_id"])
+        by_id = {it["item_id"]: it for it in items}
         low = question.lower()
         exact: list[tuple[int, int, dict]] = []
         for order, it in enumerate(items):
             hit = max((len(t) for t in [it["title"], *(it.get("aliases_zh") or []),
-                                        *(it.get("aliases_en") or [])]
+                                        *(it.get("aliases_en") or []), *(it.get("synonyms") or [])]
                        if t and t.lower() in low), default=0)
             if hit:
                 exact.append((hit, order, it))
@@ -330,8 +310,13 @@ class Agent:
         if out:
             return out[:3]
 
-        # 退一步：问题里的实体词出现在条目名称/别名里（如“海浪”之于“海浪与水面改版”），
-        # 但排除游戏名，避免“艾尔登”这种词把整款游戏的评测误判成某个改动。
+        # 别名词典没直接命中时，用条目 BM25（已带同义词/负向词）排序
+        if allow_bm25:
+            cand = self.kb.item_candidates(question, patch["appid"], patch["patch_id"], top_k=3)
+            if cand.get("status") == "ok":
+                return [by_id[c["item_id"]] for c in cand["candidates"] if c["item_id"] in by_id]
+
+        # 最后兜底：问题里的实体词出现在条目标题/别名里
         game_blob = (patch.get("game", "") + " " + str(self.catalog.game(patch["appid"]) or "")).lower()
         hint_blob = " ".join(GAME_HINTS.keys())
         toks = [t for t in tokenize(question) if len(t) >= 2
@@ -339,7 +324,8 @@ class Agent:
         scored: list[tuple[int, int, dict]] = []
         for order, it in enumerate(items):
             blob = " ".join([it["title"], it.get("title_en", ""),
-                             *(it.get("aliases_zh") or []), *(it.get("aliases_en") or [])]).lower()
+                             *(it.get("aliases_zh") or []), *(it.get("aliases_en") or []),
+                             *(it.get("synonyms") or [])]).lower()
             s = sum(len(t) for t in toks if t in blob and t not in game_blob and t not in hint_blob)
             if s > 0:
                 scored.append((s, order, it))
@@ -349,6 +335,72 @@ class Agent:
     def _resolve_item(self, question: str, patch: dict) -> dict | None:
         items = self._resolve_items(question, patch)
         return items[0] if items else None
+
+    def _items_from_route(self, item_ids: list[str], patch: dict) -> list[dict]:
+        if not item_ids:
+            return []
+        by_id = {it["item_id"]: it for it in self.catalog.items_of(patch["patch_id"])}
+        return [by_id[i] for i in item_ids if i in by_id]
+
+    @staticmethod
+    def _phase_label(phase: str | None) -> str:
+        return {"before": "更新前", "release": "发布当天", "after": "更新后"}.get(phase or "", "")
+
+    def _collect_review_blocks(self, question: str, patch: dict, candidates: list[dict],
+                               phases: list[str], lang_filter: str | None,
+                               sentiment: str | None, prefer_zh: bool):
+        """按条目 × 阶段收集证据；compare 时 before/after 各一块，多条目每项各一块。"""
+        patch_id = patch["patch_id"]
+        patch_has_verified = self.kb.has_verified(patch_id)
+        pools: list[dict | None] = candidates or [None]
+        phase_list: list[str | None] = phases or [None]
+        per = 3 if (len(pools) == 1 and len(phase_list) == 1) else 2
+        blocks: list[tuple[dict | None, str | None, list[dict], bool, str]] = []
+        logs: list[dict] = []
+
+        for item in pools:
+            cid = item["item_id"] if item else None
+            for ph in phase_list:
+                quotes: list[dict] = []
+                verified = False
+                sort_label = "按相关度排序"
+                if patch_has_verified:
+                    vres = self.kb.search_verified(question, patch_id, item_id=cid, phase=ph,
+                                                   language=lang_filter, sentiment=sentiment,
+                                                   top_k=per, prefer_zh=prefer_zh)
+                    logs.append({"name": "search_verified_quotes",
+                                 "args": {"patch_id": patch_id, "item_id": cid,
+                                          "phase": ph, "language": lang_filter},
+                                 "status": vres["status"], "available": vres.get("available", 0)})
+                    if vres["status"] == "verified_quotes":
+                        quotes = vres["quotes"]
+                        verified = True
+
+                if not quotes and sentiment:
+                    res = self.kb.top_reviews(patch_id, phase=ph or "after", sentiment="negative",
+                                              language=lang_filter, item_id=cid,
+                                              limit=per, prefer_zh=prefer_zh)
+                    logs.append({"name": "top_negative_reviews",
+                                 "args": {"patch_id": patch_id, "phase": ph, "item_id": cid,
+                                          "language": lang_filter},
+                                 "status": res["status"]})
+                    quotes = res.get("quotes") or []
+                    sort_label = f"{self._phase_label(ph or 'after')}差评按点赞排序"
+
+                if not quotes and not patch_has_verified:
+                    q = self._strip_entity(question, item) if item else question
+                    res = self.kb.search_reviews(q or question, patch_id, item_id=cid,
+                                                 language=lang_filter, phase=ph,
+                                                 sentiment=sentiment, top_k=per,
+                                                 prefer_zh=prefer_zh)
+                    logs.append({"name": "search_reviews",
+                                 "args": {"patch_id": patch_id, "item_id": cid,
+                                          "query": q, "phase": ph, "language": lang_filter},
+                                 "status": res["status"], "candidates": res.get("candidates")})
+                    quotes = res.get("quotes") or []
+
+                blocks.append((item, ph, quotes, verified, sort_label))
+        return blocks, logs
 
     @staticmethod
     def _strip_entity(question: str, item: dict) -> str:
@@ -428,71 +480,106 @@ class Agent:
         return "\n".join(lines), cits
 
     # ---- 其他回答 -----------------------------------------------------
-    def _answer_ranking(self, result: dict, question: str, language: str | None) -> dict:
+    def _answer_ranking(self, result: dict, question: str, language: str | None,
+                        rank_phase: str | None = None, direction: str | None = None) -> dict:
         group = self._language_group(question, language)
-        rows = [m for m in self.catalog.ranking(group) if m.get("change_percentage_points") is not None]
+        rows = self.catalog.ranking(group)
         if not rows:
             return self._fail(result, "unsupported", "指标表里没有可用于排名的版本数据。")
 
-        if re.search(r"最高|最好|最强", question):
-            mode = "after_top"
-        elif re.search(r"最低|最差", question):
-            mode = "after_low"
-        elif re.search(r"上升|涨|升得", question):
-            mode = "rise"
-        else:
-            mode = "drop"
+        if rank_phase not in ("before", "release", "after"):
+            rank_phase = self._phase_from_question(question)
+        if rank_phase not in ("before", "release", "after"):
+            rank_phase = "after"
+        if direction not in ("top", "low", "rise", "drop"):
+            if re.search(r"最高|最好|最强", question):
+                direction = "top"
+            elif re.search(r"最低|最差|最弱", question):
+                direction = "low"
+            elif re.search(r"上升|涨|升得|提高|增长", question):
+                direction = "rise"
+            else:
+                direction = "drop"
+        phase_label = {"before": "更新前", "release": "发布当天", "after": "更新后"}[rank_phase]
+        rate_key = {"before": "before_rate", "release": "release_rate", "after": "after_rate"}[rank_phase]
+        rec_key = {"before": "before_recommended", "release": "release_recommended",
+                   "after": "after_recommended"}[rank_phase]
+        reviews_key = {"before": "before_reviews", "release": "release_reviews",
+                       "after": "after_reviews"}[rank_phase]
 
-        if mode in ("after_top", "after_low"):
-            pool = [m for m in rows if m.get("after_rate") is not None]
-            pick = max(pool, key=lambda m: m["after_rate"]) if mode == "after_top" else min(pool, key=lambda m: m["after_rate"])
+        extreme = direction in ("top", "low")
+        citations: list[dict] = []
+        if extreme:
+            want_top = direction == "top"
+            pool = [m for m in rows if m.get(rate_key) is not None]
+            pick = (max(pool, key=lambda m: m[rate_key]) if want_top
+                    else min(pool, key=lambda m: m[rate_key]))
+            p = self.catalog.patch(pick["patch_id"])
+            headline = (f"{phase_label}推荐率{'最高' if want_top else '最低'}的是《{p['game']}》{p['patch_name']}（{p['release_date']}）："
+                        f"{_fmt_pct(pick[rate_key])}（{_fmt_int(pick[rec_key])}/{_fmt_int(pick[reviews_key])}）")
+            citations.append({"id": 1, "type": "metric", "title": f"{p['game']} · {p['patch_name']}",
+                              "detail": f"{p['release_date']} · {phase_label} {_fmt_pct(pick[rate_key])}",
+                              "source": "上游版本分析模块 Hive 窗口统计", "url": "", "snippet": ""})
+            other = (min(pool, key=lambda m: m[rate_key]) if want_top
+                     else max(pool, key=lambda m: m[rate_key]))
+            mode = f"{rank_phase}_{'top' if want_top else 'low'}"
         else:
-            pick = max(rows, key=lambda m: m["change_percentage_points"]) if mode == "rise" else min(rows, key=lambda m: m["change_percentage_points"])
-
-        p = self.catalog.patch(pick["patch_id"])
-        delta = pick["change_percentage_points"]
-        if mode == "after_top":
-            headline = (f"更新后推荐率最高的是《{p['game']}》{p['patch_name']}（{p['release_date']}）："
-                        f"{_fmt_pct(pick['after_rate'])}（{_fmt_int(pick['after_recommended'])}/{_fmt_int(pick['after_reviews'])}），"
-                        f"更新前为 {_fmt_pct(pick['before_rate'])}")
-        elif mode == "after_low":
-            headline = (f"更新后推荐率最低的是《{p['game']}》{p['patch_name']}（{p['release_date']}）："
-                        f"{_fmt_pct(pick['after_rate'])}（{_fmt_int(pick['after_recommended'])}/{_fmt_int(pick['after_reviews'])}），"
-                        f"更新前为 {_fmt_pct(pick['before_rate'])}")
-        else:
+            pool = [m for m in rows if m.get("change_percentage_points") is not None]
+            want_rise = direction == "rise"
+            pick = (max(pool, key=lambda m: m["change_percentage_points"]) if want_rise
+                    else min(pool, key=lambda m: m["change_percentage_points"]))
+            p = self.catalog.patch(pick["patch_id"])
+            delta = pick["change_percentage_points"]
             verb = "上升" if delta >= 0 else "下降"
-            headline = (f"{'更新后推荐率上升' if mode == 'rise' else '更新后推荐率下降'}最多的是《{p['game']}》{p['patch_name']}（{p['release_date']}）："
+            headline = (f"更新前后推荐率{'上升' if want_rise else '下降'}最多的是《{p['game']}》{p['patch_name']}（{p['release_date']}）："
                         f"{_fmt_pct(pick['before_rate'])} → {_fmt_pct(pick['after_rate'])}，{verb} {_fmt_pp(delta)}"
                         f"（样本 {_fmt_int(pick['before_reviews'])} / {_fmt_int(pick['after_reviews'])}）")
+            citations.append({"id": 1, "type": "metric", "title": f"{p['game']} · {p['patch_name']}",
+                              "detail": f"{p['release_date']} · 更新前 {_fmt_pct(pick['before_rate'])} → 更新后 {_fmt_pct(pick['after_rate'])}",
+                              "source": "上游版本分析模块 Hive 窗口统计", "url": "", "snippet": ""})
+            other = (min(pool, key=lambda m: m["change_percentage_points"]) if want_rise
+                     else max(pool, key=lambda m: m["change_percentage_points"]))
+            mode = "rise" if want_rise else "drop"
 
-        citations = [{"id": 1, "type": "metric", "title": f"{p['game']} · {p['patch_name']}",
-                      "detail": f"{p['release_date']} · 更新前 {_fmt_pct(pick['before_rate'])} → 更新后 {_fmt_pct(pick['after_rate'])}",
-                      "source": "黄静雯 Hive 窗口统计", "url": "", "snippet": ""}]
         numbers = [
             {"label": "更新前推荐率", "value": pick["before_rate"], "display": _fmt_pct(pick["before_rate"]),
              "unit": "%", "sample": pick["before_reviews"], "language_group": group},
             {"label": "更新后推荐率", "value": pick["after_rate"], "display": _fmt_pct(pick["after_rate"]),
              "unit": "%", "sample": pick["after_reviews"], "language_group": group},
-            {"label": "变化", "value": delta, "display": f"{delta:+.1f} pp", "unit": "pp", "language_group": group},
+            {"label": "变化",
+             "value": pick.get("change_percentage_points"),
+             "display": (f"{pick['change_percentage_points']:+.1f} pp"
+                         if pick.get("change_percentage_points") is not None else "-"),
+             "unit": "pp", "language_group": group},
         ]
+        if rank_phase == "release":
+            numbers.insert(2, {"label": "发布当天推荐率", "value": pick.get("release_rate"),
+                               "display": _fmt_pct(pick.get("release_rate")), "unit": "%",
+                               "sample": pick.get("release_reviews"), "language_group": group})
 
-        # 再补一句另一端的版本，避免“只有结论没有对照”
-        other = (min(rows, key=lambda m: m["change_percentage_points"]) if mode in ("rise", "after_top")
-                 else max(rows, key=lambda m: m["change_percentage_points"]))
+        contrast = ""
         if other["patch_id"] != pick["patch_id"]:
             op = self.catalog.patch(other["patch_id"])
-            od = other["change_percentage_points"]
+            if extreme:
+                detail = f"{op['release_date']} · {phase_label} {_fmt_pct(other[rate_key])}"
+                lead = f"对照：{phase_label}推荐率另一端是《{op['game']}》{op['patch_name']}，{_fmt_pct(other[rate_key])}"
+            else:
+                od = other["change_percentage_points"]
+                detail = f"{op['release_date']} · 变化 {od:+.1f} pp"
+                lead = (f"对照：变化幅度另一端是《{op['game']}》{op['patch_name']}，"
+                        f"{_fmt_pct(other['before_rate'])} → {_fmt_pct(other['after_rate'])}（{od:+.1f} pp）")
             citations.append({"id": 2, "type": "metric", "title": f"{op['game']} · {op['patch_name']}",
-                              "detail": f"{op['release_date']} · 变化 {od:+.1f} pp",
-                              "source": "黄静雯 Hive 窗口统计", "url": "", "snippet": ""})
-            contrast = (f"\n\n对照：变化幅度另一端是《{op['game']}》{op['patch_name']}，"
-                        f"{_fmt_pct(other['before_rate'])} → {_fmt_pct(other['after_rate'])}（{od:+.1f} pp）[2]")
-        else:
-            contrast = ""
+                              "detail": detail, "source": "上游版本分析模块 Hive 窗口统计", "url": "", "snippet": ""})
+            contrast = f"\n\n{lead} [2]"
 
-        answer = f"按更新前后各 14 天的推荐率统计（{LANG_GROUPS[group]}）：\n\n{headline} [1]" + contrast
+        header = (f"按{phase_label}推荐率统计（{LANG_GROUPS[group]}）：" if extreme
+                  else f"按更新前后各 14 天的推荐率变化统计（{LANG_GROUPS[group]}）：")
+        answer = f"{header}\n\n{headline} [1]" + contrast
         result.update({"status": "answered", "answer": answer, "numbers": numbers,
-                       "citations": citations, "tools": [{"name": "ranking_metrics", "args": {"language_group": group, "mode": mode}, "status": "ok"}],
+                       "citations": citations,
+                       "tools": [{"name": "ranking_metrics",
+                                  "args": {"language_group": group, "mode": mode, "phase": rank_phase},
+                                  "status": "ok"}],
                        "links": {}, "suggestions": []})
         return result
 

@@ -6,3 +6,5 @@ data/
 build.log
 server.log
 eval/last_run.json
+data_sources/lexicon/llm_raw.json
+data_sources/lexicon/mined_candidates.jsonl

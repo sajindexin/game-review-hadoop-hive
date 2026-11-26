@@ -1,0 +1,39 @@
+{"question":"玩家怎么评价海浪","appid":"252490","patch_id":"rust_20230706_deep_sea","expected":"D01"}
+{"question":"水面效果怎么样","appid":"252490","patch_id":"rust_20230706_deep_sea","expected":"D01"}
+{"question":"浪花好看吗","appid":"252490","patch_id":"rust_20230706_deep_sea","expected":"D01"}
+{"question":"water rendering 怎么样","appid":"252490","patch_id":"rust_20230706_deep_sea","expected":"D01"}
+{"question":"拖船能建家吗","appid":"252490","patch_id":"rust_20230706_deep_sea","expected":"D02"}
+{"question":"tugboat 好用吗","appid":"252490","patch_id":"rust_20230706_deep_sea","expected":"D02"}
+{"question":"渡轮码头在哪","appid":"252490","patch_id":"rust_20230706_deep_sea","expected":"D03"}
+{"question":"深渊皮肤值不值","appid":"252490","patch_id":"rust_20230706_deep_sea","expected":"D04"}
+{"question":"姜岛好玩吗","appid":"413150","patch_id":"sdv_20201221_15","expected":"S15_01"}
+{"question":"薑島怎麼去","appid":"413150","patch_id":"sdv_20201221_15","expected":"S15_01"}
+{"question":"ginger island 评价","appid":"413150","patch_id":"sdv_20201221_15","expected":"S15_01"}
+{"question":"金核桃怎么解锁","appid":"413150","patch_id":"sdv_20201221_15","expected":"S15_02"}
+{"question":"火山地牢难吗","appid":"413150","patch_id":"sdv_20201221_15","expected":"S15_03"}
+{"question":"沙滩农场怎么样","appid":"413150","patch_id":"sdv_20201221_15","expected":"S15_04"}
+{"question":"分屏合作体验","appid":"413150","patch_id":"sdv_20201221_15","expected":"S15_05"}
+{"question":"八人联机卡不卡","appid":"413150","patch_id":"sdv_20240319_16","expected":"S16_04"}
+{"question":"8人联机怎么样","appid":"413150","patch_id":"sdv_20240319_16","expected":"S16_04"}
+{"question":"武库通行证值得买吗","appid":"730","patch_id":"steam_730_20241002","expected":"730_20241002_01"}
+{"question":"武器吊饰好看吗","appid":"730","patch_id":"steam_730_20241002","expected":"730_20241002_02"}
+{"question":"charm 能拆吗","appid":"730","patch_id":"steam_730_20241002","expected":"730_20241002_02"}
+{"question":"巢穴地图怎么样","appid":"359550","patch_id":"steam_359550_20231206","expected":"359550_20231206_02"}
+{"question":"盾牌重做后手感","appid":"359550","patch_id":"steam_359550_20240312","expected":"359550_20240312_02"}
+{"question":"行旅图好用吗","appid":"2358720","patch_id":"steam_2358720_20241214","expected":"2358720_20241214_02"}
+{"question":"旅行图怎么看","appid":"2358720","patch_id":"steam_2358720_20241214","expected":"2358720_20241214_02"}
+{"question":"土地庙挑战怎么样","appid":"2358720","patch_id":"steam_2358720_20241214","expected":"2358720_20241214_01"}
+{"question":"连战好玩吗","appid":"2358720","patch_id":"steam_2358720_20241214","expected":"2358720_20241214_01"}
+{"question":"百眼魔君改了什么","appid":"2358720","patch_id":"steam_2358720_20240923","expected":"2358720_20240923_01"}
+{"question":"狼牙棒加法力吗","appid":"2358720","patch_id":"steam_2358720_20240923","expected":"2358720_20240923_02"}
+{"question":"地图变大后怎么样","appid":"570","patch_id":"steam_570_20230420","expected":"570_20230420_01"}
+{"question":"命石怎么选","appid":"570","patch_id":"steam_570_20240523","expected":"570_20240523_02"}
+{"question":"旅途模式好玩吗","appid":"105600","patch_id":"steam_105600_20200516","expected":"105600_20200516_01"}
+{"question":"大师模式难度","appid":"105600","patch_id":"steam_105600_20200516","expected":"105600_20200516_02"}
+{"question":"配装切换方便吗","appid":"105600","patch_id":"steam_105600_20220928","expected":"105600_20220928_01"}
+{"question":"竞技场开了吗","appid":"1245620","patch_id":"steam_1245620_20221207","expected":"1245620_20221207_01"}
+{"question":"灵马能召唤吗","appid":"1245620","patch_id":"steam_1245620_20240620","expected":"1245620_20240620_02"}
+{"question":"保金事务所怎么开","appid":"271590","patch_id":"steam_271590_20240625","expected":"271590_20240625_01"}
+{"question":"警车派遣任务","appid":"271590","patch_id":"steam_271590_20240625","expected":"271590_20240625_02"}
+{"question":"挂件怎么获得","appid":"730","patch_id":"steam_730_20241002","expected":"730_20241002_02"}
+{"question":"外挂太多了","appid":"730","patch_id":"steam_730_20241002","expected":null}

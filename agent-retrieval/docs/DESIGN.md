@@ -19,7 +19,7 @@
 cleaned_reviews.parquet (4,884,580)
         │  只扫 26 个版本窗口（发布日 ±14 天）
         ▼
-窗口语料 61,729 条 ──► BM25 倒排索引 (178k terms)
+窗口语料 62,007 条 ──► BM25 倒排索引 (178k terms)
         │            └─► 向量矩阵 (512d, hash 兜底 / BGE 可换)
         │
 窗口内已复核可引用关联.jsonl (469 条) ──► 已复核引文库 + 独立 BM25
@@ -72,25 +72,37 @@ score = 0.7 * normalize(BM25(q, mask)) + 0.3 * normalize(cos(q_vec, doc_vec))
 
 ## 4. Agent 路由
 
+路由优先由 LLM 完成：模型只输出结构化字段，不生成数字或原文。
+
+```json
+{"intent":"review","phases":["before","after"],"item_ids":["S15_01"],
+ "language":"chinese","ranking":null,"confidence":0.9}
+```
+
+- `intent`：`metric / announcement / review / why / mixed / ranking / outside / need_context`
+- `phases`：`before / release / after` 的**集合**；“更新前后”必须同时给 `before` 和 `after`
+- `item_ids`：只能从当前版本的官方改动目录里选
+- `ranking`：`{"metric_phase":"before|release|after","direction":"top|low|rise|drop"}`，
+  只有明确的跨版本比较才给，`整体/全部语言` 属于语言分组，不是排行
+
+LLM 超时、返回非法 JSON 或未配置 Key 时，退回同一套字段的确定性规则；规则覆盖
+“哪个版本/全组/排名”“最高/最低 + 版本”“更新前后”“中文/英文”等常见说法。
+版本号解析仍走规则（`1.12`、`Deep Freeze`、`7.33`），不让模型改错版本。
+
 ```
 问题
- ├─ 命中天气/退款/客服等 → outside_catalog（直接拒答）
- ├─ 有“哪个版本/最多/排名” + 指标词 → ranking（全组排行）
- ├─ 能定位版本 → 按意图：
- │    metric        → lookup_metrics
- │    announcement  → search_announcements
- │    review        → search_reviews（有 item 时按 item）
- │    why           → lookup_metrics + top_negative_reviews
- │    mixed         → 指标 + 公告/原文
+ ├─ outside → 直接拒答
+ ├─ ranking → 按 ranking.metric_phase 选 before/release/after 指标排序
+ ├─ 能定位版本 → metric / announcement / review / why / mixed
  └─ 定位不到版本 → need_context（列出可选版本）
 ```
 
 `why` 是特意分开的：问“为什么差评变多”时，按文本相关度检索容易抓到玩梗评论，
-改成“更新后 14 天里点赞最高的差评”更接近人想看的东西。
+改成“对应阶段点赞最高的差评”更接近人想看的东西；有多条改动时，每条各自给证据或空态。
 
 ### 证据分级
 
-有了黄静雯的 469 条已复核引文后，检索结果分三级，Agent 按级别决定用谁：
+有了上游版本分析模块的 469 条已复核引文后，检索结果分三级，Agent 按级别决定用谁：
 
 1. `verified_quotes`：该版本有已复核库且命中 → 只用已复核引文，`citations[].verified=true`；
 2. `dataset_quotes`：该版本没有已复核库，或“为什么差评多”需要代表性差评 → 用数据集原文，
@@ -98,6 +110,20 @@ score = 0.7 * normalize(BM25(q, mask)) + 0.3 * normalize(cos(q_vec, doc_vec))
 3. `none`：该版本有已复核库但这条改动没有可引用原话 → 直接返回空态，**不降级到未复核原文**。
 
 这样“已复核”三个字不会被滥用：页面上只要出现 `verified=true`，就一定是那 469 条里的原文。
+
+### 同义词层
+
+官方标题和玩家说法经常对不上（“海浪” vs “海浪与水面改版”、“挂件” vs “武器吊饰”）。词典分两层：
+
+- 条目层：`data_sources/lexicon/items_extra.jsonl`，每个条目 8–12 个同义词 + 3–6 个负向词，
+  由人工重点词和模型批量扩词组成，构建时并入条目 BM25 索引，并参与命中门槛；
+- 全局层：`data_sources/lexicon/global_synonyms.json`，把“闪退/崩溃/crash”“卡顿/掉帧”等
+  归到同一组，查询时扩展，避免同一意思换个词就检索不到。
+
+负向词用来防误命中（“外挂”不能命中“武器挂件”），但只在没有正向词时硬排除；
+一个问题同时提到两个改动时，两个条目都可以成为候选。
+
+独立评测 `eval/run_lexicon_eval.py` 覆盖同义、繁体、英文、错字和负向问法，当前 Hit@1 = 39/39。
 
 ## 5. 防幻觉的四条硬规则
 
@@ -108,7 +134,7 @@ score = 0.7 * normalize(BM25(q, mask)) + 0.3 * normalize(cos(q_vec, doc_vec))
 
 ## 6. 验收
 
-`eval/acceptance.jsonl` 27 题，覆盖：
+`eval/acceptance.jsonl` 36 题，覆盖：
 
 - 指标：推荐率、样本量、方向（升/降）、中文/英文分组、发布当天、全组排行（8 题）
 - 公告：条目数量、条目内容、10 项完整列出（3 题）
@@ -127,21 +153,21 @@ score = 0.7 * normalize(BM25(q, mask)) + 0.3 * normalize(cos(q_vec, doc_vec))
 - 回归用例会检查引文的 `language_std`、`phase`、`item_id` 是否与请求一致；
 - 差评归因里不允许出现“推荐”的引文。
 
-当前结果：**27/27 通过**，见 `eval/REPORT.md`。
+当前结果：**36/36 通过**，见 `eval/REPORT.md`。
 
 ## 7. 与其他人成果的衔接
 
 | 上游 | 用法 | 现状 |
 |---|---|---|
-| 黄静雯 `items.jsonl` / `patches.jsonl` | 版本目录、公告条目、别名 | 已接（复制进构建流程） |
-| 黄静雯 `更新前后对比.csv` | 指标表 | 已接（78 行，三语种） |
-| 黄静雯 `窗口内已复核可引用关联.jsonl` | 已复核引文（469 条 / 20 版本 / 37 改动） | 已接：`search_verified` 优先于数据集原文 |
-| 何国境主题情感结果 | 可做“玩家在聊什么”的聚合回答 | 未接（当前问题用原文检索覆盖） |
-| 石曜铭 Java Web | 调 `/api/agent/ask` 与 `/api/patches/{id}` | 接口已按 Servlet 场景设计 |
+| 上游版本分析模块 `items.jsonl` / `patches.jsonl` | 版本目录、公告条目、别名 | 已接（复制进构建流程） |
+| 上游版本分析模块 `更新前后对比.csv` | 指标表 | 已接（78 行，三语种） |
+| 上游版本分析模块 `窗口内已复核可引用关联.jsonl` | 已复核引文（469 条 / 20 版本 / 37 改动） | 已接：`search_verified` 优先于数据集原文 |
+| 上游 NLP 统计模块主题情感结果 | 可做“玩家在聊什么”的聚合回答 | 未接（当前问题用原文检索覆盖） |
+| Web 端（Java Web） | 调 `/api/agent/ask` 与 `/api/patches/{id}` | 接口已按 Servlet 场景设计 |
 
 ## 8. 如果继续做
 
-1. 接黄静雯的已复核引文，`evidence_status` 增加 `verified_quotes`；
-2. 接何国境的 `topic_distribution` / `item_sentiment_detail`，支持“玩家主要在聊什么”；
+1. 接上游版本分析模块的已复核引文，`evidence_status` 增加 `verified_quotes`；
+2. 接上游 NLP 统计模块的 `topic_distribution` / `item_sentiment_detail`，支持“玩家主要在聊什么”；
 3. 用 BGE 替换哈希向量，重跑 20 题看 Hit@1 是否提升；
 4. 给 Agent 加多轮：记住上一轮版本，支持“那 1.6 呢？”这类追问。

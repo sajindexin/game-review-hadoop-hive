@@ -47,7 +47,30 @@ class KnowledgeBase:
         self._patch_items = {p["patch_id"]: p.get("items", []) for p in self.catalog.patches}
         self._texts = self.docs["text"].fillna("").astype(str).to_numpy()
         self._load_verified()
+        self._global_syn: dict[str, list[str]] = self._load_global_synonyms()
         self._build_item_index()
+
+    @staticmethod
+    def _load_global_synonyms() -> dict[str, list[str]]:
+        path = Path(__file__).resolve().parents[1] / "data_sources" / "lexicon" / "global_synonyms.json"
+        if not path.exists():
+            return {}
+        data = json.loads(path.read_text("utf-8"))
+        mapping: dict[str, list[str]] = {}
+        for group in data.get("groups", []):
+            terms = [str(t).lower() for t in group.get("terms", []) if t]
+            for t in terms:
+                mapping.setdefault(t, [])
+                mapping[t].extend(x for x in terms if x != t and x not in mapping[t])
+        return mapping
+
+    def expand_tokens(self, tokens: list[str]) -> list[str]:
+        out: list[str] = []
+        for t in tokens:
+            out.append(t)
+            for x in self._global_syn.get(t, []):
+                out.append(x)
+        return list(dict.fromkeys(out))
 
     def _load_verified(self) -> None:
         path = self.dir / "verified.json"
@@ -96,13 +119,16 @@ class KnowledgeBase:
 
         toks = [t for t in dict.fromkeys(tokenize(query)) if len(t) >= 2]
         toks = [t for t in toks if t not in STOP_BIGRAMS and t not in GENERIC_CJK]
+        toks = self.expand_tokens(toks)
         keys: list[str] = []
         if item:
-            # 条目明确时，只认“该改动的别名/标题词”，不让游戏名把泛化评测带进来
+            # 条目明确时，用该改动的别名/标题/同义词做门槛，不让游戏名把泛化评测带进来
             keys.extend(item.get("aliases_zh") or [])
             keys.extend(item.get("aliases_en") or [])
+            keys.extend(item.get("synonyms") or [])
             title_blob = item.get("title", "") + " " + " ".join(
-                (item.get("aliases_zh") or []) + (item.get("aliases_en") or []))
+                (item.get("aliases_zh") or []) + (item.get("aliases_en") or [])
+                + (item.get("synonyms") or []))
             keys.extend(t for t in toks if t in title_blob)
         else:
             scored = [(t, self.bm25.idf.get(t, 0.0)) for t in toks]
@@ -146,11 +172,14 @@ class KnowledgeBase:
         if mask.sum() == 0:
             return {"status": "no_candidates", "quotes": [], "candidates": 0}
 
-        q_tokens = [t for t in tokenize(query) if len(t) >= 2] or tokenize(query)
+        q_tokens = self.expand_tokens([t for t in tokenize(query) if len(t) >= 2] or tokenize(query))
+        vec_text = query
         if item:
-            q_tokens += [t for t in tokenize(item["title"]) if len(t) >= 2]
+            extra = " ".join([item["title"], *(item.get("synonyms") or [])])
+            q_tokens += [t for t in tokenize(extra) if len(t) >= 2]
+            vec_text = f"{query} {extra}"
         bm = self.bm25.scores(q_tokens, mask=mask)
-        qv = self._encode_query(query or (item["title"] if item else ""))
+        qv = self._encode_query(vec_text)
         dn = np.maximum(self.vectors @ qv, 0.0) * mask
 
         def norm(a: np.ndarray) -> np.ndarray:
@@ -236,7 +265,7 @@ class KnowledgeBase:
             if phase and phase not in ("all", ""):
                 if v["phase"] != phase:
                     return False
-                # 与黄静雯 find_evidence.lookup 的阶段口径保持一致：
+                # 与上游版本分析模块 find_evidence.lookup 的阶段口径保持一致：
                 # 更新前排除“发布后才编辑”的评测；更新后排除“窗口结束后编辑”的评测；
                 # 发布当天排除“当天之后才编辑”的评测。
                 if phase == "before" and v.get("before_review_edited_after_release"):
@@ -269,9 +298,15 @@ class KnowledgeBase:
             mask = np.zeros(len(self.verified), dtype=np.float32)
             mask[idx] = 1.0
             scores = self._verified_bm25.scores(tokens, mask=mask)
-            # 相关度门槛：问题里的实体词一条都没命中，就不要返回“看起来最像”的引文
-            if max(float(scores[i]) for i in idx) <= 0:
-                return {"status": "no_verified_quotes", "available": 0, "quotes": []}
+            if item_id:
+                # 条目已经限定，引文与条目的关联由复核结果保证；这里只按相关度排序
+                positive = idx
+            else:
+                # 未限定条目时逐条过滤：零相关度的引文不能拿来当依据
+                positive = [i for i in idx if scores[i] > 0]
+                if not positive:
+                    return {"status": "no_verified_quotes", "available": 0, "quotes": []}
+            idx = positive
         else:
             scores = np.zeros(len(self.verified), dtype=np.float32)
             for i in idx:
@@ -345,8 +380,11 @@ class KnowledgeBase:
     def _build_item_index(self) -> None:
         self._item_docs: list[tuple[dict, list[str]]] = []
         for it in self.catalog.items:
-            text = " ".join([it["title"], it.get("title_en", ""), it.get("description", ""),
-                             " ".join(it.get("aliases_zh") or []), " ".join(it.get("aliases_en") or [])])
+            aliases = " ".join((it.get("aliases_zh") or []) + (it.get("aliases_en") or []))
+            synonyms = " ".join(it.get("synonyms") or [])
+            # 标题/别名/同义词重复一次，等价于字段加权
+            text = " ".join([it["title"], it["title"], it.get("title_en", ""), it.get("description", ""),
+                             aliases, aliases, synonyms, synonyms, it.get("section", "")])
             self._item_docs.append((it, tokenize(text)))
         self._item_bm25 = BM25Index().build([t for _, t in self._item_docs])
 
@@ -382,14 +420,30 @@ class KnowledgeBase:
                 mask[i] = 1.0
         if mask.sum() == 0:
             return {"status": "unknown_patch", "candidates": []}
-        scores = self._item_bm25.scores(tokenize(text), mask=mask)
+        from .tokenize import GENERIC_CJK, STOP_BIGRAMS
+
+        toks = [t for t in tokenize(text) if len(t) >= 2
+                and t not in STOP_BIGRAMS and t not in GENERIC_CJK]
+        scores = self._item_bm25.scores(self.expand_tokens(toks), mask=mask)
         low = text.lower()
         for i, (it, _) in enumerate(self._item_docs):
             if mask[i] == 0:
                 continue
-            for a in (it.get("aliases_zh") or []) + (it.get("aliases_en") or []):
-                if a and len(a) >= 2 and a.lower() in low:
-                    scores[i] += 3.0
+            exact = (it.get("aliases_zh") or []) + (it.get("aliases_en") or []) + [it["title"]]
+            has_positive = any(t and len(t) >= 2 and t.lower() in low for t in exact)
+            if has_positive:
+                scores[i] += 8.0
+            positive = exact + (it.get("synonyms") or [])
+            for term in positive:
+                if term and len(term) >= 2 and term.lower() in low:
+                    scores[i] += 2.0
+                    has_positive = True
+            has_negative = any(t and len(t) >= 2 and t.lower() in low for t in it.get("negative") or [])
+            if has_negative:
+                if not has_positive:
+                    scores[i] = 0.0
+                else:
+                    scores[i] -= 1.0
         order = np.argsort(-scores)[: max(1, min(top_k, int(mask.sum())))]
         cands = []
         for i in order:
@@ -397,7 +451,7 @@ class KnowledgeBase:
                 continue
             it = self._item_docs[int(i)][0]
             matched = [a for a in (it.get("aliases_zh") or []) + (it.get("aliases_en") or [])
-                       if a and a.lower() in low]
+                       + (it.get("synonyms") or []) if a and a.lower() in low]
             cands.append({"item_id": it["item_id"], "title": it["title"],
                           "score": round(float(scores[i]), 3), "matched_aliases": matched})
         return {"status": "ok" if cands else "none", "candidates": cands}

@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -13,6 +14,29 @@ sys.path.insert(0, str(ROOT))
 
 from src.agent import Agent  # noqa: E402
 from src.retrieval import KnowledgeBase  # noqa: E402
+from src.router import Router  # noqa: E402
+
+
+class _FakeResponse:
+    def __init__(self, content: str) -> None:
+        self._content = content
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> dict:
+        return {"choices": [{"message": {"content": self._content}}]}
+
+
+class _FakeClient:
+    def __init__(self, content: str | None = None, error: Exception | None = None) -> None:
+        self.content = content
+        self.error = error
+
+    def post(self, *args, **kwargs):
+        if self.error:
+            raise self.error
+        return _FakeResponse(self.content or "{}")
 
 
 class KnowledgeBaseTest(unittest.TestCase):
@@ -134,6 +158,44 @@ class KnowledgeBaseTest(unittest.TestCase):
         out = self.kb.item_candidates("姜岛真好玩，火山地牢有点绕", "413150", "sdv_20201221_15", top_k=3)
         ids = [c["item_id"] for c in out["candidates"]]
         self.assertIn("S15_01", ids)
+
+
+class RouterTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.kb = KnowledgeBase(ROOT / "data")
+        cls.patch = cls.kb.catalog.patch("sdv_20201221_15")
+        cls.items = cls.kb.catalog.items_of("sdv_20201221_15")
+
+    def test_llm_route_parsed(self) -> None:
+        payload = json.dumps({
+            "intent": "review", "phases": ["before", "after"], "item_ids": ["S15_01"],
+            "language": "chinese", "ranking": None, "confidence": 0.92,
+        }, ensure_ascii=False)
+        router = Router(client=_FakeClient(payload))
+        route = router.route("更新前后玩家怎么评价姜岛？", self.patch, self.items)
+        self.assertEqual(route.source, "llm")
+        self.assertEqual(route.intent, "review")
+        self.assertEqual(route.phases, ["before", "after"])
+        self.assertEqual(route.item_ids, ["S15_01"])
+        self.assertEqual(route.language, "chinese")
+
+    def test_llm_failure_falls_back(self) -> None:
+        router = Router(client=_FakeClient(error=RuntimeError("boom")))
+        route = router.route("更新前后玩家怎么评价姜岛？", self.patch, self.items)
+        self.assertEqual(route.source, "rules_fallback")
+        self.assertEqual(route.phases, ["before", "after"])
+
+    def test_agent_uses_compare_route(self) -> None:
+        payload = json.dumps({
+            "intent": "review", "phases": ["before", "after"],
+            "item_ids": ["2358720_20241214_01"], "language": None, "ranking": None,
+        }, ensure_ascii=False)
+        agent = Agent(self.kb, router=Router(client=_FakeClient(payload)))
+        res = agent.ask("更新前后玩家怎么评价土地庙挑战？", appid="2358720",
+                        patch_id="steam_2358720_20241214")
+        phases = {c.get("phase") for c in res["citations"] if c["type"] == "review"}
+        self.assertTrue({"before", "after"} <= phases)
 
 
 class ApiTest(unittest.TestCase):

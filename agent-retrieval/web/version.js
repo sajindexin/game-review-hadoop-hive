@@ -91,7 +91,7 @@ async function boot() {
       quotesPanel.appendChild(el("div", "note", "该版本（或该改动）暂无已复核引文。"));
     } else {
       quotesPanel.appendChild(el("div", "note",
-        `显示 ${quotes.length} 条 / 共 ${vres.available ?? quotes.length} 条，来自黄静雯已复核引文库；点标题可回 Steam 原页。`));
+        `显示 ${quotes.length} 条 / 共 ${vres.available ?? quotes.length} 条，来自上游版本分析模块已复核引文库；点标题可回 Steam 原页。`));
       quotes.forEach((q) => {
         const card = el("div", "quote");
         const head = el("div", "quote-head");
@@ -117,7 +117,7 @@ async function boot() {
     quotesPanel.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  app.appendChild(el("div", "note", "数据版本 v1 · 指标来自黄静雯 Hive 窗口统计，改动目录来自官方公告。"));
+  app.appendChild(el("div", "note", "数据版本 v1 · 指标来自上游版本分析模块 Hive 窗口统计，改动目录来自官方公告。"));
 }
 
 boot().catch((err) => {

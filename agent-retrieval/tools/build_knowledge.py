@@ -66,6 +66,7 @@ def compile_aliases(items: list[dict]) -> re.Pattern | None:
     for it in items:
         aliases.extend(it.get("aliases_zh") or [])
         aliases.extend(it.get("aliases_en") or [])
+        aliases.extend(it.get("synonyms") or [])
         # 标题里的双字词也作为召回词，过滤掉“地图/武器”这类过于宽泛的词
         for run in re.findall(r"[\u4e00-\u9fff]+", it.get("title", "")):
             for i in range(len(run) - 1):
@@ -230,7 +231,8 @@ def scan_corpus(parquet: Path, patches: list[dict], items: list[dict],
                            if steamid else f"https://store.steampowered.com/app/{row.appid}/")
                     matched = []
                     for it in by_patch_items[patch_id]:
-                        for a in (it.get("aliases_zh") or []) + (it.get("aliases_en") or []):
+                        terms = (it.get("aliases_zh") or []) + (it.get("aliases_en") or []) + (it.get("synonyms") or [])
+                        for a in terms:
                             if a and a.lower() in text.lower():
                                 matched.append(it["item_id"])
                                 break
@@ -272,7 +274,7 @@ PHASE_MAP = {"before": "before", "release_day": "release", "after": "after"}
 
 
 def load_verified(path: Path, parquet: Path) -> list[dict]:
-    """黄静雯的已复核引文：补上 Steam 永久链接，统一阶段命名。"""
+    """上游版本分析模块的已复核引文：补上 Steam 永久链接，统一阶段命名。"""
     rows = load_jsonl(path)
     ids = [str(r["review_id"]) for r in rows]
     dataset = ds.dataset(str(parquet), format="parquet")
@@ -308,11 +310,12 @@ def load_verified(path: Path, parquet: Path) -> list[dict]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--parquet", required=True)
-    ap.add_argument("--branch", help="黄静雯分支目录 game-update-feedback-analysis（可选，给了就优先用它）")
+    ap.add_argument("--branch", help="上游版本分析模块分支目录 game-update-feedback-analysis（可选，给了就优先用它）")
     ap.add_argument("--items", help="items.jsonl 路径（可选）")
     ap.add_argument("--patches", help="patches.jsonl 路径（可选）")
     ap.add_argument("--metrics", help="更新前后对比.csv 路径（可选）")
     ap.add_argument("--verified", help="窗口内已复核可引用关联.jsonl（可选）")
+    ap.add_argument("--lexicon", help="条目同义词表 items_extra.jsonl（可选）")
     ap.add_argument("--out", default="data")
     ap.add_argument("--quick", action="store_true", help="只扫前 8 个 batch，冒烟用")
     args = ap.parse_args()
@@ -321,9 +324,9 @@ def main() -> None:
     root.mkdir(parents=True, exist_ok=True)
     if args.branch:
         branch = Path(args.branch)
-        default_items = branch / "黄静雯_全组版本与改动" / "items" / "items.jsonl"
-        default_patches = branch / "黄静雯_全组版本与改动" / "patches" / "patches.jsonl"
-        default_metrics = branch / "黄静雯_全组Hive统计" / "更新前后对比.csv"
+        default_items = branch / "上游版本分析模块_全组版本与改动" / "items" / "items.jsonl"
+        default_patches = branch / "上游版本分析模块_全组版本与改动" / "patches" / "patches.jsonl"
+        default_metrics = branch / "上游版本分析模块_全组Hive统计" / "更新前后对比.csv"
     else:
         default_items = Path("data_sources/catalog/items.jsonl")
         default_patches = Path("data_sources/catalog/patches.jsonl")
@@ -333,10 +336,23 @@ def main() -> None:
     metrics_path = Path(args.metrics) if args.metrics else default_metrics
     for p in (items_path, patches_path, metrics_path):
         if not p.exists():
-            raise SystemExit(f"缺少输入文件：{p}（可用 --branch 指向黄静雯分支目录）")
+            raise SystemExit(f"缺少输入文件：{p}（可用 --branch 指向上游版本分析模块分支目录）")
 
     patches = load_jsonl(patches_path)
     items = load_jsonl(items_path)
+    lexicon_path = Path(args.lexicon) if args.lexicon else Path("data_sources/lexicon/items_extra.jsonl")
+    if lexicon_path.exists():
+        extra = {r["item_id"]: r for r in load_jsonl(lexicon_path)}
+        for it in items:
+            e = extra.get(it["item_id"], {})
+            it["synonyms"] = e.get("synonyms", [])
+            it["negative"] = e.get("negative", [])
+        print(f"lexicon: {sum(len(it.get('synonyms') or []) for it in items)} synonyms "
+              f"for {len(extra)} items")
+    else:
+        for it in items:
+            it["synonyms"] = []
+            it["negative"] = []
     with metrics_path.open(encoding="utf-8-sig", newline="") as f:
         metrics_rows = list(csv.DictReader(f))
 

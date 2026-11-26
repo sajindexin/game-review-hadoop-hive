@@ -201,8 +201,10 @@ function renderAnswer(res) {
 
 $("#askForm").addEventListener("submit", (e) => {
   e.preventDefault();
+  if (state.loading) return;          // 版本还在加载：保留输入，不清空、不发请求
   const input = $("#question");
-  const q = input.value;
+  const q = input.value.trim();
+  if (!q || !state.current) return;
   input.value = "";
   ask(q);
 });

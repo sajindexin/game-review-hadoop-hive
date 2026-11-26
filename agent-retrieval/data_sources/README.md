@@ -5,7 +5,7 @@
 ## verified_quotes.jsonl
 
 - 来源：`feat/game-update-feedback-analysis` 分支
-  `game-update-feedback-analysis/黄静雯_全组评测改动关联/窗口内已复核可引用关联.jsonl`
+  `game-update-feedback-analysis/上游版本分析模块_全组评测改动关联/窗口内已复核可引用关联.jsonl`
 - 提交：`c26c38a`（2026-11-25 00:55 +08:00，message「补充 Agent 可用的已复核引文」）
 - SHA-256：`84b4174a42f21a52413de5fd75f571e2982f626d88fc51e1d138ea9fc2f6f9d1`
   （与 PR2 `全量核验说明与验收记录.zip` 里 README 声明的值一致，本地实测相同）
@@ -18,7 +18,7 @@
 
 ## catalog/*.jsonl / 更新前后对比.csv
 
-- 来源：同分支 `黄静雯_全组版本与改动/` 与 `黄静雯_全组Hive统计/`
+- 来源：同分支 `上游版本分析模块_全组版本与改动/` 与 `上游版本分析模块_全组Hive统计/`
 - 提交：`f02b0d5`（2026-11-25 10:20 +08:00）时的分支内容
 - 用途：版本目录（26 个版本）、官方改动（75 项）、窗口指标（all / chinese / en）
 
@@ -32,5 +32,5 @@ python -m tools.build_knowledge --parquet "<v1>\releases\v1\data\cleaned_reviews
 
 ## 如果上游更新了
 
-黄静雯后续若提交了新的已复核引文（例如全量核验后导出更多对），把新文件覆盖到本目录，
+上游版本分析模块后续若提交了新的已复核引文（例如全量核验后导出更多对），把新文件覆盖到本目录，
 重新跑一次构建即可；`data/verified.json` 会跟着变，Agent 不需要改代码。

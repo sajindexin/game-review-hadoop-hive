@@ -27,6 +27,13 @@ def check(case: dict, res: dict) -> list[str]:
     for text in exp.get("contains", []):
         if text.lower() not in answer.lower():
             errs.append(f"缺少文字「{text}」")
+    for text in exp.get("not_contains", []):
+        if text.lower() in answer.lower():
+            errs.append(f"不该出现文字「{text}」")
+    if exp.get("links_evidence_contains"):
+        link = str((res.get("links") or {}).get("evidence", ""))
+        if exp["links_evidence_contains"] not in link:
+            errs.append(f"原文链接缺少 {exp['links_evidence_contains']}：{link}")
     for want in exp.get("numbers", []):
         hit = next((n for n in res.get("numbers", []) if n["label"] == want["label"]), None)
         if hit is None:
@@ -66,6 +73,22 @@ def check(case: dict, res: dict) -> list[str]:
         reviews = [c for c in res.get("citations", []) if c["type"] == "review"]
         if any(c.get("item_id") != exp["review_items"] for c in reviews):
             errs.append(f"引文条目不符：{[c.get('item_id') for c in reviews]}")
+    if exp.get("review_item_set"):
+        reviews = [c for c in res.get("citations", []) if c["type"] == "review"]
+        got = {c.get("item_id") for c in reviews}
+        if got != set(exp["review_item_set"]):
+            errs.append(f"引文条目集合不符：{sorted(got)}")
+    if exp.get("review_ids"):
+        reviews = [c for c in res.get("citations", []) if c["type"] == "review"]
+        got = {c.get("review_id") for c in reviews}
+        if got != set(exp["review_ids"]):
+            errs.append(f"引文 ID 不符：{sorted(got)}")
+    if exp.get("review_phases_include"):
+        reviews = [c for c in res.get("citations", []) if c["type"] == "review"]
+        got = {c.get("phase") for c in reviews}
+        missing = set(exp["review_phases_include"]) - got
+        if missing:
+            errs.append(f"缺少阶段引文：{sorted(missing)}")
     # 全局质量检查
     for c in res.get("citations", []):
         if c["type"] == "review" and not str(c.get("url", "")).startswith("https://steamcommunity.com"):

@@ -1,4 +1,4 @@
-# 接口说明（给 Java Web / 石曜铭）
+# 接口说明（给 Java Web / Web 端）
 
 Base URL：`http://127.0.0.1:8000`（启动：`python -m src.cli serve --port 8000`）
 所有请求/响应均为 `application/json; charset=utf-8`。交互式文档：`/docs`。
@@ -108,7 +108,7 @@ Base URL：`http://127.0.0.1:8000`（启动：`python -m src.cli serve --port 80
 ]}
 ```
 
-### 2.4 已复核引文（黄静雯 469 条）
+### 2.4 已复核引文（上游版本分析模块 469 条）
 
 `POST /api/retrieve/verified`
 
@@ -130,7 +130,7 @@ Base URL：`http://127.0.0.1:8000`（启动：`python -m src.cli serve --port 80
 
 没有该版本/改动的已复核引文时返回 `{"status": "no_verified_quotes", "available": 0, "quotes": []}`。
 
-阶段过滤与黄静雯 `find_evidence.lookup` 的口径一致：
+阶段过滤与上游版本分析模块 `find_evidence.lookup` 的口径一致：
 
 | phase | 额外排除 |
 |---|---|
@@ -150,8 +150,10 @@ Base URL：`http://127.0.0.1:8000`（启动：`python -m src.cli serve --port 80
 ```
 
 `appid` / `patch_id` 可省略：会从问题里识别（游戏名、版本号、版本名、日期）。
-`language` 取 `all` / `chinese` / `en`；`phase` 取 `before` / `release` / `after`，
-不传时从问题里解析（“更新前 / 发布当天 / 更新后”）。两者会传入评测检索、已复核引文和差评回退三条路径。
+`language` 取 `all` / `chinese` / `en`；`phase` 取 `before` / `release` / `after` / `compare` / `all`
+（也兼容 `release_day`），不传时由路由解析（“更新前 / 发布当天 / 更新后 / 更新前后”）。
+`compare` 会分别查 before 和 after 两段证据；语言和阶段会传入评测检索、已复核引文和差评回退三条路径。
+响应里的 `route` 字段会回显本次路由（`intent / phases / item_ids / source`），便于联调排查。
 
 响应：
 
@@ -168,7 +170,7 @@ Base URL：`http://127.0.0.1:8000`（启动：`python -m src.cli serve --port 80
   ],
   "citations": [
     {"id": 1, "type": "metric", "title": "更新前后推荐率", "detail": "全部语言 · 更新前 14 天 / 发布当天 / 更新后 14 天",
-     "source": "黄静雯 Hive 窗口统计（数据版本 v1）", "url": "", "snippet": ""}
+     "source": "上游版本分析模块 Hive 窗口统计（数据版本 v1）", "url": "", "snippet": ""}
   ],
   "links": {"stats": "/versions/steam_1245620_20240620?lang=all",
             "evidence": "/versions/steam_1245620_20240620?tab=feedback",
@@ -199,7 +201,7 @@ Base URL：`http://127.0.0.1:8000`（启动：`python -m src.cli serve --port 80
 
 ### evidence_status
 
-- `verified_quotes`：引文来自黄静雯的 469 条已复核关联，`citations[].verified=true`，前端应显示“已复核”徽标；
+- `verified_quotes`：引文来自上游版本分析模块的 469 条已复核关联，`citations[].verified=true`，前端应显示“已复核”徽标；
 - `dataset_quotes`：引文来自 v1 数据集窗口样本（未复核），`citations[].verified=false`，可点链接回溯到 Steam 原页；
 - `none`：没有可用引文，`answer` 里会出现 `empty_state_text`（“暂无已复核引文”）。
 
@@ -221,7 +223,7 @@ Base URL：`http://127.0.0.1:8000`（启动：`python -m src.cli serve --port 80
 
 ## 4. 验收题
 
-`GET /api/qa/examples` 返回 27 道题（含 `appid` / `patch_id`），可直接做成版本页的“示例问题”。
+`GET /api/qa/examples` 返回 36 道题（含 `appid` / `patch_id`），可直接做成版本页的“示例问题”。
 
 ## 5. 错误码
 

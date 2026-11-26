@@ -1,4 +1,4 @@
-"""HTTP 接口：给 Java Web（石曜铭）和任何前端调用。
+"""HTTP 接口：给 Java Web（Web 端）和任何前端调用。
 
 启动：python -m src.cli serve --port 8000
 文档：http://127.0.0.1:8000/docs
@@ -26,7 +26,7 @@ class AskBody(BaseModel):
     appid: str | None = None
     patch_id: str | None = None
     language: Literal["all", "chinese", "en"] | None = None
-    phase: Literal["before", "release", "release_day", "after", "all"] | None = Field(
+    phase: Literal["before", "release", "release_day", "after", "compare", "all"] | None = Field(
         default=None, description="不传则从问题里解析")
 
 
@@ -70,7 +70,7 @@ def create_app(data_dir: str | Path = "data") -> FastAPI:
     agent = Agent(kb)
 
     app = FastAPI(title="游戏更新反馈 · 检索与问答 Agent", version="1.0.0",
-                  description="唐宇杰负责模块：BM25+BGE 检索接口、候选改动条目、可调用的 Agent 服务。")
+                  description="本模块负责人负责模块：BM25+BGE 检索接口、候选改动条目、可调用的 Agent 服务。")
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
     @app.get("/health")

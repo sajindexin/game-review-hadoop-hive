@@ -1,7 +1,7 @@
 # Agent 验收报告
 
-- 用例：27 道（指标 / 公告 / 原文 / 归因 / 边界 / 回归）
-- 结果：**27/27 通过**
+- 用例：36 道（指标 / 公告 / 原文 / 归因 / 边界 / 回归）
+- 结果：**36/36 通过**
 - 用时：0.0s · 数据版本 v1
 
 | # | 用例 | 问题 | 结果 |
@@ -33,3 +33,12 @@
 | 25 | q25_phase_filter | 更新前玩家怎么评价土地庙挑战？ | ✅ |
 | 26 | q26_ranking_with_patch | 哪个版本推荐率下降最多？ | ✅ |
 | 27 | q27_announcement_complete | Rust Jungle Update 改了什么？ | ✅ |
+| 28 | q28_quote_relevance_per_candidate | 玩家反馈闪退吗？ | ✅ |
+| 29 | q29_metric_not_ranking | Rust 深海更新后整体推荐率是多少？ | ✅ |
+| 30 | q30_ranking_before_phase | 哪个版本更新前推荐率最高？ | ✅ |
+| 31 | q31_compare_both_phases | 更新前后玩家怎么评价土地庙挑战？ | ✅ |
+| 32 | q32_link_carries_item | 玩家怎么评价行旅图？ | ✅ |
+| 33 | q33_multi_item_scoped | 玩家怎么评价姜岛和火山地牢？ | ✅ |
+| 34 | q34_synonym_charm | 武器吊饰好看吗？ | ✅ |
+| 35 | q35_traditional_ginger | 薑島好玩嗎？ | ✅ |
+| 36 | q36_synonym_travel_map | 旅行图怎么看？ | ✅ |
