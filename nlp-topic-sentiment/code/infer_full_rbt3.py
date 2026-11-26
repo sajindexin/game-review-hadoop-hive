@@ -17,6 +17,11 @@ RBT3 全量回灌：对全量中文评论跑主题层模型推理，输出模型
   python infer_full_rbt3.py --limit 2000            # 试跑测速
   python infer_full_rbt3.py                          # 全量中文
   python infer_full_rbt3.py --batch 256              # 调批量
+  python infer_full_rbt3.py --resume                 # 中断后续跑（row group 级断点）
+
+断点机制：每处理完一个 row group 就落盘明细/汇总并写进度文件
+  infer_rbt3_progress.json（记录 next_row_group）；--resume 从断点继续，
+  已完成的 row group 不重算，输出不会重复。
 """
 from __future__ import annotations
 import os
@@ -58,6 +63,8 @@ def parse_args():
     ap.add_argument("--threshold", type=float, default=THRESHOLD)
     ap.add_argument("--overwrite", action="store_true",
                     help="输出文件已存在时删除重写；不加此参数则拒绝运行，避免新旧结果混写")
+    ap.add_argument("--resume", action="store_true",
+                    help="从进度文件断点续跑（与 --overwrite 互斥）")
     return ap.parse_args()
 
 
@@ -73,16 +80,30 @@ def main():
 
     detail_path = os.path.join(OUT, "topic_sentiment_detail_rbt3.csv")
     review_path = os.path.join(OUT, "topic_sentiment_review_summary_rbt3.csv")
-    if os.path.exists(detail_path) or os.path.exists(review_path):
-        if args.overwrite:
-            for p in (detail_path, review_path):
-                if os.path.exists(p):
-                    os.remove(p)
-            print("已删除旧输出，将重写")
+    progress_path = os.path.join(OUT, "infer_rbt3_progress.json")
+    start_rg = 0
+    if args.resume and args.overwrite:
+        print("错误：--resume 与 --overwrite 不能同时用")
+        sys.exit(1)
+    if args.overwrite:
+        for p in (detail_path, review_path, progress_path):
+            if os.path.exists(p):
+                os.remove(p)
+        print("已删除旧输出与进度文件，将从头重跑")
+    elif args.resume:
+        if os.path.exists(progress_path):
+            with open(progress_path, encoding="utf-8") as f:
+                prog = json.load(f)
+            start_rg = int(prog.get("next_row_group", 0))
+            print(f"断点续跑：从 row group {start_rg} 继续"
+                  f"（已完成 {prog.get('n_zh', 0)} 条中文 / {prog.get('n_pairs', 0)} 对前向）")
         else:
-            print("错误：输出文件已存在（可能是上次试跑/中断的残留）。")
-            print("确认无误后加 --overwrite 重跑：python infer_full_rbt3.py --overwrite")
-            sys.exit(1)
+            print("未找到进度文件，从头开始")
+    elif os.path.exists(detail_path) or os.path.exists(review_path):
+        print("错误：输出文件已存在（可能是上次试跑/中断的残留）。")
+        print("续跑用：python infer_full_rbt3.py --resume")
+        print("重跑用：python infer_full_rbt3.py --overwrite")
+        sys.exit(1)
 
     if not torch.cuda.is_available():
         print("警告：CUDA 不可用，将用 CPU 推理（全量预计 40+ 小时，建议先装 CUDA 版 torch）")
@@ -96,13 +117,16 @@ def main():
     pf = pq.ParquetFile(args.parquet)
     detail_rows: list[dict] = []
     review_rows: list[dict] = []
-    first_detail = True
-    first_review = True
+    # 续跑时输出文件已存在则追加（不写表头）
+    first_detail = not (args.resume and os.path.exists(detail_path) and start_rg > 0)
+    first_review = not (args.resume and os.path.exists(review_path) and start_rg > 0)
     n_zh = n_tagged = 0
     n_pairs = 0
     t0 = time.time()
 
     def flush(rows, path, first):
+        if not rows:
+            return
         tbl = pa.Table.from_pylist(rows)
         opts = pacsv.WriteOptions(include_header=first)
         sink = pa.OSFile(path, "ab" if not first else "wb")
@@ -110,8 +134,6 @@ def main():
             pacsv.write_csv(tbl, sink, write_options=opts)
         finally:
             sink.close()
-
-    first_detail = True
 
     @torch.no_grad()
     def classify_batch(pairs_texts):
@@ -135,7 +157,8 @@ def main():
                     out.append(("neutral", round(max(p_neg, p_neu, p_pos), 4)))
         return out
 
-    for rg in range(pf.metadata.num_row_groups):
+    n_total_groups = pf.metadata.num_row_groups
+    for rg in range(start_rg, n_total_groups):
         t = pf.read_row_group(rg, columns=COLS).to_pydict()
         m = len(t["appid"])
         # 收集本 row group 的中文评论
@@ -213,28 +236,32 @@ def main():
                 })
             n_tagged += 1
 
-        if len(detail_rows) >= 300000 or len(review_rows) >= 300000:
-            flush(detail_rows, detail_path, first_detail)
-            if detail_rows:
-                first_detail = False
-            flush(review_rows, review_path, first_review)
-            if review_rows:
-                first_review = False
-            detail_rows = []
-            review_rows = []
-            el = time.time() - t0
-            print(f"  ...row group {rg+1}/{pf.metadata.num_row_groups} | 中文 {n_zh} | "
+        # ---- 每个row group处理完即落盘 + 写进度（断点续跑单位 = row group）----
+        flush(detail_rows, detail_path, first_detail)
+        if detail_rows:
+            first_detail = False
+        flush(review_rows, review_path, first_review)
+        if review_rows:
+            first_review = False
+        detail_rows = []
+        review_rows = []
+        with open(progress_path, "w", encoding="utf-8") as f:
+            json.dump({"next_row_group": rg + 1, "n_zh": n_zh,
+                       "n_pairs": n_pairs, "total_groups": n_total_groups,
+                       "elapsed_s": round(time.time() - t0, 1)}, f, ensure_ascii=False)
+        el = time.time() - t0
+        if (rg + 1) % 5 == 0 or rg + 1 == n_total_groups or (args.limit and n_zh >= args.limit):
+            print(f"  ...row group {rg+1}/{n_total_groups} | 中文 {n_zh} | "
                   f"前向 {n_pairs} | {el:.0f}s | {n_pairs/max(el,1e-9):.0f} 对/s", flush=True)
-            if dev.type == "cuda":
-                torch.cuda.empty_cache()
+        if dev.type == "cuda" and (rg + 1) % 10 == 0:
+            torch.cuda.empty_cache()
 
         if args.limit and n_zh >= args.limit:
             break
 
-    if detail_rows:
-        flush(detail_rows, detail_path, first_detail)
-    if review_rows:
-        flush(review_rows, review_path, first_review)
+    # 收尾：残余缓冲（正常情况下每个 rg 已即时落盘，这里兜底空缓冲即可）
+    flush(detail_rows, detail_path, first_detail)
+    flush(review_rows, review_path, first_review)
 
     el = time.time() - t0
     print("\n=== 完成 ===")
