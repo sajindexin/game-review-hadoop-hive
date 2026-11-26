@@ -28,7 +28,7 @@ RANK_SCOPE_RE = re.compile(r"哪个版本|哪些版本|所有版本|全组|排�
 RANK_EXTREME_RE = re.compile(r"最高|最低|最好|最差|最大|最小|最多|最少")
 PAGE_VERSION_RE = re.compile(r"这个版本|该版本|当前版本|本版本")
 COMPARE_RE = re.compile(r"更新前后|发布前后|上线前后|前后对比|前后变化|前后差异")
-RELEASE_RE = re.compile(r"发布当天|上线当天|发布日当天|更新当天")
+RELEASE_RE = re.compile(r"发布当天|上线当天|发布日(?:当天)?|更新当天")
 BEFORE_RE = re.compile(r"更新前|发布前|上线前|版本前|之前")
 AFTER_RE = re.compile(r"更新后|发布后|上线后|版本后|之后")
 
@@ -137,8 +137,15 @@ class Router:
         if intent not in INTENTS:
             raise ValueError(f"invalid intent: {intent}")
         phases = [p for p in (data.get("phases") or []) if p in PHASES]
-        # “更新差评”这类问法模型偶尔只给 release；没有明确“发布当天”就丢掉
-        if phases == ["release"] and not re.search(r"发布当天|上线当天|更新当天|发布日", question or ""):
+        q = question or ""
+        has_before = bool(BEFORE_RE.search(q))
+        has_after = bool(AFTER_RE.search(q))
+        has_release = bool(RELEASE_RE.search(q))
+        # 问题里同时出现“更新前”和“更新后”时，模型只给一个阶段也要纠正
+        if has_before and has_after:
+            phases = ["before", "after"]
+        # “更新差评”这类问法模型偶尔只给 release；没有明确“发布当天/发布日”就丢掉
+        if phases == ["release"] and not has_release:
             phases = []
         allowed_items = {it["item_id"] for it in items}
         item_ids = [i for i in (data.get("item_ids") or []) if i in allowed_items]
@@ -149,6 +156,12 @@ class Router:
         rank_phase = ranking.get("metric_phase") if ranking.get("metric_phase") in PHASES else None
         rank_dir = ranking.get("direction") if ranking.get("direction") in ("top", "low", "rise", "drop") else None
         if intent == "ranking":
+            if has_release:
+                rank_phase = "release"
+            elif has_before and not has_after:
+                rank_phase = "before"
+            elif has_after and not has_before:
+                rank_phase = "after"
             rank_phase = rank_phase or (phases[0] if len(phases) == 1 else "after")
             rank_dir = rank_dir or "drop"
         else:
@@ -166,13 +179,15 @@ class Router:
             return Route(intent="outside", source="rules", confidence=0.9)
 
         phases: list[str] = []
-        if COMPARE_RE.search(q):
+        has_before = bool(BEFORE_RE.search(q))
+        has_after = bool(AFTER_RE.search(q))
+        if COMPARE_RE.search(q) or (has_before and has_after):
             phases = ["before", "after"]
         elif RELEASE_RE.search(q):
             phases = ["release"]
-        elif BEFORE_RE.search(q):
+        elif has_before:
             phases = ["before"]
-        elif AFTER_RE.search(q):
+        elif has_after:
             phases = ["after"]
 
         metric = bool(METRIC_RE.search(q)) or "推荐率" in q or "好评率" in q

@@ -152,6 +152,8 @@ Base URL：`http://127.0.0.1:8000`（启动：`python -m src.cli serve --port 80
 `appid` / `patch_id` 可省略：会从问题里识别（游戏名、版本号、版本名、日期）。
 `language` 取 `all` / `chinese` / `en`；`phase` 取 `before` / `release` / `after` / `compare` / `all`
 （也兼容 `release_day`），不传时由路由解析（“更新前 / 发布当天 / 更新后 / 更新前后”）。
+**显式传参优先**：传了 `language` / `phase` 就按传入值执行，问题里的“英文/更新后”不会覆盖；
+`phase=all` 表示不筛阶段，`language=all` 表示全部语言。
 `compare` 会分别查 before 和 after 两段证据；语言和阶段会传入评测检索、已复核引文和差评回退三条路径。
 响应里的 `route` 字段会回显本次路由（`intent / phases / item_ids / source`），便于联调排查。
 
@@ -199,15 +201,28 @@ Base URL：`http://127.0.0.1:8000`（启动：`python -m src.cli serve --port 80
 | `announcement` | 官方改动条目，`url` 为官方公告链接 | “查看公告” |
 | `review` | 玩家原话，`url` 为 Steam 评测永久链接 | “查看原文” |
 
-### evidence_status
+`links.evidence` 是第一个条目的原文入口（兼容旧版）；一个问题提到多个改动时，
+额外返回 `links.evidence_items`，每个条目一个入口：
 
+```json
+"evidence_items": [
+  {"item_id": "2358720_20241214_01", "title": "土地庙挑战",
+   "url": "/versions/steam_2358720_20241214?tab=feedback&item=2358720_20241214_01"},
+  {"item_id": "2358720_20241214_02", "title": "行旅图",
+   "url": "/versions/steam_2358720_20241214?tab=feedback&item=2358720_20241214_02"}
+]
+```
+
+### evidence_status
 - `verified_quotes`：引文来自上游版本分析模块的 469 条已复核关联，`citations[].verified=true`，前端应显示“已复核”徽标；
+- `mixed_evidence`：同一条回答里既有已复核引文、也有未复核原文（例如“更新前后”只有一段有复核库）。
+  顶层不能标“已复核”，必须按 `citations[].verified` 逐条展示；
 - `dataset_quotes`：引文来自 v1 数据集窗口样本（未复核），`citations[].verified=false`，可点链接回溯到 Steam 原页；
 - `none`：没有可用引文，`answer` 里会出现 `empty_state_text`（“暂无已复核引文”）。
 
-> 规则：某个版本只要存在已复核库，就只用已复核引文；该改动没有就返回 `none`，不会退回未复核原文。
-> 例外是“为什么差评变多”这类归因问题——已复核差评不足 2 条时，退回“更新后被顶得最多的差评”，
-> 并在标题里标注“数据集原文（未复核）”，此时 `evidence_status=dataset_quotes`。
+> 规则：某个版本只要存在已复核库，就优先用已复核引文；该改动没有就返回 `none`，不会退回未复核原文。
+> 例外是“为什么差评变多”这类归因问题——已复核差评不足时，退回“对应阶段被顶得最多的差评”，
+> 并在标题里标注“数据集原文（未复核）”；如果同一回答混合了两类证据，顶层返回 `mixed_evidence`。
 
 `citations[]` 里和证据级别相关的字段：
 
@@ -223,7 +238,7 @@ Base URL：`http://127.0.0.1:8000`（启动：`python -m src.cli serve --port 80
 
 ## 4. 验收题
 
-`GET /api/qa/examples` 返回 36 道题（含 `appid` / `patch_id`），可直接做成版本页的“示例问题”。
+`GET /api/qa/examples` 返回 43 道题（含 `appid` / `patch_id`），可直接做成版本页的“示例问题”。
 
 ## 5. 错误码
 

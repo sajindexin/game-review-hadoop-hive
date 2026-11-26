@@ -253,7 +253,7 @@ class KnowledgeBase:
     def search_verified(self, query: str, patch_id: str, item_id: str | None = None,
                         phase: str | None = None, language: str | None = None,
                         sentiment: str | None = None, top_k: int = 3,
-                        prefer_zh: bool = False) -> dict:
+                        prefer_zh: bool = False, require_relevance: bool = False) -> dict:
         phase = PHASE_ALIAS.get(phase, phase)
         pool = self._verified_by_patch.get(patch_id, [])
         if not pool:
@@ -294,15 +294,23 @@ class KnowledgeBase:
 
         tokens = [t for t in tokenize(query) if len(t) >= 2
                   and t not in STOP_BIGRAMS and t not in GENERIC_CJK]
+        tokens = self.expand_tokens(tokens)
+        if item_id and not require_relevance:
+            # 只有词面已点名条目时才把条目词并入查询；推断条目不能借此绕过相关度
+            item = next((it for it in self.catalog.items if it["item_id"] == item_id), None)
+            if item:
+                tokens += [t for t in tokenize(
+                    item["title"] + " " + " ".join(item.get("synonyms") or [])) if len(t) >= 2]
+                tokens = list(dict.fromkeys(tokens))
         if tokens and self._verified_bm25 is not None:
             mask = np.zeros(len(self.verified), dtype=np.float32)
             mask[idx] = 1.0
             scores = self._verified_bm25.scores(tokens, mask=mask)
-            if item_id:
-                # 条目已经限定，引文与条目的关联由复核结果保证；这里只按相关度排序
+            if item_id and not require_relevance:
+                # 条目是问题里直接点名的，引文与条目的关联由复核结果保证；这里只按相关度排序
                 positive = idx
             else:
-                # 未限定条目时逐条过滤：零相关度的引文不能拿来当依据
+                # 条目是 BM25 推断的、或未限定条目时，逐条过滤零相关引文
                 positive = [i for i in idx if scores[i] > 0]
                 if not positive:
                     return {"status": "no_verified_quotes", "available": 0, "quotes": []}

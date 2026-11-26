@@ -1,7 +1,7 @@
 # Agent 验收报告
 
-- 用例：36 道（指标 / 公告 / 原文 / 归因 / 边界 / 回归）
-- 结果：**36/36 通过**
+- 用例：43 道（指标 / 公告 / 原文 / 归因 / 边界 / 回归）
+- 结果：**43/43 通过**
 - 用时：0.0s · 数据版本 v1
 
 | # | 用例 | 问题 | 结果 |
@@ -42,3 +42,10 @@
 | 34 | q34_synonym_charm | 武器吊饰好看吗？ | ✅ |
 | 35 | q35_traditional_ginger | 薑島好玩嗎？ | ✅ |
 | 36 | q36_synonym_travel_map | 旅行图怎么看？ | ✅ |
+| 37 | q37_global_synonym_crash | 玩家反馈崩溃吗？ | ✅ |
+| 38 | q38_inferred_item_relevance | 玩家怎么评价联机？ | ✅ |
+| 39 | q39_explicit_language_all | Rust 深海更新后英文评测的推荐率是多少？ | ✅ |
+| 40 | q40_phase_pair | 更新前和更新后玩家怎么评价土地庙挑战？ | ✅ |
+| 41 | q41_release_ranking | 哪个版本发布日推荐率最高？ | ✅ |
+| 42 | q42_mixed_evidence | 更新前后玩家为什么吐槽土地庙挑战？ | ✅ |
+| 43 | q43_multi_item_links | 玩家怎么评价土地庙挑战和行旅图？ | ✅ |

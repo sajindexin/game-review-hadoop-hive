@@ -307,6 +307,15 @@ def load_verified(path: Path, parquet: Path) -> list[dict]:
     return out
 
 
+def discover_upstream(branch: Path, rel: str) -> Path:
+    """上游分支的目录名可能变；优先精确路径，否则在 branch 下一层自动找。"""
+    direct = branch / rel
+    if direct.exists():
+        return direct
+    hits = sorted(p for p in branch.glob(f"*/{rel}") if p.exists())
+    return hits[0] if hits else direct
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--parquet", required=True)
@@ -324,9 +333,9 @@ def main() -> None:
     root.mkdir(parents=True, exist_ok=True)
     if args.branch:
         branch = Path(args.branch)
-        default_items = branch / "上游版本分析模块_全组版本与改动" / "items" / "items.jsonl"
-        default_patches = branch / "上游版本分析模块_全组版本与改动" / "patches" / "patches.jsonl"
-        default_metrics = branch / "上游版本分析模块_全组Hive统计" / "更新前后对比.csv"
+        default_items = discover_upstream(branch, "items/items.jsonl")
+        default_patches = discover_upstream(branch, "patches/patches.jsonl")
+        default_metrics = discover_upstream(branch, "更新前后对比.csv")
     else:
         default_items = Path("data_sources/catalog/items.jsonl")
         default_patches = Path("data_sources/catalog/patches.jsonl")

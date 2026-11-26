@@ -186,9 +186,17 @@ function renderAnswer(res) {
     }
 
     const links = res.links || {};
-    if (links.stats || links.evidence) {
+    if (links.stats || links.evidence || (links.evidence_items || []).length) {
       const row = el("div", "links");
-      [["查看统计", links.stats], ["查看原文", links.evidence]].forEach(([label, href]) => {
+      const entries = [["查看统计", links.stats]];
+      if (Array.isArray(links.evidence_items) && links.evidence_items.length) {
+        links.evidence_items.forEach((it) => {
+          entries.push([`查看原文：${it.title || it.item_id}`, it.url]);
+        });
+      } else {
+        entries.push(["查看原文", links.evidence]);
+      }
+      entries.forEach(([label, href]) => {
         if (!href) return;
         const a = el("a", null, label);
         a.href = href;

@@ -34,6 +34,10 @@ def check(case: dict, res: dict) -> list[str]:
         link = str((res.get("links") or {}).get("evidence", ""))
         if exp["links_evidence_contains"] not in link:
             errs.append(f"原文链接缺少 {exp['links_evidence_contains']}：{link}")
+    if exp.get("links_evidence_items_count") is not None:
+        items = (res.get("links") or {}).get("evidence_items") or []
+        if len(items) != exp["links_evidence_items_count"]:
+            errs.append(f"evidence_items 数量 {len(items)} != {exp['links_evidence_items_count']}")
     for want in exp.get("numbers", []):
         hit = next((n for n in res.get("numbers", []) if n["label"] == want["label"]), None)
         if hit is None:

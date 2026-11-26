@@ -147,6 +147,7 @@ class Agent:
         segments: list[str] = []
 
         intent = route.intent
+        explicit_phase = phase is not None
         if phase in ("before", "release", "after"):
             phases = [phase]
         elif phase == "compare":
@@ -155,11 +156,18 @@ class Agent:
             phases = []
         else:
             phases = list(route.phases)
-        if intent == "why" and not phases:
-            phases = ["after"]  # 差评归因默认看更新后
-        lang = language if language in ("all", "chinese", "en") else route.language
+        # 只有调用方没显式指定阶段时，才把差评归因默认成更新后
+        if intent == "why" and not phases and not explicit_phase:
+            phases = ["after"]
+        if language in ("all", "chinese", "en"):
+            lang = language
+        else:
+            lang = route.language
         lang_filter = lang if lang in ("chinese", "en") else None
-        group = lang_filter or self._language_group(question, None)
+        if lang in ("all", "chinese", "en"):
+            group = lang
+        else:
+            group = lang_filter or self._language_group(question, None)
 
         metric = None
         want_metric = intent in ("metric", "mixed", "why")
@@ -198,11 +206,18 @@ class Agent:
             prefer_zh = bool(re.search(r"[\u4e00-\u9fff]", question))
             candidates = (self._items_from_route(route.item_ids, patch)
                           or self._resolve_items(question, patch, allow_bm25=(intent != "why")))
+            explicit_ids = self._explicit_item_ids(question, self.catalog.items_of(patch["patch_id"]))
+            if intent == "why":
+                # 差评归因只在“标题/别名明确点名”时限定条目；同义词推断不缩范围
+                named_ids = self._named_item_ids(question, self.catalog.items_of(patch["patch_id"]))
+                candidates = [c for c in candidates if c["item_id"] in named_ids]
             blocks, logs = self._collect_review_blocks(question, patch, candidates, phases,
-                                                       lang_filter, sentiment, prefer_zh)
+                                                       lang_filter, sentiment, prefer_zh,
+                                                       explicit_ids)
             tool_log.extend(logs)
             any_quotes = any(b[2] for b in blocks)
             any_verified = any(b[2] and b[3] for b in blocks)
+            has_unverified = any(b[2] and not b[3] for b in blocks)
             for item, ph, quotes, verified, sort_label in blocks:
                 if quotes:
                     text, cits = self._review_block(quotes, len(citations) + 1, item, sort_label,
@@ -213,7 +228,12 @@ class Agent:
                     title = f"《{item['title']}》" if item else "该版本"
                     segments.append(f"{title}{self._phase_label(ph)}：暂无已复核引文。")
             if any_quotes:
-                result["evidence_status"] = "verified_quotes" if any_verified else "dataset_quotes"
+                if any_verified and has_unverified:
+                    result["evidence_status"] = "mixed_evidence"
+                elif any_verified:
+                    result["evidence_status"] = "verified_quotes"
+                else:
+                    result["evidence_status"] = "dataset_quotes"
             else:
                 scope = []
                 if lang_filter:
@@ -223,12 +243,19 @@ class Agent:
                 where = f"（已按{'、'.join(scope)}筛选）" if scope else ""
                 segments.append(f"玩家原话：暂无已复核引文{where}。")
 
-        # 原文链接必须带实际关联条目，否则详情页只能列出该版本前 20 条
+        # 原文链接必须带实际关联条目；多条目时每个条目各给一个入口
         review_item_ids = [c.get("item_id") for c in citations
                            if c.get("type") == "review" and c.get("item_id")]
         if review_item_ids:
+            item_map = {it["item_id"]: it for it in self.catalog.items_of(patch["patch_id"])}
+            unique_ids = list(dict.fromkeys(review_item_ids))
             result["links"]["evidence"] = (f"/versions/{patch['patch_id']}"
-                                           f"?tab=feedback&item={review_item_ids[0]}")
+                                           f"?tab=feedback&item={unique_ids[0]}")
+            result["links"]["evidence_items"] = [{
+                "item_id": iid,
+                "title": item_map.get(iid, {}).get("title", ""),
+                "url": f"/versions/{patch['patch_id']}?tab=feedback&item={iid}",
+            } for iid in unique_ids]
 
         result["tools"] = tool_log
         result["numbers"] = numbers
@@ -336,6 +363,27 @@ class Agent:
         items = self._resolve_items(question, patch)
         return items[0] if items else None
 
+    def _explicit_item_ids(self, question: str, items: list[dict]) -> set[str]:
+        """问题里直接出现标题/别名/同义词，都算“词面已点名”，可跳过相关度门槛。"""
+        low = question.lower()
+        ids: set[str] = set()
+        for it in items:
+            terms = [it["title"], *(it.get("aliases_zh") or []),
+                     *(it.get("aliases_en") or []), *(it.get("synonyms") or [])]
+            if any(t and len(t) >= 2 and t.lower() in low for t in terms):
+                ids.add(it["item_id"])
+        return ids
+
+    def _named_item_ids(self, question: str, items: list[dict]) -> set[str]:
+        """只有标题/别名才算“用户明确点名”，用于差评归因时限定条目。"""
+        low = question.lower()
+        ids: set[str] = set()
+        for it in items:
+            terms = [it["title"], *(it.get("aliases_zh") or []), *(it.get("aliases_en") or [])]
+            if any(t and len(t) >= 2 and t.lower() in low for t in terms):
+                ids.add(it["item_id"])
+        return ids
+
     def _items_from_route(self, item_ids: list[str], patch: dict) -> list[dict]:
         if not item_ids:
             return []
@@ -348,7 +396,8 @@ class Agent:
 
     def _collect_review_blocks(self, question: str, patch: dict, candidates: list[dict],
                                phases: list[str], lang_filter: str | None,
-                               sentiment: str | None, prefer_zh: bool):
+                               sentiment: str | None, prefer_zh: bool,
+                               explicit_ids: set[str]):
         """按条目 × 阶段收集证据；compare 时 before/after 各一块，多条目每项各一块。"""
         patch_id = patch["patch_id"]
         patch_has_verified = self.kb.has_verified(patch_id)
@@ -367,7 +416,8 @@ class Agent:
                 if patch_has_verified:
                     vres = self.kb.search_verified(question, patch_id, item_id=cid, phase=ph,
                                                    language=lang_filter, sentiment=sentiment,
-                                                   top_k=per, prefer_zh=prefer_zh)
+                                                   top_k=per, prefer_zh=prefer_zh,
+                                                   require_relevance=bool(cid and cid not in explicit_ids))
                     logs.append({"name": "search_verified_quotes",
                                  "args": {"patch_id": patch_id, "item_id": cid,
                                           "phase": ph, "language": lang_filter},

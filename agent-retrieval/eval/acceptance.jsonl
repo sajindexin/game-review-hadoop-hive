@@ -34,4 +34,11 @@
 {"id": "q34_synonym_charm", "category": "词典-同义词", "question": "武器吊饰好看吗？", "appid": "730", "patch_id": "steam_730_20241002", "expect": {"status": "answered", "evidence": "verified_quotes", "review_items": "730_20241002_02", "types": {"review": 1}}}
 {"id": "q35_traditional_ginger", "category": "词典-繁体", "question": "薑島好玩嗎？", "appid": "413150", "patch_id": "sdv_20201221_15", "expect": {"status": "answered", "evidence": "verified_quotes", "review_items": "S15_01", "types": {"review": 1}}}
 {"id": "q36_synonym_travel_map", "category": "词典-同义词", "question": "旅行图怎么看？", "appid": "2358720", "patch_id": "steam_2358720_20241214", "expect": {"status": "answered", "evidence": "verified_quotes", "review_items": "2358720_20241214_02", "types": {"review": 1}}}
+{"id": "q37_global_synonym_crash", "category": "回归-全局同义词", "question": "玩家反馈崩溃吗？", "appid": "413150", "patch_id": "sdv_20201221_15", "expect": {"status": "answered", "evidence": "verified_quotes", "review_ids": ["83372362"]}}
+{"id": "q38_inferred_item_relevance", "category": "回归-推断条目不绕过相关度", "question": "玩家怎么评价联机？", "appid": "271590", "patch_id": "steam_271590_20230613", "expect": {"status": "answered", "no_review_citations": true}}
+{"id": "q39_explicit_language_all", "category": "回归-显式语言", "question": "Rust 深海更新后英文评测的推荐率是多少？", "appid": "252490", "patch_id": "rust_20230706_deep_sea", "language": "all", "expect": {"status": "answered", "contains": ["77.3%"]}}
+{"id": "q40_phase_pair", "category": "回归-前和后", "question": "更新前和更新后玩家怎么评价土地庙挑战？", "appid": "2358720", "patch_id": "steam_2358720_20241214", "expect": {"status": "answered", "review_phases_include": ["before", "after"]}}
+{"id": "q41_release_ranking", "category": "回归-发布日排行", "question": "哪个版本发布日推荐率最高？", "appid": null, "patch_id": null, "expect": {"status": "answered", "contains": ["发布当天推荐率最高", "Stardew Valley 1.5", "100.0%"]}}
+{"id": "q42_mixed_evidence", "category": "回归-混合证据状态", "question": "更新前后玩家为什么吐槽土地庙挑战？", "appid": "2358720", "patch_id": "steam_2358720_20241214", "expect": {"status": "answered", "evidence": "mixed_evidence", "review_phases_include": ["before", "after"]}}
+{"id": "q43_multi_item_links", "category": "回归-多条目原文入口", "question": "玩家怎么评价土地庙挑战和行旅图？", "appid": "2358720", "patch_id": "steam_2358720_20241214", "expect": {"status": "answered", "links_evidence_items_count": 2}}
 

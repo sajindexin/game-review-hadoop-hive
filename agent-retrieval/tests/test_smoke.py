@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -15,6 +16,7 @@ sys.path.insert(0, str(ROOT))
 from src.agent import Agent  # noqa: E402
 from src.retrieval import KnowledgeBase  # noqa: E402
 from src.router import Router  # noqa: E402
+from tools.build_knowledge import discover_upstream  # noqa: E402
 
 
 class _FakeResponse:
@@ -158,6 +160,17 @@ class KnowledgeBaseTest(unittest.TestCase):
         out = self.kb.item_candidates("姜岛真好玩，火山地牢有点绕", "413150", "sdv_20201221_15", top_k=3)
         ids = [c["item_id"] for c in out["candidates"]]
         self.assertIn("S15_01", ids)
+
+
+class BuildPathTest(unittest.TestCase):
+    def test_discovers_renamed_upstream_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "任意前缀_全组版本与改动" / "items"
+            target.mkdir(parents=True)
+            (target / "items.jsonl").write_text("{}", encoding="utf-8")
+            got = discover_upstream(root, "items/items.jsonl")
+            self.assertEqual(got, target / "items.jsonl")
 
 
 class RouterTest(unittest.TestCase):

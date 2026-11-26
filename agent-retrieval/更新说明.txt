@@ -8,9 +8,17 @@
 5. 修复引文相关度：逐条过滤零相关候选；原文链接带上实际 item_id。
 6. 版本加载期间不再清空输入框。
 
-二、验证
-验收题 36/36，词典评测 39/39，冒烟测试 26/26。
+二、复审 6 项修复
+1. 推断条目不再绕过相关度：只有标题/别名/同义词直接点名才跳过逐条相关度；GTA“联机”不再返回任务引文。
+2. 显式 language / phase 优先：language=all 不再被“英文评测”覆盖；phase=all 不再默认更新后。
+3. 阶段解析补全：“更新前和更新后”返回两段；“发布日”排行按 release_rate。
+4. 混合证据新增 evidence_status=mixed_evidence，前端按 citations[].verified 逐条标。
+5. 多条目回答新增 links.evidence_items，每个条目一个“查看原文”入口。
+6. build_knowledge --branch 自动发现上游 items/patches/统计目录，不再依赖中文目录名前缀。
 
-三、状态
+三、验证
+验收题 43/43，词典评测 39/39，冒烟测试 27/27。
+
+四、状态
 已上传到 feat/agent-retrieval，远端为最新提交。
 tatus --short 已删除；桌面 agent-retrieval/ 与仓库一致。

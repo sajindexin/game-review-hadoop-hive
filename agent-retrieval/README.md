@@ -16,7 +16,7 @@
 | 候选更新条目 | `POST /api/items/candidates` | 给一段玩家原话，返回它可能提到的官方改动（供上游版本分析模块的关联模型联调） |
 | Agent 服务 | `POST /api/agent/ask` | 自动判断“查指标 / 查公告 / 查评论”，模板化作答，逐条标注出处 |
 | **已复核引文接入** | `data_sources/verified_quotes.jsonl`（469 条） | 上游版本分析模块 `c26c38a` 提交的原文件，哈希校验一致，优先于数据集原文 |
-| 36 道验收题 | `eval/acceptance.jsonl`、`eval/run_acceptance.py` | 覆盖数字、已复核原文、语言/阶段筛选、条目相关度、空态、拒答；**当前 36/36 通过** |
+| 43 道验收题 | `eval/acceptance.jsonl`、`eval/run_acceptance.py` | 覆盖数字、已复核原文、语言/阶段筛选、条目相关度、空态、拒答；**当前 43/43 通过** |
 | 联调说明 | [`docs/HANDOFF_WEB.md`](docs/HANDOFF_WEB.md) | 给 Web 端的 5 分钟接入清单 |
 | 接口说明 | [`docs/API.md`](docs/API.md) | 完整字段与错误码 |
 | 设计说明 | [`docs/DESIGN.md`](docs/DESIGN.md) | 数据流、打分、证据分级、防幻觉策略 |
@@ -40,14 +40,15 @@ python -m src.cli ask "为什么艾尔登法环 1.12 差评变多了？"
 # 3) 启动 HTTP 服务（自带演示页 http://127.0.0.1:8000/ 和 OpenAPI 文档 /docs）
 python -m src.cli serve --port 8000
 
-# 4) 跑 36 道验收题，生成 eval/REPORT.md
+# 4) 跑 43 道验收题，生成 eval/REPORT.md
 python eval/run_acceptance.py
 ```
 
 环境：Python 3.10+（本机 3.14 验证通过）。`data_sources/catalog/` 里的 `items.jsonl`、`patches.jsonl`、
 `更新前后对比.csv` 是从上游版本分析模块分支原样复制的（为了不依赖“先 checkout 该模块的分支”），
 `data_sources/verified_quotes.jsonl` 是该模块的 469 条已复核引文。
-想直接用该模块的分支目录时，加 `--branch <game-update-feedback-analysis 路径>` 即可覆盖。
+想直接用该模块的分支目录时，加 `--branch <game-update-feedback-analysis 路径>` 即可覆盖；
+脚本会在分支下一层自动查找 `items/items.jsonl`、`patches/patches.jsonl`、`更新前后对比.csv`，不依赖中文目录名前缀。
 
 `data/` 是生成物（约 40MB），不入库；换机器只要重新跑第 1 步。
 
@@ -89,10 +90,12 @@ $env:GRA_LLM_BASE_URL="https://api.deepseek.com/v1"  # 可选，OpenAI 兼容即
 |---|---|---|---|
 | **已复核** | 上游版本分析模块 `窗口内已复核可引用关联.jsonl`（469 条、20 个版本、37 项改动，`AI逐条核对原文`） | 能命中该版本/改动时**优先**用，且不再混入别的原文 | `evidence_status=verified_quotes`，引用 `verified=true` |
 | 数据集原文 | v1 窗口样本（62,007 条），带 `review_id` + Steam 链接 | 该版本没有已复核库，或问“为什么差评多”需要代表性差评 | `evidence_status=dataset_quotes`，引用 `verified=false`，答案里写“未复核” |
+| 混合 | 同一回答里同时有已复核和未复核 | “更新前后”只有一段有复核库 | `evidence_status=mixed_evidence`，按 `citations[].verified` 逐条标 |
 | 无 | — | 该改动没有可引用原话 | `evidence_status=none`，答案写“暂无已复核引文” |
 
 **严格模式**：只要这个版本有已复核库，就只用已复核引文；某条改动没有就返回空态，不拿整款游戏的评论凑数。
-唯一的例外是“为什么差评变多”这类归因问题——已复核库不足 2 条时，退回“更新后被顶得最多的差评”，并在标题里写明**未复核**。
+唯一的例外是“为什么差评变多”这类归因问题——已复核库不足时，退回“对应阶段被顶得最多的差评”，并在标题里写明**未复核**。
+如果同一回答里两段证据级别不同，顶层标 `mixed_evidence`，前端不能统一显示“已复核”。
 
 **上游 PR2 口径**（`PR2_全量核验说明与验收记录.zip`）：全量 4,884,580 条评测、6,622,542 对模型候选、
 75 个评分分块，`status=verified`（17:17 复跑一致）；469 对引文涉及 445 条不同评测，覆盖 20/26 个版本、
@@ -130,8 +133,8 @@ $env:GRA_LLM_BASE_URL="https://api.deepseek.com/v1"  # 可选，OpenAI 兼容即
 
 | 项目 | 怎么验的 | 结果 |
 |---|---|---|
-| 36 道验收题 | `python eval/run_acceptance.py` | ✅ 36/36，见 `eval/REPORT.md` |
-| 冒烟测试 | `python -m unittest discover -s tests` | ✅ 26/26 |
+| 43 道验收题 | `python eval/run_acceptance.py` | ✅ 43/43，见 `eval/REPORT.md` |
+| 冒烟测试 | `python -m unittest discover -s tests` | ✅ 27/27 |
 | 已复核引文 | 469 条全部入索引，20 个版本 37 项改动 | ✅ 引用带 `verified=true` 与 Steam 链接 |
 | 阶段编辑规则 | 469 条里 55 条按原 `find_evidence` 规则会被排除 | ✅ 已保留字段并在 `search_verified` 同步过滤 |
 | 同义词词典 | `python eval/run_lexicon_eval.py`（39 条同义/繁体/英文/错字问法） | ✅ Hit@1 39/39 |
@@ -197,7 +200,7 @@ agent-retrieval/
 │   ├── api.py                  # FastAPI 接口
 │   └── cli.py                  # ask / serve / meta
 ├── web/                        # 演示页（原生 JS，无需构建）
-├── eval/                       # 36 道验收题 + 词典评测 + 报告
+├── eval/                       # 43 道验收题 + 词典评测 + 报告
 ├── docs/                       # API.md / DESIGN.md
 └── tests/test_smoke.py         # 冒烟测试
 ```
