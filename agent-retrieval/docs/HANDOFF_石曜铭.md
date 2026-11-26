@@ -64,6 +64,10 @@ Content-Type: application/json; charset=utf-8
 {"question": "1.5 更新后推荐率降了多少？", "appid": "413150", "patch_id": "sdv_20201221_15"}
 ```
 
+可选字段：`language`（`all` / `chinese` / `en`）、`phase`（`before` / `release` / `after` / `all`，也兼容 `release_day`）。
+不传 `phase` 时会从问题里解析“更新前 / 发布当天 / 更新后”；语言和阶段会同时作用于已复核引文和数据集原文。
+排行榜类问题（“哪个版本推荐率下降最多”）不受页面当前版本影响，会直接返回全组排行。
+
 返回里你要用的字段：
 
 | 字段 | 怎么用 |

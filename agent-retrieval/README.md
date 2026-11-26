@@ -6,8 +6,9 @@
 > 分支说明：本模块提交在 `feat/agent-retrieval`（基于 `main`）。为了让模块自包含、不依赖先 checkout
 > 别人的分支，黄静雯的 `items.jsonl`、`patches.jsonl`、`更新前后对比.csv` 和 469 条已复核引文
 > 都原样复制在 `data_sources/` 下；她的原始分支仍是 `feat/game-update-feedback-analysis`。
-> 其中 `verified_quotes.jsonl` 来自她的提交 `c26c38a`，git blob sha1
-> `043c048a16da4997a5a8202f509e48ebd817c329` 与本目录文件逐字节一致（见 `data_sources/README.md`）。
+> 其中 `verified_quotes.jsonl` 来自她的提交 `c26c38a`，SHA-256 为
+> `84b4174a42f21a52413de5fd75f571e2982f626d88fc51e1d138ea9fc2f6f9d1`，与 PR2 声明一致；
+> 仓库用 `.gitattributes` 的 `data_sources/** -text` 固定字节，不受 `core.autocrlf` 影响。
 
 | 交付物 | 在哪里 | 说明 |
 |---|---|---|
@@ -15,7 +16,7 @@
 | 候选更新条目 | `POST /api/items/candidates` | 给一段玩家原话，返回它可能提到的官方改动（供黄静雯的关联模型联调） |
 | Agent 服务 | `POST /api/agent/ask` | 自动判断“查指标 / 查公告 / 查评论”，模板化作答，逐条标注出处 |
 | **已复核引文接入** | `data_sources/verified_quotes.jsonl`（469 条） | 黄静雯 `c26c38a` 提交的原文件，哈希校验一致，优先于数据集原文 |
-| 22 道验收题 | `eval/acceptance.jsonl`、`eval/run_acceptance.py` | 覆盖数字、已复核原文、空态、拒答、缺上下文；**当前 22/22 通过** |
+| 27 道验收题 | `eval/acceptance.jsonl`、`eval/run_acceptance.py` | 覆盖数字、已复核原文、语言/阶段筛选、条目相关度、空态、拒答；**当前 27/27 通过** |
 | 联调说明 | [`docs/HANDOFF_石曜铭.md`](docs/HANDOFF_石曜铭.md) | 给石曜铭的 5 分钟接入清单 |
 | 接口说明 | [`docs/API.md`](docs/API.md) | 完整字段与错误码 |
 | 设计说明 | [`docs/DESIGN.md`](docs/DESIGN.md) | 数据流、打分、证据分级、防幻觉策略 |
@@ -39,7 +40,7 @@ python -m src.cli ask "为什么艾尔登法环 1.12 差评变多了？"
 # 3) 启动 HTTP 服务（自带演示页 http://127.0.0.1:8000/ 和 OpenAPI 文档 /docs）
 python -m src.cli serve --port 8000
 
-# 4) 跑 20 道验收题，生成 eval/REPORT.md
+# 4) 跑 27 道验收题，生成 eval/REPORT.md
 python eval/run_acceptance.py
 ```
 
@@ -81,11 +82,19 @@ python eval/run_acceptance.py
 **严格模式**：只要这个版本有已复核库，就只用已复核引文；某条改动没有就返回空态，不拿整款游戏的评论凑数。
 唯一的例外是“为什么差评变多”这类归因问题——已复核库不足 2 条时，退回“更新后被顶得最多的差评”，并在标题里写明**未复核**。
 
+**上游 PR2 口径**（`PR2_全量核验说明与验收记录.zip`）：全量 4,884,580 条评测、6,622,542 对模型候选、
+75 个评分分块，`status=verified`（17:17 复跑一致）；469 对引文涉及 445 条不同评测，覆盖 20/26 个版本、
+37/75 项改动，6 个版本与 38 项改动暂无引文、19 项仅 1–2 对。引文文件 SHA-256
+`84b4174a42f21a52413de5fd75f571e2982f626d88fc51e1d138ea9fc2f6f9d1`，与本仓库 `data_sources/` 里的文件一致。
+
 ## 检索口径（写报告时请照抄）
 
 - **语料**：v1 全量 4,884,580 条里，落在 26 个版本窗口（发布前后各 14 天）内的评测；
   每个窗口保留「提到官方改动」的评测（最多 1,200 条）+ 每个阶段随机样本（最多 900 条），合计 61,729 条。
   也就是说：**指标是全量口径，原文检索是窗口样本口径**，页面上必须写清楚。
+  “为什么差评变多”里的高赞差评同样来自这 61,729 条窗口样本，不是全量 488 万条，回答里会标“数据集原文（未复核）”。
+- **筛选**：`language`（all / chinese / en）与 `phase`（before / release / after）会传入检索、已复核引文和差评回退三条路径；
+  `phase` 不传时从问题里解析（“更新前 / 发布当天 / 更新后”），筛选后没有引文就返回空态。
 - **分词**：不依赖 jieba。中文按「单字 + 相邻双字」，英文按连续字母/数字；单字只用于召回，证据门槛用双字实体词。
 - **打分**：BM25（k1=1.2, b=0.75）与向量余弦按 0.7 / 0.3 融合；条目明确时给命中该条目别名的评测加权。
 - **证据门槛**：候选必须命中问题里的实体词（如「姜岛」「挂件」「差评」），否则不返回，宁缺毋滥。
@@ -96,12 +105,13 @@ python eval/run_acceptance.py
 
 | 项目 | 怎么验的 | 结果 |
 |---|---|---|
-| 22 道验收题 | `python eval/run_acceptance.py` | ✅ 22/22，见 `eval/REPORT.md` |
-| 冒烟测试 | `python -m unittest discover -s tests` | ✅ 12/12 |
+| 27 道验收题 | `python eval/run_acceptance.py` | ✅ 27/27，见 `eval/REPORT.md` |
+| 冒烟测试 | `python -m unittest discover -s tests` | ✅ 23/23 |
 | 已复核引文 | 469 条全部入索引，20 个版本 37 项改动 | ✅ 引用带 `verified=true` 与 Steam 链接 |
-| HTTP 接口 | `/health`、`/api/games`、`/api/patches/{id}`、`/api/agent/ask` | ✅ 200，UTF-8 正常 |
+| 阶段编辑规则 | 469 条里 55 条按原 `find_evidence` 规则会被排除 | ✅ 已保留字段并在 `search_verified` 同步过滤 |
+| HTTP 接口 | `/health`、`/api/games`、`/api/patches/{id}`、`/api/agent/ask` | ✅ 200，UTF-8 正常；12 款游戏 `review_count` 均 > 0 |
 | 答案格式 | 断言回答里不含 `**` / `](` 等 Markdown 残留 | ✅ 纯文本，链接只出现在 `citations` |
-| 版本详情页 | `/versions/{patch_id}` 路由 | ✅ 200（指标、改动、分语种） |
+| 版本详情页 | `/versions/{patch_id}` 路由 | ✅ 200，含“玩家原文”已复核列表 |
 | 浏览器视觉 | 沙箱里 Edge headless 起不来 | ⚠️ **未截图验证**，CSS/JS 只做了语法与接口检查 |
 | 真 BGE | 沙箱 pip 装不上 sentence-transformers | ⚠️ 未验证，默认 hash 向量 |
 
@@ -155,7 +165,7 @@ agent-retrieval/
 │   ├── api.py                  # FastAPI 接口
 │   └── cli.py                  # ask / serve / meta
 ├── web/                        # 演示页（原生 JS，无需构建）
-├── eval/                       # 22 道验收题 + 报告
+├── eval/                       # 27 道验收题 + 报告
 ├── docs/                       # API.md / DESIGN.md
 └── tests/test_smoke.py         # 冒烟测试
 ```

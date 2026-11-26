@@ -130,15 +130,28 @@ Base URL：`http://127.0.0.1:8000`（启动：`python -m src.cli serve --port 80
 
 没有该版本/改动的已复核引文时返回 `{"status": "no_verified_quotes", "available": 0, "quotes": []}`。
 
+阶段过滤与黄静雯 `find_evidence.lookup` 的口径一致：
+
+| phase | 额外排除 |
+|---|---|
+| `before` | `before_review_edited_after_release = true`（更新前发表、发布后才编辑） |
+| `after` | `edited_after_window = true`（窗口结束后编辑） |
+| `release` | `updated_ts // 86400 > created_ts // 86400`（发布日之后才编辑） |
+
+469 条里有 55 条会被上述规则排除；同时要求查询实体词在引文里有命中（BM25 > 0），
+否则返回 `no_verified_quotes`，不会拿“看起来最像”的引文凑数。
+
 ## 3. Agent 问答
 
 `POST /api/agent/ask`
 
 ```json
-{"question": "艾尔登法环 1.12 更新后推荐率是多少？", "appid": "1245620", "patch_id": "steam_1245620_20240620"}
+{"question": "艾尔登法环 1.12 更新后推荐率是多少？", "appid": "1245620", "patch_id": "steam_1245620_20240620", "language": "all", "phase": null}
 ```
 
 `appid` / `patch_id` 可省略：会从问题里识别（游戏名、版本号、版本名、日期）。
+`language` 取 `all` / `chinese` / `en`；`phase` 取 `before` / `release` / `after`，
+不传时从问题里解析（“更新前 / 发布当天 / 更新后”）。两者会传入评测检索、已复核引文和差评回退三条路径。
 
 响应：
 
@@ -202,18 +215,21 @@ Base URL：`http://127.0.0.1:8000`（启动：`python -m src.cli serve --port 80
 | `verification` | string | 复核方式，如 `AI逐条核对原文` |
 | `review_id` | string | Steam 评测 ID，可用于去重和回溯 |
 | `snippet` | string | 已复核引文只截取**复核过的那一段**，不是整条评论 |
+| `language_std` | string | 引文实际语种（`zh-Hans` / `en` / …），用于核对语言筛选 |
+| `phase` | string | 引文实际阶段（`before` / `release` / `after`），用于核对阶段筛选 |
+| `item_id` | string | 引文**实际关联**的官方改动；不是请求里指定的条目时以引文为准 |
 
 ## 4. 验收题
 
-`GET /api/qa/examples` 返回 20 道题（含 `appid` / `patch_id`），可直接做成版本页的“示例问题”。
+`GET /api/qa/examples` 返回 27 道题（含 `appid` / `patch_id`），可直接做成版本页的“示例问题”。
 
 ## 5. 错误码
 
 | HTTP | 场景 |
 |---|---|
-| 400 | `language` 不在 all/chinese/en |
+| 400 | `/api/patches/{id}/metrics` 的 `language` 不在 all/chinese/en |
 | 404 | `appid` / `patch_id` 不存在 |
-| 422 | 请求体缺字段（FastAPI 校验） |
+| 422 | 请求体缺字段，或 `language` / `phase` 不在枚举内（FastAPI 校验） |
 | 500 | 未预期异常（会带 traceback，联调时看服务端日志） |
 
 ## 6. Java 调用示例

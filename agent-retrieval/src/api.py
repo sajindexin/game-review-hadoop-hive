@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,7 +25,9 @@ class AskBody(BaseModel):
     question: str = Field(..., min_length=1, max_length=2000)
     appid: str | None = None
     patch_id: str | None = None
-    language: str | None = Field(default=None, description="all / chinese / en")
+    language: Literal["all", "chinese", "en"] | None = None
+    phase: Literal["before", "release", "release_day", "after", "all"] | None = Field(
+        default=None, description="不传则从问题里解析")
 
 
 class ReviewQuery(BaseModel):
@@ -151,7 +154,7 @@ def create_app(data_dir: str | Path = "data") -> FastAPI:
     @app.post("/api/agent/ask")
     def ask(body: AskBody) -> dict:
         return agent.ask(body.question, appid=body.appid, patch_id=body.patch_id,
-                         language=body.language)
+                         language=body.language, phase=body.phase)
 
     @app.get("/api/qa/examples")
     def examples() -> dict:

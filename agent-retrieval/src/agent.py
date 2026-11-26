@@ -12,6 +12,7 @@ from typing import Any
 
 from .catalog import LANG_GROUPS, Catalog
 from .retrieval import KnowledgeBase
+from .tokenize import GENERIC_CJK, STOP_BIGRAMS, tokenize
 
 OUTSIDE_PATTERNS = [
     r"天气|下雨|带伞|气温|台风", r"公交|地铁|机票|航班|打车|路线", r"退款|退货|支付|付款|打折|折扣|优惠",
@@ -23,6 +24,11 @@ REVIEW_RE = re.compile(r"玩家|评价|评论|反馈|吐槽|抱怨|差评|好评
 ANNOUNCE_RE = re.compile(r"公告|改了什么|改了啥|改动|更新内容|版本内容|更新日志|补丁说明|加了什么|加了啥|有什么新|新内容|什么新|哪些内容")
 WHY_RE = re.compile(r"为什么|为啥|原因|怎么回事|导致")
 RANK_RE = re.compile(r"哪个版本|哪些版本|最多|最少|排名|排行|全组|所有版本|整体|对比一下版本")
+RANK_EXTREME_RE = re.compile(r"最高|最低|最好|最差|最大|最小")
+PAGE_VERSION_RE = re.compile(r"这个版本|该版本|当前版本|本版本")
+PHASE_RELEASE_RE = re.compile(r"发布当天|上线当天|发布日当天|更新当天")
+PHASE_BEFORE_RE = re.compile(r"更新前|发布前|上线前|版本前|之前")
+PHASE_AFTER_RE = re.compile(r"更新后|发布后|上线后|版本后|之后")
 GAME_HINTS = {
     "星露谷": "413150", "stardew": "413150", "艾尔登": "1245620", "elden": "1245620",
     "黑神话": "2358720", "悟空": "2358720", "wukong": "2358720", "泰拉瑞亚": "105600",
@@ -54,7 +60,7 @@ class Agent:
 
     # ---- 入口 ---------------------------------------------------------
     def ask(self, question: str, appid: str | None = None, patch_id: str | None = None,
-            language: str | None = None) -> dict[str, Any]:
+            language: str | None = None, phase: str | None = None) -> dict[str, Any]:
         question = (question or "").strip()
         result: dict[str, Any] = {
             "question": question,
@@ -69,6 +75,12 @@ class Agent:
         }
         if not question:
             return self._fail(result, "need_context", "请先输入问题，例如“这个版本推荐率降了多少？”")
+        if phase not in ("before", "release", "after", "all", "release_day"):
+            phase = None
+        if phase == "release_day":
+            phase = "release"
+        if phase is None:
+            phase = self._phase_from_question(question)
 
         if any(re.search(p, question, re.I) for p in OUTSIDE_PATTERNS):
             return self._fail(result, "outside_catalog",
@@ -88,8 +100,8 @@ class Agent:
 
         intent = self._intent(question)
 
-        # 2) 聚合问题（哪个版本跌得最多）
-        if intent == "ranking" and not patch:
+        # 2) 聚合问题（哪个版本跌得最多）优先于页面当前版本
+        if intent == "ranking":
             return self._answer_ranking(result, question, language)
 
         if not patch:
@@ -156,50 +168,73 @@ class Agent:
         verified_mode = False
         want_review = intent in ("review", "mixed", "why")
         prefer_zh = bool(re.search(r"[\u4e00-\u9fff]", question))
+        lang_filter = language if language in ("chinese", "en") else None
+        if language != "all":
+            if lang_filter is None:
+                if re.search(r"中文|汉语|简中|繁中", question):
+                    lang_filter = "chinese"
+                elif re.search(r"英文|英语", question, re.I):
+                    lang_filter = "en"
         if want_review:
-            item = self._resolve_item(question, patch)
+            candidates = self._resolve_items(question, patch)
             sentiment = "negative" if (WHY_RE.search(question) or "差评" in question or "吐槽" in question) else None
             patch_has_verified = self.kb.has_verified(patch["patch_id"])
+            # 明确阶段优先；归因问题默认更新后；其余不限制
+            search_phase = phase or ("after" if sentiment else None)
+            item = candidates[0] if candidates else None
+            item_id = item["item_id"] if item else None
+            pools: list[dict | None] = candidates or [None]
 
             if patch_has_verified:
-                vres = self.kb.search_verified(question, patch["patch_id"],
-                                               item_id=item["item_id"] if item else None,
-                                               phase="after" if sentiment else None,
-                                               sentiment=sentiment, top_k=3, prefer_zh=prefer_zh)
-                tool_log.append({"name": "search_verified_quotes",
-                                 "args": {"patch_id": patch["patch_id"],
-                                          "item_id": item["item_id"] if item else None},
-                                 "status": vres["status"], "available": vres.get("available", 0)})
-                if vres["status"] == "verified_quotes" and (not sentiment or len(vres["quotes"]) >= 2):
-                    quotes = vres["quotes"]
-                    verified_mode = True
-                    review_sort = "按相关度排序"
+                for cand in pools:
+                    cid = cand["item_id"] if cand else None
+                    vres = self.kb.search_verified(question, patch["patch_id"], item_id=cid,
+                                                   phase=search_phase, language=lang_filter,
+                                                   sentiment=sentiment, top_k=3, prefer_zh=prefer_zh)
+                    tool_log.append({"name": "search_verified_quotes",
+                                     "args": {"patch_id": patch["patch_id"], "item_id": cid,
+                                              "phase": search_phase, "language": lang_filter},
+                                     "status": vres["status"], "available": vres.get("available", 0)})
+                    if vres["status"] == "verified_quotes" and (not sentiment or len(vres["quotes"]) >= 2):
+                        quotes = vres["quotes"]
+                        verified_mode = True
+                        item, item_id = cand, cid
+                        review_sort = "按相关度排序"
+                        break
 
             if not quotes and sentiment:
-                # 归因问题用更新后被顶得最多的差评；已复核库不够 2 条时明确标注“未复核”
-                res = self.kb.top_reviews(patch["patch_id"], phase="after", sentiment="negative", limit=3)
-                tool_log.append({"name": "top_negative_reviews",
-                                 "args": {"patch_id": patch["patch_id"], "phase": "after"},
-                                 "status": res["status"]})
-                quotes = res.get("quotes") or []
-                review_sort = "更新后差评按点赞排序"
+                # 差评归因：条目明确时只在该条目内取，不拿整版本的其他差评冒充
+                for cand in pools:
+                    cid = cand["item_id"] if cand else None
+                    res = self.kb.top_reviews(patch["patch_id"], phase=search_phase, sentiment="negative",
+                                              language=lang_filter, item_id=cid,
+                                              limit=3, prefer_zh=prefer_zh)
+                    tool_log.append({"name": "top_negative_reviews",
+                                     "args": {"patch_id": patch["patch_id"], "phase": search_phase,
+                                              "language": lang_filter, "item_id": cid},
+                                     "status": res["status"]})
+                    if res.get("quotes"):
+                        quotes = res["quotes"]
+                        item, item_id = cand, cid
+                        break
+                prefix = {"before": "更新前", "release": "发布当天"}.get(search_phase or "", "更新后")
+                review_sort = f"{prefix}差评按点赞排序"
 
             if not quotes and not patch_has_verified:
-                if item:
-                    q = self._strip_entity(question, item)
-                    res = self.kb.search_reviews(q or question, patch["patch_id"], item_id=item["item_id"],
+                for cand in pools:
+                    cid = cand["item_id"] if cand else None
+                    q = self._strip_entity(question, cand) if cand else question
+                    res = self.kb.search_reviews(q or question, patch["patch_id"], item_id=cid,
+                                                 language=lang_filter, phase=phase, sentiment=sentiment,
                                                  top_k=3, prefer_zh=prefer_zh)
                     tool_log.append({"name": "search_reviews",
-                                     "args": {"patch_id": patch["patch_id"], "item_id": item["item_id"], "query": q},
+                                     "args": {"patch_id": patch["patch_id"], "item_id": cid,
+                                              "query": q, "phase": phase, "language": lang_filter},
                                      "status": res["status"], "candidates": res.get("candidates")})
-                    quotes = res.get("quotes") or []
-                if not quotes and not sentiment:
-                    # 只有“没锁定具体改动”时才退到整版本检索；条目明确但无证据，不能拿别的评论凑数
-                    res = self.kb.search_reviews(question, patch["patch_id"], top_k=3, prefer_zh=prefer_zh)
-                    tool_log.append({"name": "search_reviews",
-                                     "args": {"patch_id": patch["patch_id"], "query": question},
-                                     "status": res["status"], "candidates": res.get("candidates")})
-                    quotes = res.get("quotes") or []
+                    if res.get("quotes"):
+                        quotes = res["quotes"]
+                        item, item_id = cand, cid
+                        break
 
             if quotes:
                 text, cits = self._review_block(quotes, len(citations) + 1, item, review_sort,
@@ -207,10 +242,14 @@ class Agent:
                 segments.append(text)
                 citations.extend(cits)
                 result["evidence_status"] = "verified_quotes" if verified_mode else "dataset_quotes"
-            elif patch_has_verified and not sentiment:
-                segments.append("玩家原话：暂无已复核引文（该版本有已复核引文库，但这条改动没有可引用原话）。")
             else:
-                segments.append("玩家原话：暂无已复核引文（该版本窗口的样本里没有检索到可靠出处）。")
+                scope = []
+                if lang_filter:
+                    scope.append({"chinese": "中文", "en": "英文"}[lang_filter])
+                if phase and phase != "all":
+                    scope.append({"before": "更新前", "release": "发布当天", "after": "更新后"}.get(phase, phase))
+                where = f"（已按{'、'.join(scope)}筛选）" if scope else ""
+                segments.append(f"玩家原话：暂无已复核引文{where}。")
 
         result["tools"] = tool_log
         result["numbers"] = numbers
@@ -224,7 +263,10 @@ class Agent:
     # ---- 意图 ---------------------------------------------------------
     @staticmethod
     def _intent(q: str) -> str:
-        if RANK_RE.search(q) and METRIC_RE.search(q):
+        wants_rank = bool(RANK_RE.search(q)) or (bool(RANK_EXTREME_RE.search(q)) and "版本" in q)
+        has_metric = bool(METRIC_RE.search(q)) or "推荐率" in q or "好评率" in q
+        page_context = bool(PAGE_VERSION_RE.search(q)) and not re.search(r"哪个|哪些|所有|全组|排名|排行", q)
+        if wants_rank and has_metric and not page_context:
             return "ranking"
         m, r, a = bool(METRIC_RE.search(q)), bool(REVIEW_RE.search(q)), bool(ANNOUNCE_RE.search(q))
         if WHY_RE.search(q):
@@ -259,13 +301,54 @@ class Agent:
             return "en"
         return "all"
 
+    @staticmethod
+    def _phase_from_question(question: str) -> str | None:
+        if PHASE_RELEASE_RE.search(question):
+            return "release"
+        if PHASE_BEFORE_RE.search(question):
+            return "before"
+        if PHASE_AFTER_RE.search(question):
+            return "after"
+        return None
+
+    def _resolve_items(self, question: str, patch: dict) -> list[dict]:
+        """按提及顺序返回候选条目；一个问题提到两个改动时，两个都留作候选。"""
+        items = self.catalog.items_of(patch["patch_id"])
+        low = question.lower()
+        exact: list[tuple[int, int, dict]] = []
+        for order, it in enumerate(items):
+            hit = max((len(t) for t in [it["title"], *(it.get("aliases_zh") or []),
+                                        *(it.get("aliases_en") or [])]
+                       if t and t.lower() in low), default=0)
+            if hit:
+                exact.append((hit, order, it))
+        exact.sort(key=lambda x: (-x[0], x[1]))
+        out: list[dict] = []
+        for _, _, it in exact:
+            if it["item_id"] not in {x["item_id"] for x in out}:
+                out.append(it)
+        if out:
+            return out[:3]
+
+        # 退一步：问题里的实体词出现在条目名称/别名里（如“海浪”之于“海浪与水面改版”），
+        # 但排除游戏名，避免“艾尔登”这种词把整款游戏的评测误判成某个改动。
+        game_blob = (patch.get("game", "") + " " + str(self.catalog.game(patch["appid"]) or "")).lower()
+        hint_blob = " ".join(GAME_HINTS.keys())
+        toks = [t for t in tokenize(question) if len(t) >= 2
+                and t not in STOP_BIGRAMS and t not in GENERIC_CJK]
+        scored: list[tuple[int, int, dict]] = []
+        for order, it in enumerate(items):
+            blob = " ".join([it["title"], it.get("title_en", ""),
+                             *(it.get("aliases_zh") or []), *(it.get("aliases_en") or [])]).lower()
+            s = sum(len(t) for t in toks if t in blob and t not in game_blob and t not in hint_blob)
+            if s > 0:
+                scored.append((s, order, it))
+        scored.sort(key=lambda x: (-x[0], x[1]))
+        return [it for _, _, it in scored[:3]]
+
     def _resolve_item(self, question: str, patch: dict) -> dict | None:
-        best, best_len = None, 0
-        for it in self.catalog.items_of(patch["patch_id"]):
-            for term in [it["title"], *(it.get("aliases_zh") or []), *(it.get("aliases_en") or [])]:
-                if term and term.lower() in question.lower() and len(term) > best_len:
-                    best, best_len = it, len(term)
-        return best
+        items = self._resolve_items(question, patch)
+        return items[0] if items else None
 
     @staticmethod
     def _strip_entity(question: str, item: dict) -> str:
@@ -310,7 +393,7 @@ class Agent:
                 else f"与该问题相关的 {len(items)} 项改动（该版本公告共 {total} 项，官方链接见文末引用）：")
         parts = [head]
         cits = []
-        for i, it in enumerate(items[:6]):
+        for i, it in enumerate(items):
             cite = start + i
             parts.append(f"{i + 1}. {it['title']}：{it['description']} [{cite}]")
             cits.append({"id": cite, "type": "announcement", "title": it["title"],
@@ -320,10 +403,12 @@ class Agent:
 
     def _review_block(self, quotes: list[dict], start: int, item: dict | None,
                       sort_label: str = "按相关度排序", verified: bool = False) -> tuple[str, list[dict]]:
-        if verified:
-            head = f"已复核玩家原话（{'《' + item['title'] + '》相关，' if item else ''}{sort_label}）："
-        else:
-            head = f"数据集原文（未复核，{'《' + item['title'] + '》相关，' if item else ''}{sort_label}）："
+        phases = {q.get("phase") for q in quotes[:3]}
+        phase_txt = ""
+        if len(phases) == 1:
+            phase_txt = {"before": "更新前", "release": "发布当天", "after": "更新后"}.get(next(iter(phases)), "")
+        scope = f"{'《' + item['title'] + '》相关，' if item else ''}{phase_txt + '，' if phase_txt else ''}{sort_label}"
+        head = (f"已复核玩家原话（{scope}）：" if verified else f"数据集原文（未复核，{scope}）：")
         lines = [head]
         cits = []
         for i, q in enumerate(quotes[:3]):
@@ -334,7 +419,11 @@ class Agent:
                          "title": f"玩家评测 {q['review_id']}",
                          "detail": f"{'已复核' if verified else '未复核'} · {q['phase_label']} · {q['language_std']} · {tag}",
                          "snippet": q["snippet"], "url": q["url"], "review_id": q["review_id"],
-                         "votes_up": q.get("votes_up", 0), "item_id": (item or {}).get("item_id", ""),
+                         "votes_up": q.get("votes_up", 0),
+                         "language_std": q.get("language_std", ""),
+                         "phase": q.get("phase", ""),
+                         "item_id": (q.get("item_id") or (q.get("matched_items") or [""])[0]
+                                     or (item or {}).get("item_id", "")),
                          "verified": bool(verified), "verification": q.get("verification", "")})
         return "\n".join(lines), cits
 

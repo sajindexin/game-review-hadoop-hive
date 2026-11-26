@@ -24,6 +24,7 @@ def main(argv: list[str] | None = None) -> int:
     p_ask.add_argument("--appid")
     p_ask.add_argument("--patch")
     p_ask.add_argument("--language", choices=["all", "chinese", "en"])
+    p_ask.add_argument("--phase", choices=["before", "release", "after"])
     p_ask.add_argument("--json", action="store_true")
 
     p_serve = sub.add_parser("serve", help="启动 HTTP 服务")
@@ -41,7 +42,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "ask":
         kb = _kb(args.data)
         agent = Agent(kb)
-        res = agent.ask(args.question, appid=args.appid, patch_id=args.patch, language=args.language)
+        res = agent.ask(args.question, appid=args.appid, patch_id=args.patch,
+                        language=args.language, phase=args.phase)
         if args.json:
             print(json.dumps(res, ensure_ascii=False, indent=1))
         else:

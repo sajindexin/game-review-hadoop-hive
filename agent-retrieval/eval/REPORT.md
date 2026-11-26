@@ -1,7 +1,7 @@
 # Agent 验收报告
 
-- 用例：22 道（指标 / 公告 / 原文 / 拒答 / 缺上下文）
-- 结果：**22/22 通过**
+- 用例：27 道（指标 / 公告 / 原文 / 归因 / 边界 / 回归）
+- 结果：**27/27 通过**
 - 用时：0.0s · 数据版本 v1
 
 | # | 用例 | 问题 | 结果 |
@@ -28,3 +28,8 @@
 | 20 | q20_citations_cs2_why | 为什么 CS2 军械库更新差评变多了？ | ✅ |
 | 21 | q21_verified_bmw | 玩家怎么评价土地庙挑战？ | ✅ |
 | 22 | q22_verified_sdv | 玩家怎么评价海滩农场？ | ✅ |
+| 23 | q23_item_relevance_gate | 玩家怎么评价海浪？ | ✅ |
+| 24 | q24_language_filter | 玩家怎么评价姜岛探索？ | ✅ |
+| 25 | q25_phase_filter | 更新前玩家怎么评价土地庙挑战？ | ✅ |
+| 26 | q26_ranking_with_patch | 哪个版本推荐率下降最多？ | ✅ |
+| 27 | q27_announcement_complete | Rust Jungle Update 改了什么？ | ✅ |

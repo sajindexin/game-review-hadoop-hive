@@ -14,6 +14,7 @@ from .dense import load_vectors
 from .tokenize import tokenize
 
 PHASE_LABEL = {"before": "更新前 14 天", "release": "发布当天", "after": "更新后 14 天"}
+PHASE_ALIAS = {"release_day": "release", "release-day": "release", "releaseday": "release"}
 LANG_LABEL = {"all": "全部语言", "chinese": "中文", "en": "英文"}
 CJK = re.compile(r"[\u4e00-\u9fff]")
 
@@ -75,6 +76,7 @@ class KnowledgeBase:
         return self._patch_cache[patch_id]
 
     def mask(self, patch_id: str, language: str | None = None, phase: str | None = None) -> np.ndarray:
+        phase = PHASE_ALIAS.get(phase, phase)
         idx = self.patch_indices(patch_id)
         m = np.zeros(len(self.docs), dtype=np.float32)
         m[idx] = 1.0
@@ -125,6 +127,7 @@ class KnowledgeBase:
                        language: str | None = None, phase: str | None = None,
                        sentiment: str | None = None, top_k: int = 5, min_chars: int = 20,
                        prefer_zh: bool = False) -> dict:
+        phase = PHASE_ALIAS.get(phase, phase)
         if patch_id not in {p["patch_id"] for p in self.catalog.patches}:
             return {"status": "unknown_patch", "quotes": []}
         item = None
@@ -222,6 +225,7 @@ class KnowledgeBase:
                         phase: str | None = None, language: str | None = None,
                         sentiment: str | None = None, top_k: int = 3,
                         prefer_zh: bool = False) -> dict:
+        phase = PHASE_ALIAS.get(phase, phase)
         pool = self._verified_by_patch.get(patch_id, [])
         if not pool:
             return {"status": "no_verified_quotes", "available": 0, "quotes": []}
@@ -229,8 +233,19 @@ class KnowledgeBase:
         def keep(v: dict) -> bool:
             if item_id and v["item_id"] != item_id:
                 return False
-            if phase and phase not in ("all", "") and v["phase"] != phase:
-                return False
+            if phase and phase not in ("all", ""):
+                if v["phase"] != phase:
+                    return False
+                # 与黄静雯 find_evidence.lookup 的阶段口径保持一致：
+                # 更新前排除“发布后才编辑”的评测；更新后排除“窗口结束后编辑”的评测；
+                # 发布当天排除“当天之后才编辑”的评测。
+                if phase == "before" and v.get("before_review_edited_after_release"):
+                    return False
+                if phase == "after" and v.get("edited_after_window"):
+                    return False
+                if phase == "release" and v.get("updated_ts") and (
+                        int(v["updated_ts"]) // 86400 > int(v["created_ts"]) // 86400):
+                    return False
             if language and language not in ("all", ""):
                 if language == "chinese" and not str(v["language_std"]).startswith("zh"):
                     return False
@@ -246,11 +261,17 @@ class KnowledgeBase:
         if not idx:
             return {"status": "no_verified_quotes", "available": 0, "quotes": []}
 
-        tokens = [t for t in tokenize(query) if len(t) >= 2]
+        from .tokenize import GENERIC_CJK, STOP_BIGRAMS
+
+        tokens = [t for t in tokenize(query) if len(t) >= 2
+                  and t not in STOP_BIGRAMS and t not in GENERIC_CJK]
         if tokens and self._verified_bm25 is not None:
             mask = np.zeros(len(self.verified), dtype=np.float32)
             mask[idx] = 1.0
             scores = self._verified_bm25.scores(tokens, mask=mask)
+            # 相关度门槛：问题里的实体词一条都没命中，就不要返回“看起来最像”的引文
+            if max(float(scores[i]) for i in idx) <= 0:
+                return {"status": "no_verified_quotes", "available": 0, "quotes": []}
         else:
             scores = np.zeros(len(self.verified), dtype=np.float32)
             for i in idx:
@@ -279,19 +300,30 @@ class KnowledgeBase:
 
     # ---- 代表性评测 ---------------------------------------------------
     def top_reviews(self, patch_id: str, phase: str | None = None, sentiment: str | None = None,
-                    language: str | None = None, limit: int = 5) -> dict:
+                    language: str | None = None, item_id: str | None = None,
+                    limit: int = 5, prefer_zh: bool = False) -> dict:
         mask = self.mask(patch_id, language, phase)
         if sentiment in ("negative", "positive"):
             up = self.docs["voted_up"].to_numpy()
             mask = mask * (1.0 - up if sentiment == "negative" else up).astype(np.float32)
         idx = np.flatnonzero(mask > 0)
+        if item_id:
+            matched = self.docs["matched_items"].fillna("").to_numpy()
+            idx = np.array([i for i in idx if item_id in str(matched[i]).split(",")], dtype=np.int64)
+            if len(idx) == 0:
+                return {"status": "no_candidates", "quotes": []}
+            mask = np.zeros_like(mask)
+            mask[idx] = 1.0
         if len(idx) == 0:
             return {"status": "no_candidates", "quotes": []}
         long_enough = self.docs["text"].fillna("").str.len().to_numpy() >= 30
-        idx = np.array([i for i in idx if long_enough[i]])
+        idx = np.array([i for i in idx if long_enough[i]], dtype=np.int64)
         if len(idx) == 0:
             return {"status": "no_candidates", "quotes": []}
-        votes = self.docs["votes_up"].to_numpy()[idx]
+        votes = self.docs["votes_up"].to_numpy()[idx].astype(np.float64)
+        if prefer_zh:
+            langs = self.docs["language_std"].to_numpy()[idx]
+            votes = votes * np.array([1.2 if str(x).startswith("zh") else 1.0 for x in langs])
         order = idx[np.argsort(-votes)][:limit]
         quotes = []
         for i in order:

@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.deps/
+.venv/
+data/
+build.log
+server.log
+eval/last_run.json

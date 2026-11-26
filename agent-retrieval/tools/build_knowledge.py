@@ -292,7 +292,10 @@ def load_verified(path: Path, parquet: Path) -> list[dict]:
             "item_title": r.get("item_title", ""),
             "phase": PHASE_MAP.get(str(r.get("phase")), str(r.get("phase"))),
             "language_std": r.get("language_std", ""), "voted_up": bool(r.get("voted_up")),
-            "created_ts": ts,
+            "created_ts": ts, "updated_ts": (int(r["updated_ts"]) if r.get("updated_ts") else None),
+            "day_offset": r.get("day_offset"),
+            "edited_after_window": bool(r.get("edited_after_window")),
+            "before_review_edited_after_release": bool(r.get("before_review_edited_after_release")),
             "created_at": (datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%d %H:%M:%S") if ts else ""),
             "evidence": r.get("evidence", ""), "span_start": r.get("span_start"), "span_end": r.get("span_end"),
             "verification": r.get("verification", ""), "score": r.get("score"),
@@ -338,8 +341,16 @@ def main() -> None:
         metrics_rows = list(csv.DictReader(f))
 
     parquet = Path(args.parquet)
-    manifest_path = parquet.parents[2] / "manifest.json"
-    manifest = json.loads(manifest_path.read_text("utf-8")) if manifest_path.exists() else {}
+    # manifest.json 在 v1 根目录（parquet 在 v1/data/ 下），不是 releases/ 下
+    manifest_path = parquet.parents[1] / "manifest.json"
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text("utf-8"))
+    else:
+        print(f"WARN manifest 不存在：{manifest_path}，改用 parquet 现场统计游戏条数", flush=True)
+        import pyarrow.compute as pc
+        appids = ds.dataset(str(parquet), format="parquet").to_table(columns=["appid"]).column("appid")
+        counts = pc.value_counts(appids).to_pylist()
+        manifest = {"games": [{"appid": str(x["values"]), "count": int(x["counts"])} for x in counts]}
 
     generated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     source = {

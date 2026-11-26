@@ -1,5 +1,5 @@
 const $ = (sel) => document.querySelector(sel);
-const state = { games: [], patches: [], current: null };
+const state = { games: [], patches: [], current: null, loading: false };
 
 async function api(path, options) {
   const res = await fetch(path, options);
@@ -35,18 +35,42 @@ async function boot() {
 }
 
 async function loadPatches(appid) {
-  const data = await api(`/api/games/${appid}/patches`);
+  state.loading = true;
+  let data;
+  try {
+    data = await api(`/api/games/${appid}/patches`);
+  } catch (err) {
+    state.loading = false;
+    throw err;
+  }
   state.patches = data.patches;
   const sel = $("#patch");
   sel.innerHTML = "";
   state.patches.forEach((p) => sel.appendChild(new Option(`${p.patch_name}（${p.release_date}）`, p.patch_id)));
   sel.onchange = () => loadPatch(sel.value);
-  await loadPatch(state.patches[state.patches.length - 1].patch_id);
+  if (!state.patches.length) {
+    $("#patchCard").textContent = "该游戏没有版本数据";
+    state.loading = false;
+    return;
+  }
+  const last = state.patches[state.patches.length - 1].patch_id;
+  sel.value = last;           // 下拉框选中值必须和实际加载的版本一致
+  await loadPatch(last);
 }
 
 async function loadPatch(patchId) {
-  const data = await api(`/api/patches/${patchId}`);
+  $("#patch").value = patchId;
+  state.loading = true;
+  let data;
+  try {
+    data = await api(`/api/patches/${patchId}`);
+  } catch (err) {
+    if ($("#patch").value === patchId) state.loading = false;
+    throw err;
+  }
+  if ($("#patch").value !== patchId) return;   // 异步切换后丢弃旧响应
   state.current = data;
+  state.loading = false;
   const m = data.metrics.all || {};
   const card = $("#patchCard");
   card.innerHTML = "";
@@ -78,7 +102,8 @@ async function loadPatch(patchId) {
   $("#chips").innerHTML = "";
   const p = data.patch;
   [`${p.patch_name} 更新后推荐率降了多少？`, `${p.patch_name} 改了什么？`,
-   `玩家怎么评价${(data.items[0] || {}).title || "这次更新"}？`].forEach((q) => {
+   `玩家怎么评价${(data.items[0] || {}).title || "这次更新"}？`,
+   `哪个版本推荐率下降最多？`].forEach((q) => {
     const chip = el("button", "chip", q);
     chip.onclick = () => ask(q);
     $("#chips").appendChild(chip);
@@ -96,17 +121,21 @@ function addMessage(role, build) {
 }
 
 async function ask(question) {
-  if (!question.trim() || !state.current) return;
+  if (!question.trim() || !state.current || state.loading) return;
+  const ctx = state.current;                 // 固定本次请求的上下文，避免切版本后串味
   addMessage("user", (b) => b.appendChild(el("p", null, question)));
   const thinking = addMessage("bot", (b) => b.appendChild(el("p", "muted", "检索指标、公告和玩家评测…")));
   try {
     const res = await api("/api/agent/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, appid: state.current.game.appid, patch_id: state.current.patch.patch_id }),
+      body: JSON.stringify({ question, appid: ctx.game.appid, patch_id: ctx.patch.patch_id }),
     });
     thinking.parentElement.remove();
     renderAnswer(res);
+    if (state.current !== ctx) {
+      addMessage("bot", (b) => b.appendChild(el("p", "muted", `（上面这个问题是按 ${ctx.patch.patch_name} 回答的）`)));
+    }
   } catch (err) {
     thinking.innerHTML = "";
     thinking.appendChild(el("p", "error", `请求失败：${err.message}`));

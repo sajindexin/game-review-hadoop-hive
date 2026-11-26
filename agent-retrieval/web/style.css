@@ -68,4 +68,10 @@ body {
 .composer input:focus { outline: 2px solid #c9d8ff; border-color: var(--accent); }
 .composer button { padding: 10px 18px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
 .error { color: #b42318; }
+.quote { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-top: 10px; background: #fafbfc; }
+.quote-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+.quote-item { font-weight: 600; font-size: 12px; }
+.quote-meta { color: var(--muted); font-size: 11px; }
+.quote-text { font-size: 13px; line-height: 1.7; }
+.quote-link { display: inline-block; margin-top: 6px; font-size: 12px; color: var(--accent); text-decoration: none; }
 @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }

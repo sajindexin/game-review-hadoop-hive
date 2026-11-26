@@ -20,4 +20,9 @@
 {"id": "q20_citations_cs2_why", "category": "归因-链接", "question": "为什么 CS2 军械库更新差评变多了？", "appid": "730", "patch_id": "steam_730_20241002", "expect": {"status": "answered", "types": {"review": 2}, "review_negative": true}}
 {"id": "q21_verified_bmw", "category": "原文-已复核", "question": "玩家怎么评价土地庙挑战？", "appid": "2358720", "patch_id": "steam_2358720_20241214", "expect": {"status": "answered", "evidence": "verified_quotes", "verified_reviews": true, "types": {"review": 2}}}
 {"id": "q22_verified_sdv", "category": "原文-已复核", "question": "玩家怎么评价海滩农场？", "appid": "413150", "patch_id": "sdv_20201221_15", "expect": {"status": "answered", "evidence": "verified_quotes", "verified_reviews": true, "types": {"review": 2}}}
+{"id": "q23_item_relevance_gate", "category": "回归-条目相关度", "question": "玩家怎么评价海浪？", "appid": "252490", "patch_id": "rust_20230706_deep_sea", "expect": {"status": "answered", "evidence": "none", "contains": ["暂无已复核引文"], "no_review_citations": true}}
+{"id": "q24_language_filter", "category": "回归-语言筛选", "question": "玩家怎么评价姜岛探索？", "appid": "413150", "patch_id": "sdv_20201221_15", "language": "en", "expect": {"status": "answered", "evidence": "verified_quotes", "review_languages": ["en"], "types": {"review": 1}}}
+{"id": "q25_phase_filter", "category": "回归-阶段筛选", "question": "更新前玩家怎么评价土地庙挑战？", "appid": "2358720", "patch_id": "steam_2358720_20241214", "expect": {"status": "answered", "evidence": "verified_quotes", "review_phases": ["before"], "types": {"review": 2}}}
+{"id": "q26_ranking_with_patch", "category": "回归-排行优先", "question": "哪个版本推荐率下降最多？", "appid": "413150", "patch_id": "sdv_20201221_15", "expect": {"status": "answered", "contains": ["ELDEN RING", "13.5"]}}
+{"id": "q27_announcement_complete", "category": "回归-公告完整", "question": "Rust Jungle Update 改了什么？", "appid": "252490", "patch_id": "rust_20250501_jungle", "expect": {"status": "answered", "contains": ["10 项", "服务器与传送带性能"], "types": {"announcement": 10}}}
 

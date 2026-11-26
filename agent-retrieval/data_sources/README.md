@@ -7,9 +7,13 @@
 - 来源：`feat/game-update-feedback-analysis` 分支
   `game-update-feedback-analysis/黄静雯_全组评测改动关联/窗口内已复核可引用关联.jsonl`
 - 提交：`c26c38a`（2026-11-25 00:55 +08:00，message「补充 Agent 可用的已复核引文」）
-- git blob sha1：`043c048a16da4997a5a8202f509e48ebd817c329`
-- 行数：469
-- 本地校验：本目录文件按 git blob 规则计算的 sha1 与上面一致（逐字节相同），不是二次加工版
+- SHA-256：`84b4174a42f21a52413de5fd75f571e2982f626d88fc51e1d138ea9fc2f6f9d1`
+  （与 PR2 `全量核验说明与验收记录.zip` 里 README 声明的值一致，本地实测相同）
+- 行数：469 对，涉及 **445 条不同评测**（24 条评测命中多个改动，所以行数 > 评测数）
+- 覆盖：26 个版本中的 **20 个**、75 项改动中的 **37 项**；
+  6 个版本、38 项改动暂无引文，19 项只有 1–2 对（与 PR2 的统计一致）
+- 字节保证：仓库 `.gitattributes` 写了 `data_sources/** -text`，Git 不做换行归一化；
+  `git cat-file blob` 出来的内容 SHA-256 仍是 `84b4…`（不是二次加工版）
 - 内容：20 个版本、37 项官方改动、469 条 `AI逐条核对原文` 的引文
 
 ## catalog/*.jsonl / 更新前后对比.csv

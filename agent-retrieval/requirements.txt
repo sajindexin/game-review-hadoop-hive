@@ -4,6 +4,7 @@ pyarrow>=15.0
 fastapi>=0.110
 uvicorn>=0.29
 pydantic>=2.6
+httpx>=0.27
 
 # 可选：接入真正的 BGE 向量检索（不装则自动降级为离线哈希向量）
 # sentence-transformers>=3.0

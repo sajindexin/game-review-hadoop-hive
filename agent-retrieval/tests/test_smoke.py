@@ -40,6 +40,69 @@ class KnowledgeBaseTest(unittest.TestCase):
         self.assertIn("ELDEN RING", res["answer"])
         self.assertIn("13.5", res["answer"])
 
+    def test_ranking_ignores_page_patch(self) -> None:
+        res = self.agent.ask("哪个版本推荐率下降最多？", appid="413150", patch_id="sdv_20201221_15")
+        self.assertEqual(res["status"], "answered")
+        self.assertIn("ELDEN RING", res["answer"])
+
+    def test_ranking_extreme_wording(self) -> None:
+        res = self.agent.ask("推荐率最高的版本是哪个？")
+        self.assertEqual(res["status"], "answered")
+        self.assertIn("最高", res["answer"])
+
+    def test_multi_item_question_falls_back_to_available_item(self) -> None:
+        res = self.agent.ask("玩家怎么评价姜岛和火山地牢？", appid="413150", patch_id="sdv_20201221_15")
+        self.assertEqual(res["evidence_status"], "verified_quotes")
+        items = {c.get("item_id") for c in res["citations"] if c["type"] == "review"}
+        self.assertEqual(items, {"S15_01"})
+
+    def test_release_day_alias(self) -> None:
+        res = self.kb.search_verified("", "steam_2358720_20241214", phase="release_day", top_k=5)
+        self.assertEqual(res["status"], "verified_quotes")
+        self.assertTrue(all(q["phase"] == "release" for q in res["quotes"]))
+
+    def test_games_have_review_counts(self) -> None:
+        counts = [g["review_count"] for g in self.kb.catalog.games]
+        self.assertTrue(all(c > 0 for c in counts), counts)
+        self.assertEqual(sum(counts), 4884580)
+
+    def test_phase_edit_rules_kept(self) -> None:
+        # 原 find_evidence 的阶段规则：469 条里 55 条会被排除
+        def excluded(v: dict) -> bool:
+            if v["phase"] == "before" and v.get("before_review_edited_after_release"):
+                return True
+            if v["phase"] == "after" and v.get("edited_after_window"):
+                return True
+            if v["phase"] == "release" and v.get("updated_ts") and (
+                    int(v["updated_ts"]) // 86400 > int(v["created_ts"]) // 86400):
+                return True
+            return False
+        affected = [v for v in self.kb.verified if excluded(v)]
+        self.assertEqual(len(affected), 55)
+        patch = "steam_2358720_20241214"
+        must_exclude = {v["review_id"] for v in affected if v["patch_id"] == patch and v["phase"] == "before"}
+        self.assertTrue(must_exclude)
+        res = self.kb.search_verified("", patch, phase="before", top_k=50)
+        got = {q["review_id"] for q in res["quotes"]}
+        self.assertFalse(got & must_exclude, "阶段过滤没有排除窗口后编辑的评测")
+
+    def test_language_filter_is_hard(self) -> None:
+        res = self.agent.ask("玩家怎么评价姜岛探索？", appid="413150",
+                             patch_id="sdv_20201221_15", language="en")
+        reviews = [c for c in res["citations"] if c["type"] == "review"]
+        self.assertTrue(reviews)
+        self.assertTrue(all(c["language_std"] == "en" for c in reviews))
+
+    def test_item_relevance_gate(self) -> None:
+        res = self.kb.search_verified("海浪", "rust_20230706_deep_sea", top_k=3)
+        self.assertEqual(res["status"], "no_verified_quotes")
+
+    def test_announcement_lists_all_items(self) -> None:
+        res = self.agent.ask("Rust Jungle Update 改了什么？", appid="252490", patch_id="rust_20250501_jungle")
+        anns = [c for c in res["citations"] if c["type"] == "announcement"]
+        self.assertEqual(len(anns), 10)
+        self.assertIn("服务器与传送带性能", res["answer"])
+
     def test_outside_catalog(self) -> None:
         res = self.agent.ask("明天要带伞吗？")
         self.assertEqual(res["status"], "outside_catalog")
@@ -99,6 +162,11 @@ class ApiTest(unittest.TestCase):
 
     def test_unknown_patch(self) -> None:
         self.assertEqual(self.client.get("/api/patches/nope").status_code, 404)
+
+    def test_invalid_phase_rejected(self) -> None:
+        r = self.client.post("/api/agent/ask", json={
+            "question": "x", "patch_id": "sdv_20201221_15", "phase": "bad"})
+        self.assertEqual(r.status_code, 422)
 
     def test_verified_endpoint(self) -> None:
         r = self.client.post("/api/retrieve/verified", json={

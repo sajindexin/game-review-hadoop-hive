@@ -71,6 +71,52 @@ async function boot() {
     });
     app.appendChild(lp);
   }
+
+  // 玩家原文：/versions/{id}?tab=feedback 或 ?item=xxx 时定位到这里
+  const qp = new URLSearchParams(location.search);
+  const itemFilter = qp.get("item");
+  const quotesPanel = el("div", "panel");
+  quotesPanel.id = "quotes";
+  quotesPanel.appendChild(el("div", "card-title", itemFilter ? `玩家原文（${itemFilter}）` : "玩家原文（已复核）"));
+  app.appendChild(quotesPanel);
+
+  try {
+    const vres = await fetch("/api/retrieve/verified", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: "", patch_id: patchId, item_id: itemFilter || undefined, top_k: 20 }),
+    }).then((r) => r.json());
+    const quotes = vres.quotes || [];
+    if (!quotes.length) {
+      quotesPanel.appendChild(el("div", "note", "该版本（或该改动）暂无已复核引文。"));
+    } else {
+      quotesPanel.appendChild(el("div", "note",
+        `显示 ${quotes.length} 条 / 共 ${vres.available ?? quotes.length} 条，来自黄静雯已复核引文库；点标题可回 Steam 原页。`));
+      quotes.forEach((q) => {
+        const card = el("div", "quote");
+        const head = el("div", "quote-head");
+        head.appendChild(el("span", "quote-item", q.item_title || q.item_id || ""));
+        head.appendChild(el("span", "badge verified", "已复核"));
+        head.appendChild(el("span", "quote-meta", `${q.language_std} · ${(q.created_at || "").slice(0, 10)} · ${q.voted_up ? "推荐" : "不推荐"}`));
+        card.appendChild(head);
+        card.appendChild(el("div", "quote-text", `“${q.text}”`));
+        if (q.url) {
+          const a = el("a", "quote-link", "查看原文");
+          a.href = q.url;
+          a.target = "_blank";
+          card.appendChild(a);
+        }
+        quotesPanel.appendChild(card);
+      });
+    }
+  } catch (err) {
+    quotesPanel.appendChild(el("div", "note", `原文加载失败：${err.message}`));
+  }
+
+  if (qp.get("tab") === "feedback") {
+    quotesPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   app.appendChild(el("div", "note", "数据版本 v1 · 指标来自黄静雯 Hive 窗口统计，改动目录来自官方公告。"));
 }
 

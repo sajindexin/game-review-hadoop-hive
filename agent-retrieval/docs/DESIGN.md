@@ -108,11 +108,12 @@ score = 0.7 * normalize(BM25(q, mask)) + 0.3 * normalize(cos(q_vec, doc_vec))
 
 ## 6. 验收
 
-`eval/acceptance.jsonl` 22 题，覆盖：
+`eval/acceptance.jsonl` 27 题，覆盖：
 
 - 指标：推荐率、样本量、方向（升/降）、中文/英文分组、发布当天、全组排行（8 题）
-- 公告：条目数量、条目内容（2 题）
+- 公告：条目数量、条目内容、10 项完整列出（3 题）
 - 原文：已复核条目（姜岛 / 军械库 / 土地庙 / 海滩农场）、无证据空态（5 题）
+- 回归：条目相关度门槛（海浪不串到拖船）、语言筛选、阶段筛选、带页面版本的排行（4 题）
 - 归因：差评原因、链接完整性（2 题）
 - 边界：超范围拒答、缺版本、版本不存在（3 题）
 - 交叉：其他游戏版本、推荐率变化（2 题）
@@ -123,9 +124,10 @@ score = 0.7 * normalize(BM25(q, mask)) + 0.3 * normalize(cos(q_vec, doc_vec))
 - 每条 `review` 引用的 URL 必须是 `https://steamcommunity.com/...`；
 - 每条 `announcement` 引用必须有官方链接；
 - 已复核类用例里，所有 `review` 引用必须 `verified=true`；
+- 回归用例会检查引文的 `language_std`、`phase`、`item_id` 是否与请求一致；
 - 差评归因里不允许出现“推荐”的引文。
 
-当前结果：**22/22 通过**，见 `eval/REPORT.md`。
+当前结果：**27/27 通过**，见 `eval/REPORT.md`。
 
 ## 7. 与其他人成果的衔接
 

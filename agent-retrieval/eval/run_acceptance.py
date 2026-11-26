@@ -50,6 +50,22 @@ def check(case: dict, res: dict) -> list[str]:
         reviews = [c for c in res.get("citations", []) if c["type"] == "review"]
         if not reviews or any("不推荐" not in c.get("detail", "") for c in reviews):
             errs.append("差评归因里出现了非差评引文")
+    if exp.get("no_review_citations") and any(c["type"] == "review" for c in res.get("citations", [])):
+        errs.append("不该出现玩家引文却出现了")
+    if exp.get("review_languages"):
+        reviews = [c for c in res.get("citations", []) if c["type"] == "review"]
+        allowed = set(exp["review_languages"])
+        if any(c.get("language_std") not in allowed for c in reviews):
+            errs.append(f"引文语种不符：{[c.get('language_std') for c in reviews]}")
+    if exp.get("review_phases"):
+        reviews = [c for c in res.get("citations", []) if c["type"] == "review"]
+        allowed = set(exp["review_phases"])
+        if any(c.get("phase") not in allowed for c in reviews):
+            errs.append(f"引文阶段不符：{[c.get('phase') for c in reviews]}")
+    if exp.get("review_items"):
+        reviews = [c for c in res.get("citations", []) if c["type"] == "review"]
+        if any(c.get("item_id") != exp["review_items"] for c in reviews):
+            errs.append(f"引文条目不符：{[c.get('item_id') for c in reviews]}")
     # 全局质量检查
     for c in res.get("citations", []):
         if c["type"] == "review" and not str(c.get("url", "")).startswith("https://steamcommunity.com"):
@@ -100,7 +116,7 @@ def main() -> int:
     Path(args.json).write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
 
     lines = ["# Agent 验收报告", "",
-             f"- 用例：{len(results)} 道（指标 / 公告 / 原文 / 拒答 / 缺上下文）",
+             f"- 用例：{len(results)} 道（指标 / 公告 / 原文 / 归因 / 边界 / 回归）",
              f"- 结果：**{passed}/{len(results)} 通过**",
              f"- 用时：{elapsed:.1f}s · 数据版本 v1",
              "", "| # | 用例 | 问题 | 结果 |", "|---|---|---|---|"]
