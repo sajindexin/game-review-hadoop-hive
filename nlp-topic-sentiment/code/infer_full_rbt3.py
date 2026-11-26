@@ -53,9 +53,11 @@ def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("--parquet", default=DEFAULT_PARQUET)
     ap.add_argument("--limit", type=int, default=0, help="最多处理多少条中文评论，0=全部")
-    ap.add_argument("--batch", type=int, default=192)
+    ap.add_argument("--batch", type=int, default=384)
     ap.add_argument("--model", default=MODEL_DIR)
     ap.add_argument("--threshold", type=float, default=THRESHOLD)
+    ap.add_argument("--overwrite", action="store_true",
+                    help="输出文件已存在时删除重写；不加此参数则拒绝运行，避免新旧结果混写")
     return ap.parse_args()
 
 
@@ -69,6 +71,19 @@ def main():
     args = parse_args()
     os.makedirs(OUT, exist_ok=True)
 
+    detail_path = os.path.join(OUT, "topic_sentiment_detail_rbt3.csv")
+    review_path = os.path.join(OUT, "topic_sentiment_review_summary_rbt3.csv")
+    if os.path.exists(detail_path) or os.path.exists(review_path):
+        if args.overwrite:
+            for p in (detail_path, review_path):
+                if os.path.exists(p):
+                    os.remove(p)
+            print("已删除旧输出，将重写")
+        else:
+            print("错误：输出文件已存在（可能是上次试跑/中断的残留）。")
+            print("确认无误后加 --overwrite 重跑：python infer_full_rbt3.py --overwrite")
+            sys.exit(1)
+
     if not torch.cuda.is_available():
         print("警告：CUDA 不可用，将用 CPU 推理（全量预计 40+ 小时，建议先装 CUDA 版 torch）")
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -79,8 +94,6 @@ def main():
     prompts = {a: f"评价方面：{ASPECT_PROMPT[a]}" for a in ASPECT_IDS}
 
     pf = pq.ParquetFile(args.parquet)
-    detail_path = os.path.join(OUT, "topic_sentiment_detail_rbt3.csv")
-    review_path = os.path.join(OUT, "topic_sentiment_review_summary_rbt3.csv")
     detail_rows: list[dict] = []
     review_rows: list[dict] = []
     first_detail = True
@@ -103,13 +116,16 @@ def main():
     @torch.no_grad()
     def classify_batch(pairs_texts):
         """pairs_texts: [(prompt, text), ...] -> [(sent, conf), ...]"""
+        use_amp = dev.type == "cuda"
         out = []
         for i in range(0, len(pairs_texts), args.batch):
             chunk = pairs_texts[i:i + args.batch]
             enc = tok([p for p, _ in chunk], [t for _, t in chunk],
                       truncation=True, max_length=MAX_LEN, padding=True,
                       return_tensors="pt").to(dev)
-            probs = torch.softmax(mdl(**enc).logits, -1).float().cpu().tolist()
+            with torch.autocast("cuda", dtype=torch.float16, enabled=use_amp):
+                logits = mdl(**enc).logits
+            probs = torch.softmax(logits.float(), -1).cpu().tolist()
             for p_neg, p_neu, p_pos in probs:
                 if p_pos >= args.threshold and p_pos >= p_neg:
                     out.append(("positive", round(p_pos, 4)))
