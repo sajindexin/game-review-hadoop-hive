@@ -119,7 +119,7 @@ def main() -> int:
     t0 = time.perf_counter()
     for case in cases:
         res = agent.ask(case["question"], appid=case.get("appid"), patch_id=case.get("patch_id"),
-                        language=case.get("language"))
+                        language=case.get("language"), phase=case.get("phase"))
         errs = check(case, res)
         results.append({"case": case, "result": res, "errors": errs, "passed": not errs})
         mark = "PASS" if not errs else "FAIL"

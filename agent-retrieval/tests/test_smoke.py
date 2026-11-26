@@ -199,6 +199,27 @@ class RouterTest(unittest.TestCase):
         self.assertEqual(route.source, "rules_fallback")
         self.assertEqual(route.phases, ["before", "after"])
 
+    def test_explicit_phases_override_llm(self) -> None:
+        router = Router()
+        cases = [
+            ("更新前后玩家怎么评价土地庙挑战？", "before", ["before", "after"]),
+            ("更新后玩家怎么评价土地庙挑战？", "before", ["after"]),
+            ("发布日玩家怎么评价土地庙挑战？", "after", ["release"]),
+            ("更新前、发布当天和更新后玩家怎么评价土地庙挑战？", "before",
+             ["before", "release", "after"]),
+        ]
+        for question, wrong, expected in cases:
+            route = router._validate(
+                {"intent": "review", "phases": [wrong], "item_ids": []},
+                self.items, None, "llm", question,
+            )
+            self.assertEqual(route.phases, expected, question)
+
+    def test_named_synonym_unique(self) -> None:
+        agent = Agent(self.kb)
+        items = self.kb.catalog.items_of("steam_2358720_20241214")
+        self.assertIn("2358720_20241214_02", agent._named_item_ids("为什么吐槽旅行图？", items))
+
     def test_agent_uses_compare_route(self) -> None:
         payload = json.dumps({
             "intent": "review", "phases": ["before", "after"],

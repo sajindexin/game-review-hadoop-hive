@@ -76,7 +76,7 @@ Content-Type: application/json; charset=utf-8
 | `numbers[]` | 渲染数字卡片（`label` / `display` / `sample`） |
 | `citations[]` | 渲染出处：`url` 可点，“查看原文”；`verified=true` 时加“已复核”徽标 |
 | `links.stats` / `links.evidence` | 跳“查看统计 / 查看原文”，路由是 `/versions/{patch_id}`，你们页面接住即可 |
-| `links.evidence_items` | 多条目回答时每个条目一个原文入口；有它就按条目渲染多个“查看原文”，不要再只用 `links.evidence` |
+| `links.evidence_items` | 多条目回答时每个条目一个入口；`kind=verified` 跳版本页，`kind=steam` 跳 Steam 原页（未复核），有它就按条目渲染多个“查看原文” |
 | `status` | `answered` 正常；`need_context` 展示 `suggestions` 当追问按钮；`outside_catalog` 直接显示拒答话术 |
 | `evidence_status` | `verified_quotes` / `mixed_evidence` / `dataset_quotes` / `none`，决定徽标和“暂无已复核引文”文案 |
 

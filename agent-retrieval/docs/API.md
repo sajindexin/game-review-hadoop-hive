@@ -206,12 +206,15 @@ Base URL：`http://127.0.0.1:8000`（启动：`python -m src.cli serve --port 80
 
 ```json
 "evidence_items": [
-  {"item_id": "2358720_20241214_01", "title": "土地庙挑战",
+  {"item_id": "2358720_20241214_01", "title": "土地庙挑战", "kind": "verified",
    "url": "/versions/steam_2358720_20241214?tab=feedback&item=2358720_20241214_01"},
-  {"item_id": "2358720_20241214_02", "title": "行旅图",
-   "url": "/versions/steam_2358720_20241214?tab=feedback&item=2358720_20241214_02"}
+  {"item_id": "2358720_20241214_02", "title": "行旅图（未复核）", "kind": "steam",
+   "url": "https://steamcommunity.com/profiles/.../recommended/2358720/"}
 ]
 ```
+
+`kind=verified` 指向版本反馈页（已复核库）；`kind=steam` 表示该条目只有未复核原文，
+直接指向 `citations[].url` 的 Steam 原页，避免跳到空结果。
 
 ### evidence_status
 - `verified_quotes`：引文来自上游版本分析模块的 469 条已复核关联，`citations[].verified=true`，前端应显示“已复核”徽标；
@@ -238,7 +241,7 @@ Base URL：`http://127.0.0.1:8000`（启动：`python -m src.cli serve --port 80
 
 ## 4. 验收题
 
-`GET /api/qa/examples` 返回 43 道题（含 `appid` / `patch_id`），可直接做成版本页的“示例问题”。
+`GET /api/qa/examples` 返回 48 道题（含 `appid` / `patch_id`），可直接做成版本页的“示例问题”。
 
 ## 5. 错误码
 

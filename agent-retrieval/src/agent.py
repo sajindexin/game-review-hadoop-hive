@@ -110,8 +110,9 @@ class Agent:
                               "这个问题超出了游戏评测数据范围。我只能回答版本指标、官方改动和玩家评测相关的问题。")
 
         if route.intent == "ranking":
+            rank_phase = phase if phase in ("before", "release", "after") else route.ranking_phase
             return self._answer_ranking(result, question, language or route.language,
-                                        route.ranking_phase, route.ranking_direction)
+                                        rank_phase, route.ranking_direction)
 
         if not patch:
             if not appid:
@@ -243,19 +244,32 @@ class Agent:
                 where = f"（已按{'、'.join(scope)}筛选）" if scope else ""
                 segments.append(f"玩家原话：暂无已复核引文{where}。")
 
-        # 原文链接必须带实际关联条目；多条目时每个条目各给一个入口
-        review_item_ids = [c.get("item_id") for c in citations
-                           if c.get("type") == "review" and c.get("item_id")]
-        if review_item_ids:
+        # 原文链接必须带实际关联条目；多条目时每个条目各给一个可用入口
+        item_citations: dict[str, list[dict]] = {}
+        for c in citations:
+            if c.get("type") == "review" and c.get("item_id"):
+                item_citations.setdefault(c["item_id"], []).append(c)
+        if item_citations:
             item_map = {it["item_id"]: it for it in self.catalog.items_of(patch["patch_id"])}
-            unique_ids = list(dict.fromkeys(review_item_ids))
-            result["links"]["evidence"] = (f"/versions/{patch['patch_id']}"
-                                           f"?tab=feedback&item={unique_ids[0]}")
-            result["links"]["evidence_items"] = [{
-                "item_id": iid,
-                "title": item_map.get(iid, {}).get("title", ""),
-                "url": f"/versions/{patch['patch_id']}?tab=feedback&item={iid}",
-            } for iid in unique_ids]
+            evidence_items = []
+            for iid, cits in item_citations.items():
+                has_verified = any(c.get("verified") for c in cits)
+                if has_verified:
+                    url = f"/versions/{patch['patch_id']}?tab=feedback&item={iid}"
+                    kind = "verified"
+                else:
+                    # 未复核引文不在版本反馈页的已复核库里，直接回 Steam 原文
+                    url = next((c.get("url") for c in cits if c.get("url")), "")
+                    kind = "steam"
+                title = item_map.get(iid, {}).get("title", "")
+                evidence_items.append({
+                    "item_id": iid,
+                    "title": title + ("" if has_verified else "（未复核）"),
+                    "url": url,
+                    "kind": kind,
+                })
+            result["links"]["evidence"] = evidence_items[0]["url"]
+            result["links"]["evidence_items"] = evidence_items
 
         result["tools"] = tool_log
         result["numbers"] = numbers
@@ -375,12 +389,17 @@ class Agent:
         return ids
 
     def _named_item_ids(self, question: str, items: list[dict]) -> set[str]:
-        """只有标题/别名才算“用户明确点名”，用于差评归因时限定条目。"""
+        """标题/别名直接命中，或能唯一定位条目的同义词命中，用于差评归因限定条目。"""
         low = question.lower()
+        syn_count: dict[str, int] = {}
+        for it in items:
+            for s in dict.fromkeys(it.get("synonyms") or []):
+                syn_count[s.lower()] = syn_count.get(s.lower(), 0) + 1
         ids: set[str] = set()
         for it in items:
-            terms = [it["title"], *(it.get("aliases_zh") or []), *(it.get("aliases_en") or [])]
-            if any(t and len(t) >= 2 and t.lower() in low for t in terms):
+            strong = [it["title"], *(it.get("aliases_zh") or []), *(it.get("aliases_en") or [])]
+            weak = [s for s in (it.get("synonyms") or []) if syn_count.get(s.lower()) == 1]
+            if any(t and len(t) >= 2 and t.lower() in low for t in strong + weak):
                 ids.add(it["item_id"])
         return ids
 
@@ -427,7 +446,7 @@ class Agent:
                         verified = True
 
                 if not quotes and sentiment:
-                    res = self.kb.top_reviews(patch_id, phase=ph or "after", sentiment="negative",
+                    res = self.kb.top_reviews(patch_id, phase=ph, sentiment="negative",
                                               language=lang_filter, item_id=cid,
                                               limit=per, prefer_zh=prefer_zh)
                     logs.append({"name": "top_negative_reviews",
@@ -435,7 +454,7 @@ class Agent:
                                           "language": lang_filter},
                                  "status": res["status"]})
                     quotes = res.get("quotes") or []
-                    sort_label = f"{self._phase_label(ph or 'after')}差评按点赞排序"
+                    sort_label = f"{self._phase_label(ph) if ph else '全阶段'}差评按点赞排序"
 
                 if not quotes and not patch_has_verified:
                     q = self._strip_entity(question, item) if item else question
@@ -524,8 +543,8 @@ class Agent:
                          "votes_up": q.get("votes_up", 0),
                          "language_std": q.get("language_std", ""),
                          "phase": q.get("phase", ""),
-                         "item_id": (q.get("item_id") or (q.get("matched_items") or [""])[0]
-                                     or (item or {}).get("item_id", "")),
+                         "item_id": ((item or {}).get("item_id") or q.get("item_id")
+                                     or (q.get("matched_items") or [""])[0] or ""),
                          "verified": bool(verified), "verification": q.get("verification", "")})
         return "\n".join(lines), cits
 
