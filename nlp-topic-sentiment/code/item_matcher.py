@@ -48,6 +48,10 @@ def match_items(clauses: list[str], appid, fallback_sentiment: str = "neutral",
     if not terms or not clauses:
         return []
 
+    # 评论级情感可能是 "none"（无情感证据），条目层统一回退为 neutral
+    if fallback_sentiment not in ("positive", "negative", "neutral"):
+        fallback_sentiment = "neutral"
+
     # item_id -> 最佳命中
     best: dict[str, dict] = {}
     for ci, clause in enumerate(clauses):

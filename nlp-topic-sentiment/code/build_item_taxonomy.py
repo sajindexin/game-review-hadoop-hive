@@ -2,11 +2,14 @@
 """
 构建两层标签体系：通用主题(11类) + 具体更新条目(75项)
 
-输入：黄静雯版本建模分支的 items.jsonl / patches.jsonl
+输入：优先从仓库相对路径查找黄静雯版本建模分支的 items.jsonl / patches.jsonl；
+      找不到时用已提交的 data/taxonomy 重建（保证 PR 快照中可运行）。
+      可用 --source-dir / --items / --patches / --parquet 覆盖。
 输出：
   data/taxonomy/items_enriched.json   75项条目（含通用主题归属、匹配词）
   data/taxonomy/patches.json          26个版本窗口
   data/taxonomy/appid_game_map.json   appid -> 中文游戏名
+  data/taxonomy/item_dict.csv         Hive 更新条目字典表（带引号的标准 CSV）
   code/item_lexicon.py                规则引擎/RBT3 共用的条目词典（内嵌，无运行时外部依赖）
 
 设计要点：
@@ -19,14 +22,68 @@ from __future__ import annotations
 import os
 import json
 import csv
+import argparse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, ".."))
+REPO_ROOT = os.path.normpath(os.path.join(ROOT, ".."))
 TAX = os.path.join(ROOT, "data", "taxonomy")
-SRC = r"C:\Users\hgj\Desktop\大数据大作业\版本建模分支\game-update-feedback-analysis\黄静雯_全组版本与改动"
-ITEMS_SRC = os.path.join(SRC, "items", "items.jsonl")
-PATCHES_SRC = os.path.join(SRC, "patches", "patches.jsonl")
-PARQUET = r"D:\QQFiles\team_package_v1\team_package_v1\游戏评论交付\releases\v1\data\cleaned_reviews.parquet"
+
+# 仅在找不到仓库内版本源时使用的本机兜底路径（不作为必填前提）
+LOCAL_FALLBACK_DIR = r"C:\Users\hgj\Desktop\大数据大作业\版本建模分支\game-update-feedback-analysis\黄静雯_全组版本与改动"
+LOCAL_FALLBACK_PARQUET = r"D:\QQFiles\team_package_v1\team_package_v1\游戏评论交付\releases\v1\data\cleaned_reviews.parquet"
+
+
+def parse_args():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--source-dir", default="",
+                    help="版本源目录（含 items/items.jsonl 与 patches/patches.jsonl）；相对路径按模块仓库根解析")
+    ap.add_argument("--items", default="", help="直接指定 items.jsonl，覆盖 --source-dir")
+    ap.add_argument("--patches", default="", help="直接指定 patches.jsonl，覆盖 --source-dir")
+    ap.add_argument("--parquet", default="", help="清洗评论 parquet（仅用于补游戏中文名，可缺失）")
+    return ap.parse_args()
+
+
+def _abs_from_root(p):
+    return p if os.path.isabs(p) else os.path.normpath(os.path.join(ROOT, p))
+
+
+def resolve_source_dir(explicit=""):
+    candidates = []
+    if explicit:
+        candidates.append(_abs_from_root(explicit))
+    candidates.extend([
+        os.path.join(ROOT, "data", "version_source"),
+        os.path.join(ROOT, "version_source"),
+        os.path.join(REPO_ROOT, "version_source"),
+        os.path.join(REPO_ROOT, "版本建模分支", "game-update-feedback-analysis", "黄静雯_全组版本与改动"),
+        os.path.join(REPO_ROOT, "..", "版本建模分支", "game-update-feedback-analysis", "黄静雯_全组版本与改动"),
+        os.path.join(REPO_ROOT, "game-update-feedback-analysis", "黄静雯_全组版本与改动"),
+        os.path.join(REPO_ROOT, "..", "game-update-feedback-analysis", "黄静雯_全组版本与改动"),
+        REPO_ROOT,
+        ROOT,
+        LOCAL_FALLBACK_DIR,
+    ])
+    for d in candidates:
+        if (os.path.exists(os.path.join(d, "items", "items.jsonl")) and
+                os.path.exists(os.path.join(d, "patches", "patches.jsonl"))):
+            return d
+    return ""
+
+
+def resolve_parquet(explicit=""):
+    candidates = []
+    if explicit:
+        candidates.append(_abs_from_root(explicit))
+    candidates.extend([
+        os.path.join(ROOT, "data", "cleaned_reviews.parquet"),
+        os.path.join(REPO_ROOT, "data", "cleaned_reviews.parquet"),
+        LOCAL_FALLBACK_PARQUET,
+    ])
+    for p in candidates:
+        if p and os.path.exists(p):
+            return p
+    return ""
 
 # appid -> 中文游戏名（本地标注工具展示用）
 GAME_ZH = {
@@ -127,11 +184,13 @@ def get_appid_game_map(patches):
     return m
 
 
-def get_game_name_zh():
-    """从 parquet 读 appid -> game_name（只读一个行组）。"""
+def get_game_name_zh(parquet_path=""):
+    """从 parquet 读 appid -> game_name（只读一个行组）；文件缺失时返回空字典。"""
+    if not parquet_path or not os.path.exists(parquet_path):
+        return {}
     try:
         import pyarrow.parquet as pq
-        pf = pq.ParquetFile(PARQUET)
+        pf = pq.ParquetFile(parquet_path)
         t = pf.read_row_group(0, columns=["appid", "game_name"]).to_pydict()
         m = {}
         for a, g in zip(t["appid"], t["game_name"]):
@@ -144,17 +203,31 @@ def get_game_name_zh():
 
 
 def main():
+    args = parse_args()
     os.makedirs(TAX, exist_ok=True)
-    items = load_jsonl(ITEMS_SRC)
-    patches = load_jsonl(PATCHES_SRC)
 
-    missing = [r["item_id"] for r in items if r["item_id"] not in ITEM2ASPECT]
-    if missing:
-        print("[ERROR] 以下条目未映射通用主题:", missing)
-        return
+    src_dir = resolve_source_dir(args.source_dir)
+    items_src = _abs_from_root(args.items) if args.items else (
+        os.path.join(src_dir, "items", "items.jsonl") if src_dir else "")
+    patches_src = _abs_from_root(args.patches) if args.patches else (
+        os.path.join(src_dir, "patches", "patches.jsonl") if src_dir else "")
+
+    use_raw = bool(items_src and patches_src and os.path.exists(items_src) and os.path.exists(patches_src))
+    if use_raw:
+        print(f"版本源: {src_dir or os.path.dirname(items_src)}")
+        items = load_jsonl(items_src)
+        patches = load_jsonl(patches_src)
+        missing = [r["item_id"] for r in items if r["item_id"] not in ITEM2ASPECT]
+        if missing:
+            print("[ERROR] 以下条目未映射通用主题:", missing)
+            return
+    else:
+        print("[warn] 未找到 items.jsonl / patches.jsonl，改用已提交的 taxonomy 重建词典。")
+        items = json.load(open(os.path.join(TAX, "items_enriched.json"), encoding="utf-8"))
+        patches = json.load(open(os.path.join(TAX, "patches.json"), encoding="utf-8"))
 
     game_map = get_appid_game_map(patches)
-    game_zh = get_game_name_zh()
+    game_zh = get_game_name_zh(resolve_parquet(args.parquet))
 
     enriched = []
     for r in items:
@@ -186,6 +259,19 @@ def main():
     dump(enriched, "items_enriched.json")
     dump(patches, "patches.json")
     dump(final_game_map, "appid_game_map.json")
+
+    # Hive 条目字典表：标准 CSV（带引号、含表头，OpenCSVSerde 可直接读入）
+    item_dict_path = os.path.join(TAX, "item_dict.csv")
+    with open(item_dict_path, "w", encoding="utf-8-sig", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["item_id", "title", "appid", "game", "aspect", "description"])
+        for r in enriched:
+            w.writerow([
+                r["item_id"], r.get("title", ""), r.get("appid", ""),
+                final_game_map.get(str(r.get("appid")), ""),
+                r.get("aspect", ""), r.get("description", ""),
+            ])
+    print("  写出", item_dict_path, f"({os.path.getsize(item_dict_path)//1024} KB)")
 
     # 生成内嵌词典 item_lexicon.py
     items_by_id = {r["item_id"]: r for r in enriched}

@@ -9,76 +9,105 @@
 
 -- ------------------------------------------------------------
 -- part 0：导入本模块结果表（一次性，dedicated database）
--- 本模块产出：topic_sentiment_detail.csv / topic_sentiment_review_summary.csv
+-- 本模块产出：
+--   topic_sentiment_detail.csv.gz / topic_sentiment_review_summary.csv.gz
+--   item_sentiment_detail.csv / item_distribution.csv / item_patch_summary.csv
+--   item_dict.csv（由 build_item_taxonomy.py 生成）
+-- 先解压 .gz 再上传到对应 HDFS 目录，例如：
+--   hdfs dfs -mkdir -p /data/nlp_topic/topic_sentiment_detail
+--   hdfs dfs -put -f topic_sentiment_detail.csv /data/nlp_topic/topic_sentiment_detail/
+-- ------------------------------------------------------------
+-- 重要：交付 CSV 含表头、带引号字段、字段内逗号（如 aspects_json）。
+-- 先用 OpenCSVSerde 读原始文本（全 STRING、跳过表头），再显式 CAST 生成分析用表。
 -- ------------------------------------------------------------
 CREATE DATABASE IF NOT EXISTS nlp_topic;
 USE nlp_topic;
 
--- 主题情感明细表（一条评论 × 一个主题 一行）
+-- 原始层：支持引号与字段内逗号，跳过表头
+DROP TABLE IF EXISTS topic_sentiment_detail_raw;
+CREATE EXTERNAL TABLE topic_sentiment_detail_raw (
+  review_id STRING, appid STRING, game_name STRING, created_date STRING,
+  game_version STRING, aspect STRING, name_zh STRING, sentiment STRING,
+  confidence STRING, sentiment_word STRING, evidence STRING
+) ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+  WITH SERDEPROPERTIES (
+    "separatorChar" = ",", "quoteChar" = "\"", "escapeChar" = "\\"
+  )
+  STORED AS TEXTFILE
+  LOCATION '/data/nlp_topic/topic_sentiment_detail'
+  TBLPROPERTIES ("skip.header.line.count"="1");
+
+DROP TABLE IF EXISTS topic_sentiment_review_raw;
+CREATE EXTERNAL TABLE topic_sentiment_review_raw (
+  review_id STRING, appid STRING, game_name STRING, created_date STRING,
+  game_version STRING, voted_up STRING, n_aspects STRING, pos_aspects STRING,
+  neg_aspects STRING, primary_sentiment STRING, aspects_json STRING
+) ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+  WITH SERDEPROPERTIES (
+    "separatorChar" = ",", "quoteChar" = "\"", "escapeChar" = "\\"
+  )
+  STORED AS TEXTFILE
+  LOCATION '/data/nlp_topic/topic_sentiment_review'
+  TBLPROPERTIES ("skip.header.line.count"="1");
+
+DROP TABLE IF EXISTS item_sentiment_detail_raw;
+CREATE EXTERNAL TABLE item_sentiment_detail_raw (
+  review_id STRING, appid STRING, game_name STRING, created_date STRING,
+  game_version STRING, patch_id STRING, window_bucket STRING, item_id STRING,
+  item_title STRING, aspect STRING, sentiment STRING, confidence STRING,
+  matched_term STRING, evidence STRING
+) ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+  WITH SERDEPROPERTIES (
+    "separatorChar" = ",", "quoteChar" = "\"", "escapeChar" = "\\"
+  )
+  STORED AS TEXTFILE
+  LOCATION '/data/nlp_topic/item_sentiment_detail'
+  TBLPROPERTIES ("skip.header.line.count"="1");
+
+DROP TABLE IF EXISTS item_dict_raw;
+CREATE EXTERNAL TABLE item_dict_raw (
+  item_id STRING, title STRING, appid STRING, game STRING, aspect STRING, description STRING
+) ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+  WITH SERDEPROPERTIES (
+    "separatorChar" = ",", "quoteChar" = "\"", "escapeChar" = "\\"
+  )
+  STORED AS TEXTFILE
+  LOCATION '/data/nlp_topic/item_dict'
+  TBLPROPERTIES ("skip.header.line.count"="1");
+
+-- 分析层：显式 CAST 布尔/数值字段，后续指标只查这些表
 DROP TABLE IF EXISTS topic_sentiment_detail;
-CREATE EXTERNAL TABLE topic_sentiment_detail (
-  review_id      STRING  COMMENT '评论ID',
-  appid          STRING  COMMENT '游戏AppID',
-  game_name      STRING  COMMENT '游戏名',
-  created_date   STRING  COMMENT '评论日期',
-  game_version   STRING  COMMENT '版本号（黑神话/GTA5有值）',
-  aspect         STRING  COMMENT '主题ID',
-  name_zh        STRING  COMMENT '主题中文名',
-  sentiment      STRING  COMMENT 'positive/negative/neutral',
-  confidence     DOUBLE  COMMENT '规则置信度',
-  sentiment_word STRING  COMMENT '命中的情感词',
-  evidence       STRING  COMMENT '证据子句'
-) ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
-  STORED AS TEXTFILE LOCATION '/data/nlp_topic/topic_sentiment_detail';
+CREATE TABLE topic_sentiment_detail STORED AS ORC AS
+SELECT review_id, appid, game_name, created_date, game_version,
+       aspect, name_zh, sentiment,
+       CAST(confidence AS DOUBLE) AS confidence,
+       sentiment_word, evidence
+FROM topic_sentiment_detail_raw;
 
--- 评论级汇总表
 DROP TABLE IF EXISTS topic_sentiment_review;
-CREATE EXTERNAL TABLE topic_sentiment_review (
-  review_id          STRING,
-  appid              STRING,
-  game_name          STRING,
-  created_date       STRING,
-  game_version       STRING,
-  voted_up           BOOLEAN,
-  n_aspects          INT,
-  pos_aspects        INT,
-  neg_aspects        INT,
-  primary_sentiment  STRING,
-  aspects_json       STRING
-) ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
-  STORED AS TEXTFILE LOCATION '/data/nlp_topic/topic_sentiment_review';
+CREATE TABLE topic_sentiment_review STORED AS ORC AS
+SELECT review_id, appid, game_name, created_date, game_version,
+       CASE WHEN lower(trim(voted_up)) IN ('true','1','yes') THEN true
+            WHEN lower(trim(voted_up)) IN ('false','0','no') THEN false
+            ELSE NULL END AS voted_up,
+       CAST(n_aspects   AS INT) AS n_aspects,
+       CAST(pos_aspects AS INT) AS pos_aspects,
+       CAST(neg_aspects AS INT) AS neg_aspects,
+       primary_sentiment, aspects_json
+FROM topic_sentiment_review_raw;
 
--- 具体更新条目情感明细表（一条评论 × 一个具体条目 一行；第二层）
 DROP TABLE IF EXISTS item_sentiment_detail;
-CREATE EXTERNAL TABLE item_sentiment_detail (
-  review_id      STRING,
-  appid          STRING,
-  game_name      STRING,
-  created_date   STRING,
-  game_version   STRING,
-  patch_id       STRING  COMMENT '所属版本(黄静雯版本建模分支)',
-  window_bucket  STRING  COMMENT 'pre_14d/release_day/post_14d/out_of_window',
-  item_id        STRING  COMMENT '官方更新条目ID',
-  item_title     STRING  COMMENT '官方更新条目标题',
-  aspect         STRING  COMMENT '该条目归属的通用主题',
-  sentiment      STRING,
-  confidence     DOUBLE,
-  matched_term   STRING  COMMENT '命中的官方别名',
-  evidence       STRING
-) ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
-  STORED AS TEXTFILE LOCATION '/data/nlp_topic/item_sentiment_detail';
+CREATE TABLE item_sentiment_detail STORED AS ORC AS
+SELECT review_id, appid, game_name, created_date, game_version,
+       patch_id, window_bucket, item_id, item_title, aspect, sentiment,
+       CAST(confidence AS DOUBLE) AS confidence,
+       matched_term, evidence
+FROM item_sentiment_detail_raw;
 
--- 更新条目字典表（75项，来自黄静雯版本建模分支 items.jsonl）
 DROP TABLE IF EXISTS item_dict;
-CREATE EXTERNAL TABLE item_dict (
-  item_id     STRING,
-  title       STRING,
-  appid       STRING,
-  game        STRING,
-  aspect      STRING,
-  description STRING
-) ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
-  STORED AS TEXTFILE LOCATION '/data/nlp_topic/item_dict';
+CREATE TABLE item_dict STORED AS ORC AS
+SELECT item_id, title, appid, game, aspect, description
+FROM item_dict_raw;
 
 
 -- ============================================================
@@ -209,7 +238,7 @@ ORDER BY 混合情感评论数 DESC;
 --   这里给出针对单个主题的简洁写法（统计"提到新地图的评论里也提到联机的数量"）
 -- ============================================================
 SELECT
-  COUNT(DISTINCT review_id) AS 同时提到内容+联机的评论数
+  COUNT(DISTINCT review_id) AS `同时提到内容+联机的评论数`
 FROM topic_sentiment_detail a
 WHERE a.aspect = 'content'
   AND EXISTS (
@@ -286,7 +315,17 @@ SELECT
   i.aspect AS 归属通用主题,
   COUNT(*) AS 条目层标注数,
   COUNT(DISTINCT i.review_id) AS 涉及评论数,
+  SUM(CASE WHEN t.review_id IS NOT NULL THEN 1 ELSE 0 END) AS 主题层匹配数,
+  SUM(CASE WHEN t.review_id IS NULL THEN 1 ELSE 0 END) AS 主题层未匹配数,
+  ROUND(SUM(CASE WHEN t.review_id IS NOT NULL THEN 1 ELSE 0 END)/COUNT(*), 4) AS 匹配占比,
   ROUND(SUM(CASE WHEN i.sentiment='positive' THEN 1 ELSE 0 END)/COUNT(*), 4) AS 条目层正向占比
 FROM item_sentiment_detail i
+LEFT JOIN (
+  SELECT DISTINCT appid, review_id, aspect
+  FROM topic_sentiment_detail
+) t
+  ON i.appid = t.appid
+ AND i.review_id = t.review_id
+ AND i.aspect = t.aspect
 GROUP BY i.aspect
 ORDER BY 条目层标注数 DESC;

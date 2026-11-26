@@ -15,18 +15,15 @@ ANN = os.path.normpath(os.path.join(HERE, "..", "data", "annotation"))
 TASKS = os.path.join(ANN, "annotation_tasks.csv")
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--neg-per-review", type=int, default=5,
-                    help="每条评论抽多少个未提及主题作 neutral 负例")
-    ap.add_argument("--ratio", type=float, default=0.8)
-    ap.add_argument("--seed", type=int, default=42)
-    args = ap.parse_args()
+def build(neg_per_review=3, ratio=0.8, seed=42):
+    """按评论切分主题层三分类数据，返回 (train_reviews, eval_reviews)。
 
+    prepare_rbt3_data_v2.py --source gold 直接调用本函数，避免按三元组切分导致
+    同一条评论同时进入 train/eval。
+    """
     from lexicon import ASPECTS
     asp_ids = list(ASPECTS.keys())
 
-    # 读评论文本
     texts = {}
     with open(TASKS, encoding="utf-8-sig") as f:
         for r in csv.DictReader(f):
@@ -34,44 +31,58 @@ def main():
             if rid in GOLD:
                 texts[rid] = r["review_text"].strip()
 
-    random.seed(args.seed)
+    random.seed(seed)
     reviews = []
     for rid, text in texts.items():
         gold = dict(GOLD[rid])  # aspect -> sentiment
         pos_aspects = set(gold.keys())
         neg_candidates = [a for a in asp_ids if a not in pos_aspects]
         random.shuffle(neg_candidates)
-        sampled_neg = neg_candidates[: args.neg_per_review]
-        triples = [(text, a, gold[a]) for a in pos_aspects]
+        sampled_neg = sorted(neg_candidates[:neg_per_review])
+        triples = [(text, a, gold[a]) for a in sorted(pos_aspects)]
         triples += [(text, a, "neutral") for a in sampled_neg]
         reviews.append((rid, triples))
 
-    # 按评论 8:2 划分
     random.shuffle(reviews)
-    n_train = int(len(reviews) * args.ratio)
+    n_train = int(len(reviews) * ratio)
     train, ev = reviews[:n_train], reviews[n_train:]
 
     def write(path, revs):
         with open(path, "w", encoding="utf-8-sig", newline="") as f:
-            w = csv.writer(f); w.writerow(["review_text", "aspect", "sentiment"])
-            for rid, triples in revs:
-                for t in triples: w.writerow(t)
+            w = csv.writer(f)
+            w.writerow(["review_text", "aspect", "sentiment"])
+            for _rid, triples in revs:
+                for t in triples:
+                    w.writerow(t)
 
     tp = os.path.join(ANN, "rbt3_aspect_train.csv")
     ep = os.path.join(ANN, "rbt3_aspect_eval.csv")
-    write(tp, train); write(ep, ev)
+    write(tp, train)
+    write(ep, ev)
 
-    # 输出 eval 评论 id，供“严格留出集”评估使用（模型训练时没见过这些评论）
+    # 留出集评论 id：评估脚本优先读取模型目录里的同名文件
     with open(os.path.join(ANN, "gold_eval_ids.json"), "w", encoding="utf-8") as f:
         json.dump([rid for rid, _ in ev], f)
+    return train, ev
 
-    n_pos = sum(1 for rid, rv in train+ev for t in rv if t[2] != "neutral")
-    n_neu = sum(1 for rid, rv in train+ev for t in rv if t[2] == "neutral")
-    print(f"评论: {len(reviews)} (train {len(train)} / eval {len(ev)})")
-    print(f"三元组: {n_pos} 正/负 + {n_neu} neutral -> {tp}")
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--neg-per-review", type=int, default=3,
+                    help="每条评论抽多少个未提及主题作 neutral 负例")
+    ap.add_argument("--ratio", type=float, default=0.8)
+    ap.add_argument("--seed", type=int, default=42)
+    args = ap.parse_args()
+
+    train, ev = build(args.neg_per_review, args.ratio, args.seed)
+
+    n_pos = sum(1 for _rid, rv in train + ev for t in rv if t[2] != "neutral")
+    n_neu = sum(1 for _rid, rv in train + ev for t in rv if t[2] == "neutral")
+    print(f"评论: {len(train) + len(ev)} (train {len(train)} / eval {len(ev)})")
+    print(f"三元组: {n_pos} 正/负 + {n_neu} neutral -> {os.path.join(ANN, 'rbt3_aspect_train.csv')}")
     print(f"留出集评论 id -> {os.path.join(ANN, 'gold_eval_ids.json')}")
     from collections import Counter
-    print("情感分布:", dict(Counter(t[2] for rid, rv in reviews for t in rv)))
+    print("情感分布:", dict(Counter(t[2] for _rid, rv in train + ev for t in rv)))
 
 
 if __name__ == "__main__":

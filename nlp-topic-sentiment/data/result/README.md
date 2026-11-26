@@ -7,9 +7,10 @@
 | `topic_sentiment_detail.csv.gz` | 535,623 | 约 14 MB | 第一层主题情感明细（规则弱标注全量结果，压缩包） |
 | `topic_distribution.csv` | - | 小 | 11 类主题 × 情感分布 |
 | `item_sentiment_detail.csv` | 1,593 | 小 | 第二层 75 项官方更新条目情感明细 |
-| `item_distribution.csv` | - | 小 | 条目分布 |
-| `item_patch_summary.csv` | - | 小 | 条目 × 版本窗口统计 |
+| `item_distribution.csv` | 68 行 | 小 | 条目分布，正/负/中合计 1,593 条 |
+| `item_patch_summary.csv` | 30 行 | 小 | 条目 × 四个版本窗口统计（固定列、补零） |
 | `topic_sentiment_review_summary.csv.gz` | 原表 45 万+ 行 | 约 24 MB | 评论级汇总原表的压缩包 |
+| `../taxonomy/item_dict.csv` | 75 行 | 小 | Hive 条目字典表（OpenCSVSerde 可读） |
 
 ## 本地保留但不提交的文件
 
@@ -45,8 +46,11 @@ cd "C:\Users\hgj\Desktop\大数据大作业\game-review-hadoop-hive\nlp-topic-se
 $PY = "C:\Users\hgj\.workbuddy\binaries\python\envs\default\Scripts\python.exe"
 $env:HF_ENDPOINT = "https://hf-mirror.com"
 
+& $PY prepare_rbt3_data_v2.py --source gold
 & $PY train_rbt3_v2.py --task aspect --train ..\data\annotation\rbt3_aspect_train.csv --eval ..\data\annotation\rbt3_aspect_eval.csv --epochs 3
-& $PY train_rbt3_v2.py --task item   --train ..\data\annotation\rbt3_item_train.csv   --eval ..\data\annotation\rbt3_item_eval.csv   --epochs 3
+# 训练脚本会把本次 eval 的评论 ID 写入 ..\data\rbt3_model_aspect\holdout_ids.json
 ```
 
-> 若只需演示两层推理，可不加模型，直接运行 `infer_rbt3_v2.py --rule-fallback`。
+> 条目层暂无人工金标，不提供空训练文件；演示用规则模式即可。若需要银标模型：
+> `prepare_rbt3_data_v2.py --source rule --limit 20000` 后再训练 item 层。
+> 默认推理会按层检测权重，缺权重自动回退规则；`--rule-fallback` 可强制两层规则。

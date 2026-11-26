@@ -4,7 +4,7 @@ RBT3 两层标签推理（v2）：通用主题(11) + 具体更新条目(75)
 
 模型：分别加载 rbt3_model_aspect / rbt3_model_item
 条目层只遍历该 appid 的候选条目（APPID_ITEMS 约束），避免跨游戏误判。
-未训练时可 --rule-fallback 用规则引擎输出，保证随时可演示。
+任一层权重缺失时会自动对该层回退到规则引擎；--rule-fallback 可强制两层都用规则。
 
 用法：
   python infer_rbt3_v2.py --text "姜岛探索很好玩，但是八人联机老是掉线" --appid 413150 --rule-fallback
@@ -69,16 +69,34 @@ def rule_predict(text, appid):
     return aspects, items, "rule"
 
 
-def load_model(path):
-    import torch
-    from transformers import AutoTokenizer, AutoModelForSequenceClassification
+WEIGHT_FILES = ("model.safetensors", "pytorch_model.bin")
+
+
+def model_status(path):
+    """返回 (是否可用, 原因)。仅 config.json 存在但权重缺失时不可用。"""
     if not os.path.exists(os.path.join(path, "config.json")):
+        return False, "缺 config.json"
+    if not any(os.path.exists(os.path.join(path, w)) for w in WEIGHT_FILES):
+        return False, "缺权重文件（model.safetensors / pytorch_model.bin）"
+    return True, "权重可用"
+
+
+def load_model(path):
+    ok, reason = model_status(path)
+    if not ok:
+        print(f"  [模型不可用] {path}: {reason} -> 该层走规则回退")
         return None
-    tok = AutoTokenizer.from_pretrained(path)
-    mdl = AutoModelForSequenceClassification.from_pretrained(path).eval()
-    dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    mdl.to(dev)
-    return tok, mdl, dev
+    try:
+        import torch
+        from transformers import AutoTokenizer, AutoModelForSequenceClassification
+        tok = AutoTokenizer.from_pretrained(path)
+        mdl = AutoModelForSequenceClassification.from_pretrained(path).eval()
+        dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        mdl.to(dev)
+        return tok, mdl, dev
+    except Exception as e:
+        print(f"  [模型加载失败] {path}: {e} -> 该层走规则回退")
+        return None
 
 
 def classify_pairs(tok, mdl, dev, pairs, threshold):
@@ -100,18 +118,11 @@ def classify_pairs(tok, mdl, dev, pairs, threshold):
 
 
 def model_predict(text, appid, asp_model, item_model, threshold, rule_gate=True):
-    """RBT3 两层推理。
-
-    rule_gate（条目层规则召回门控，默认开）：
-      银标训练数据只含"命中条目"的评论，缺乏"未提及"负样本，RBT3 容易对所有条目
-      都判"相关"。因此先用规则引擎(appid 约束 + 官方别名)筛出真正命中的条目，
-      再交给 RBT3 判情感。这样结合规则的高精确率召回 + RBT3 的情感泛化能力。
-      金标补齐"未提及"负样本重训后，可加 --no-rule-gate 让模型独立判别。
-    """
+    """RBT3 两层推理；任一层模型不可用时，该层单独走规则回退。"""
     aspects, items = [], []
+    sources = set()
+
     if asp_model:
-        # 主题层也用规则召回门控：银标只含命中主题的评论、缺"未提及"负样本，
-        # RBT3 易对所有主题判相关/正向。用规则先筛出真正命中的主题，再让 RBT3 判情感。
         gate_aspects = None
         if rule_gate:
             from rule_labeler import label_review as _rule
@@ -124,18 +135,19 @@ def model_predict(text, appid, asp_model, item_model, threshold, rule_gate=True)
                 aspects.append({"aspect": aid, "name_zh": ASPECTS[aid]["name_zh"],
                                 "sentiment": sent, "confidence": round(conf, 4),
                                 "gate": "rule+rbt3" if gate_aspects is not None else "rbt3"})
+        sources.add("rbt3")
+    else:
+        aspects, _, _ = rule_predict(text, appid)
+        sources.add("rule")
 
     cand = APPID_ITEMS.get(str(appid), []) if appid else []
     if item_model and cand:
-        # 规则召回门控：只保留规则确认命中的条目
         gate_ids = None
         if rule_gate:
             from rule_labeler import split_clauses
             from item_matcher import match_items
             hits = match_items(split_clauses(text), appid)
             gate_ids = {h["item_id"] for h in hits}
-            if not gate_ids:
-                gate_ids = set()  # 规则无命中 -> 条目层不输出
         pairs = [(item_prompt(iid), text) for iid in cand]
         results = classify_pairs(*item_model, pairs, threshold)
         for iid, (sent, conf) in zip(cand, results):
@@ -147,7 +159,18 @@ def model_predict(text, appid, asp_model, item_model, threshold, rule_gate=True)
                               "aspect": ITEM2ASPECT.get(iid, ""),
                               "sentiment": sent, "confidence": round(conf, 4),
                               "gate": "rule+rbt3" if gate_ids is not None else "rbt3"})
-    return aspects, items, "rbt3"
+        sources.add("rbt3")
+    else:
+        _, items, _ = rule_predict(text, appid)
+        sources.add("rule")
+
+    if sources == {"rbt3"}:
+        src = "rbt3"
+    elif sources == {"rule"}:
+        src = "rule"
+    else:
+        src = "mixed(rule+rbt3)"
+    return aspects, items, src
 
 
 def main():
@@ -168,25 +191,23 @@ def main():
     if not texts:
         raise SystemExit("请用 --text 或 --input 提供评论")
 
-    use_model = not args.rule_fallback
     asp_model = item_model = None
-    if use_model:
+    if not args.rule_fallback:
         asp_model = load_model(args.aspect_model)
         item_model = load_model(args.item_model)
-        print(f"主题层模型: {'已加载' if asp_model else '未找到 -> 该层跳过'}")
-        print(f"条目层模型: {'已加载' if item_model else '未找到 -> 该层跳过'}")
-        if not asp_model and not item_model:
-            print("未找到任何模型，自动回退规则引擎")
-            use_model = False
+        print(f"主题层模型: {'已加载' if asp_model else '不可用 -> 该层规则回退'}")
+        print(f"条目层模型: {'已加载' if item_model else '不可用 -> 该层规则回退'}")
+    else:
+        print("显式规则模式：两层均使用规则引擎")
 
     outputs = []
     for rec in texts:
         text, appid = rec.get("text", ""), rec.get("appid", "")
-        if use_model and (asp_model or item_model):
+        if args.rule_fallback:
+            aspects, items, src = rule_predict(text, appid)
+        else:
             aspects, items, src = model_predict(text, appid, asp_model, item_model,
                                                 args.threshold, rule_gate=not args.no_rule_gate)
-        else:
-            aspects, items, src = rule_predict(text, appid)
         out = {"text": text, "appid": appid, "source": src,
                "aspects": aspects, "items": items}
         outputs.append(out)

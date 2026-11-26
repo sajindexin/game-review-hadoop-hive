@@ -8,7 +8,7 @@
 输出：
   data/result/item_sentiment_detail.csv   条目情感明细（一评论一条目一行）
   data/result/item_distribution.csv       条目 x 情感 分布
-  data/result/item_patch_summary.csv      条目 x 版本窗口 统计（更新前后对比）
+  data/result/item_patch_summary.csv      条目 x 四个版本窗口统计（pre/release/post/out，固定列补零）
 
 用法：
   python build_item_results.py --limit 50000     # 小样本
@@ -62,14 +62,17 @@ def flush(rows, path, first):
         sink.close()
 
 
+WINDOW_COLUMNS = ("pre_14d", "release_day", "post_14d", "out_of_window")
+
+
 def window_bucket(date_str, patch):
-    """判断评论日期相对版本窗口的位置：pre14 / release / post14 / out。"""
+    """判断评论日期相对『条目自身版本』窗口的位置，固定返回四值之一。"""
     if not date_str or not patch:
-        return ""
+        return "out_of_window"
     d = str(date_str)[:10]
     ws, we, rd = patch.get("window_start", ""), patch.get("window_end", ""), patch.get("release_date", "")
     if not (ws and we and rd):
-        return ""
+        return "out_of_window"
     if ws <= d < rd:
         return "pre_14d"
     if d == rd:
@@ -112,42 +115,37 @@ def main():
             res = label_review(text, appid=appid)
             if res["items"]:
                 review_with_item += 1
-            # 找该游戏在窗口内的版本（同 appid，评论日期落在窗口内）
             date = t["created_date"][j]
-            hit_patch = None
-            for pid, p in PATCHES.items():
-                if str(p.get("appid")) != str(appid):
-                    continue
-                ws, we = p.get("window_start", ""), p.get("window_end", "")
-                if ws and we and ws <= str(date)[:10] <= we:
-                    hit_patch = p
-                    break
-            bucket = window_bucket(date, hit_patch)
-
             for it in res["items"]:
                 iid = it["item_id"]
                 n_item_labels += 1
+                # 关键修正：版本窗口按条目自身的 patch_id 计算，不按评论日期去猜同游戏版本
+                meta = ITEMS.get(iid, {})
+                pid = meta.get("patch_id", "") or ""
+                patch = PATCHES.get(pid)
+                bucket = window_bucket(date, patch)
+                # 条目层无情感证据时统一 neutral（评论级 primary 可能是 none）
+                sent = it["sentiment"] if it["sentiment"] in ("positive", "negative", "neutral") else "neutral"
                 detail_buf.append({
                     "review_id": t["review_id"][j],
                     "appid": appid,
                     "game_name": t["game_name"][j] or APPID_GAME.get(str(appid), ""),
                     "created_date": date,
                     "game_version": t["game_version"][j] or "",
-                    "patch_id": hit_patch["patch_id"] if hit_patch else "",
+                    "patch_id": pid,
                     "window_bucket": bucket,
                     "item_id": iid,
                     "item_title": it["title"],
                     "aspect": ITEM2ASPECT.get(iid, ""),
-                    "sentiment": it["sentiment"],
+                    "sentiment": sent,
                     "confidence": it["confidence"],
                     "matched_term": it["matched_term"],
                     "evidence": it["evidence"],
                 })
-                key = (iid, it["sentiment"])
+                key = (iid, sent)
                 item_counter[key] = item_counter.get(key, 0) + 1
-                if bucket:
-                    patch_stat.setdefault(iid, {})
-                    patch_stat[iid][bucket] = patch_stat[iid].get(bucket, 0) + 1
+                patch_stat.setdefault(iid, {b: 0 for b in WINDOW_COLUMNS})
+                patch_stat[iid][bucket] = patch_stat[iid].get(bucket, 0) + 1
 
         if len(detail_buf) >= args.chunk_rows:
             flush(detail_buf, detail_path, first)
@@ -182,7 +180,12 @@ def main():
     # 版本窗口统计表
     patch_rows = []
     for iid, buckets in patch_stat.items():
-        row = {"item_id": iid, "item_title": ITEMS[iid].get("title", ""), **buckets}
+        row = {
+            "item_id": iid,
+            "item_title": ITEMS[iid].get("title", ""),
+            "patch_id": ITEMS[iid].get("patch_id", ""),
+            **{b: buckets.get(b, 0) for b in WINDOW_COLUMNS},
+        }
         patch_rows.append(row)
     patch_out = os.path.join(OUT, "item_patch_summary.csv")
     pacsv.write_csv(pa.Table.from_pylist(patch_rows), patch_out)

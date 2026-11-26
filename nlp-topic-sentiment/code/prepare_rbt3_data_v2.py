@@ -37,7 +37,9 @@ def parse_args():
     ap.add_argument("--ratio", type=float, default=0.8)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--include-neutral", action="store_true",
-                    help="是否保留 neutral 样本（默认去掉以降低噪声）")
+                    help="是否保留 neutral 样本（默认去掉以降低噪声；gold 模式固定三分类）")
+    ap.add_argument("--neg-per-review", type=int, default=3,
+                    help="gold 模式下每条评论抽多少个未提及主题作 neutral 负例")
     ap.add_argument("--limit", type=int, default=0,
                     help="每层最多保留多少三元组（随机抽样），0=全部；银标演示建议 20000")
     return ap.parse_args()
@@ -68,28 +70,27 @@ def main():
     item_triples: list[tuple[str, str, str]] = []
 
     if args.source == "gold":
+        # 主题层：复用按评论切分的三分类脚本，保证 train/eval 评论零重叠
+        from prepare_gold_3way import build as build_gold_3way
+        asp_train_reviews, asp_eval_reviews = build_gold_3way(
+            args.neg_per_review, args.ratio, args.seed)
+        print(f"主题层: 复用 prepare_gold_3way 按评论切分 "
+              f"train/eval={len(asp_train_reviews)}/{len(asp_eval_reviews)} 条评论")
+
+        # 条目层：当前仓库没有条目级 gold，明确提示用规则模式验收，不生成空训练文件
         src = os.path.join(ANN_DIR, "annotation_tasks.csv")
         with open(src, encoding="utf-8-sig") as f:
             for r in csv.DictReader(f):
                 text = (r.get("review_text") or "").strip()
-                if not text:
-                    continue
-                gj = (r.get("gold_aspects_json") or "").strip()
                 ij = (r.get("gold_items_json") or "").strip()
-                if gj:
-                    try:
-                        for a in json.loads(gj):
-                            if a.get("sentiment") in keep_sent:
-                                aspect_triples.append((text, a["aspect"], a["sentiment"]))
-                    except Exception:
-                        pass
-                if ij:
-                    try:
-                        for it in json.loads(ij):
-                            if it.get("sentiment") in keep_sent:
-                                item_triples.append((text, it["item_id"], it["sentiment"]))
-                    except Exception:
-                        pass
+                if not (text and ij):
+                    continue
+                try:
+                    for it in json.loads(ij):
+                        if it.get("sentiment") in ("positive", "negative", "neutral"):
+                            item_triples.append((text, it["item_id"], it["sentiment"]))
+                except Exception:
+                    pass
     else:
         # 银标：用标准 csv 流式逐行读，避免 pyarrow 一次性载入大表导致 OOM
         apath = os.path.join(RESULT_DIR, "topic_sentiment_detail.csv")
@@ -122,14 +123,26 @@ def main():
             item_triples = random.sample(item_triples, args.limit)
 
     print(f"来源: {args.source}")
-    print(f"第一层(主题)三元组: {len(aspect_triples)}")
-    n1 = split_write(aspect_triples, "aspect", args.ratio)
-    print(f"第二层(条目)三元组: {len(item_triples)}")
-    n2 = split_write(item_triples, "item", args.ratio)
-    print(f"\n完成: 主题层 train/eval={n1}, 条目层 train/eval={n2}")
     if args.source == "gold":
-        print("提示: 当前 annotation_tasks.csv 已内置 240 条语义金标，gold 模式可直接使用。")
-        print("      若新增标注，需把两列 gold_aspects_json / gold_items_json 合并回该文件。")
+        print("第一层(主题): 已由 prepare_gold_3way 写入 train/eval，留出 ID 同步更新")
+        if item_triples:
+            print(f"第二层(条目)gold 三元组: {len(item_triples)}")
+            split_write(item_triples, "item", args.ratio)
+        else:
+            for name in ("rbt3_item_train.csv", "rbt3_item_eval.csv"):
+                p = os.path.join(ANN_DIR, name)
+                if os.path.exists(p):
+                    os.remove(p)
+                    print(f"  删除空/旧条目训练集: {name}")
+            print("第二层(条目): 当前无条目级人工金标，不生成空训练文件。")
+            print("  条目层验收请使用规则模式：infer_rbt3_v2.py --rule-fallback")
+            print("  如需训练条目模型，请先补充 gold_items_json 再重跑本脚本。")
+    else:
+        print(f"第一层(主题)三元组: {len(aspect_triples)}")
+        n1 = split_write(aspect_triples, "aspect", args.ratio)
+        print(f"第二层(条目)三元组: {len(item_triples)}")
+        n2 = split_write(item_triples, "item", args.ratio)
+        print(f"\n完成: 主题层 train/eval={n1}, 条目层 train/eval={n2}")
 
 
 if __name__ == "__main__":

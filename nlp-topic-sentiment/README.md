@@ -110,16 +110,20 @@ $PY = "C:\Users\hgj\.workbuddy\binaries\python\envs\default\Scripts\python.exe"
 
 # --- 以下需先装 torch；金标已合并进 annotation_tasks.csv，无需手动标注 ---
 
-# 5) 两层标注 -> RBT3 训练格式
+# 5) 主题层训练数据：复用 prepare_gold_3way 按评论切分，train/eval 评论零重叠
 & $PY prepare_rbt3_data_v2.py --source gold
+#    条目层目前没有人工金标：脚本会删除旧的空训练文件并提示；条目层验收请用第 4 步规则模式
+#    若只想训一个可演示的条目层模型，可用银标（非金标）：
+#    & $PY prepare_rbt3_data_v2.py --source rule --limit 20000
 
-# 6) 分别训练两层模型（各 3 轮；输出 macro-F1）
+# 6) 主题层 RBT3 微调；训练脚本会把本次 eval 的评论 ID 写入模型目录 holdout_ids.json
 & $PY train_rbt3_v2.py --task aspect --train ..\data\annotation\rbt3_aspect_train.csv --eval ..\data\annotation\rbt3_aspect_eval.csv --epochs 3
-& $PY train_rbt3_v2.py --task item   --train ..\data\annotation\rbt3_item_train.csv   --eval ..\data\annotation\rbt3_item_eval.csv   --epochs 3
 
-# 7) 用训练好的两层模型推理（条目层默认带规则召回门控）
+# 7) 严格留出集评估：自动读取模型目录 holdout_ids.json（可用 --eval-ids 覆盖）
+& $PY evaluate_full.py --rbt3 --heldout
+
+# 8) 推理：默认按层检测权重，缺权重自动规则回退；--rule-fallback 强制两层规则
 & $PY infer_rbt3_v2.py --text "姜岛探索很好玩，但是八人联机老是掉线" --appid 413150
-#    金标补齐"未提及"负样本重训后，可加 --no-rule-gate 让模型独立判别条目相关性
 ```
 
 ## 五、当前结果摘要
@@ -163,8 +167,9 @@ $PY = "C:\Users\hgj\.workbuddy\binaries\python\envs\default\Scripts\python.exe"
 ## 六、注意事项
 
 - **条目按 appid 约束**：推理时必须传 `--appid`，否则条目层会跳过。
+- **条目层验收用规则模式**：当前没有条目级人工金标，不生成空训练文件；推理默认按层检测权重，缺权重自动回退规则。
 - 规则弱标注是**银标**（冷启动/演示用）；正式效果以人工金标 + RBT3 为准。
-- 版本窗口（pre/post 14 天）来自黄静雯分支的 `patches.jsonl`，与她的关联模型口径一致，联调可直接复用。
+- 版本窗口按**条目自身的 patch_id** 计算（不是按评论日期猜同游戏版本）；`item_patch_summary.csv` 固定输出 `pre_14d/release_day/post_14d/out_of_window` 四列并补零。
 - 所有时间口径 UTC；每份结果请注明数据版本 v1。
 - **提交到 Git 时**：82MB 的 `topic_sentiment_detail.csv`、249MB 的 `topic_sentiment_review_summary.csv`、两个 154MB 模型权重，以及过程工具 `标注工具.html` / 个人备忘 `你现在该怎么做.md` 均按 `.gitignore` 忽略，保留本地；仓库内提交 `.csv.gz` 压缩版与模型配置/分词器，详见 `data/result/README.md`。
 

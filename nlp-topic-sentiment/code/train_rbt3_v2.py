@@ -176,6 +176,35 @@ def main():
     # 保存任务元信息，推理时自动识别
     with open(os.path.join(args.out, "task_meta.json"), "w", encoding="utf-8") as f:
         json.dump({"task": args.task, "model": args.model, "max_len": args.max_len}, f)
+
+    # 把本次 eval 对应的评论 ID 写进模型目录，评估脚本优先读它，避免模型与留出集错配
+    ids_path = os.path.normpath(os.path.join(HERE, "..", "data", "annotation", "gold_eval_ids.json"))
+    holdout_ids = []
+    if args.task == "aspect" and os.path.exists(ids_path):
+        # 主题层 eval 由 prepare_gold_3way 按评论切分，gold_eval_ids.json 是权威来源
+        with open(ids_path, encoding="utf-8") as f:
+            holdout_ids = json.load(f)
+    elif args.eval and os.path.exists(args.eval):
+        # 条目层/自定义 eval：按原文回查 review_id
+        eval_texts = set()
+        with open(args.eval, encoding="utf-8-sig") as f:
+            for row in csv.DictReader(f):
+                if row.get("review_text"):
+                    eval_texts.add(row["review_text"].strip())
+        ann = os.path.normpath(os.path.join(HERE, "..", "data", "annotation", "annotation_tasks.csv"))
+        if os.path.exists(ann) and eval_texts:
+            with open(ann, encoding="utf-8-sig") as f:
+                for row in csv.DictReader(f):
+                    if (row.get("review_text") or "").strip() in eval_texts:
+                        try:
+                            holdout_ids.append(int(row["review_id"]))
+                        except (TypeError, ValueError):
+                            pass
+    if holdout_ids:
+        with open(os.path.join(args.out, "holdout_ids.json"), "w", encoding="utf-8") as f:
+            json.dump(sorted(set(holdout_ids)), f)
+        print(f"留出集 ID 已随模型保存: {len(set(holdout_ids))} 条")
+
     print(f"\n模型已保存: {args.out}")
 
 

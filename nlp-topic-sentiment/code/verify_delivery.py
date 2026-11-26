@@ -60,6 +60,20 @@ def main():
         else:
             ok &= check(False, f"{f} 不存在")
 
+    # 条目层口径：无 none，分布合计等于明细；汇总固定四窗口列
+    with open(os.path.join(res, "item_sentiment_detail.csv"), encoding="utf-8-sig") as fh:
+        item_rows = list(csv.DictReader(fh))
+    ok &= check(all(r["sentiment"] in ("positive", "negative", "neutral") for r in item_rows),
+                "条目明细情感无 none（已回退 neutral）")
+    with open(os.path.join(res, "item_distribution.csv"), encoding="utf-8-sig") as fh:
+        dist_sum = sum(int(r["count"]) for r in csv.DictReader(fh))
+    ok &= check(dist_sum == len(item_rows),
+                f"条目分布合计={dist_sum} 与明细 {len(item_rows)} 一致")
+    with open(os.path.join(res, "item_patch_summary.csv"), encoding="utf-8-sig") as fh:
+        patch_cols = next(csv.reader(fh))
+    need_windows = {"pre_14d", "release_day", "post_14d", "out_of_window"}
+    ok &= check(need_windows.issubset(set(patch_cols)), "条目汇总含四个固定窗口列")
+
     print("\n=== 5. 标注集与文档 ===")
     ann = os.path.join(ROOT, "data", "annotation")
     tasks_p = os.path.join(ann, "annotation_tasks.csv")
@@ -68,14 +82,20 @@ def main():
     ok &= check("gold_aspects_json" in cols and "gold_items_json" in cols,
                 "标注集含两层 gold 列")
     for rel in ("data/result/topic_sentiment_detail.csv.gz",
-                "data/result/topic_sentiment_review_summary.csv.gz"):
+                "data/result/topic_sentiment_review_summary.csv.gz",
+                "data/taxonomy/item_dict.csv",
+                "data/rbt3_model_aspect/holdout_ids.json"):
         ok &= check(os.path.exists(os.path.join(ROOT, *rel.split("/"))),
-                    f"结果压缩包 {rel} 存在")
+                    f"提交文件 {rel} 存在")
     for f in ("两层标签体系说明.md", "标注规范.md", "结果表字段说明.md", "效果对比方案.md"):
         ok &= check(os.path.exists(os.path.join(ROOT, "docs", f)), f"文档 {f} 存在")
     sql = open(os.path.join(ROOT, "sql", "hive_metrics.sql"), encoding="utf-8").read()
     ok &= check("item_sentiment_detail" in sql and "item_dict" in sql,
                 "Hive SQL 含第二层建表与指标")
+    ok &= check("OpenCSVSerde" in sql and "skip.header.line.count" in sql,
+                "Hive SQL 使用引号 CSV SerDe 并跳过表头")
+    ok &= check("主题层匹配数" in sql and "主题层未匹配数" in sql,
+                "Hive 指标 11 输出两层匹配/未匹配数")
 
     print("\n=== 6. 脚本可导入 ===")
     for m in ("item_matcher", "build_item_results", "build_item_taxonomy",

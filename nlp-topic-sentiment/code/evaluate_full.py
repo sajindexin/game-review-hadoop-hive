@@ -75,15 +75,23 @@ def main():
     ap.add_argument("--rbt3", action="store_true", help="是否评估 RBT3 模型")
     ap.add_argument("--rbt3-model", default=os.path.normpath(os.path.join(HERE, "..", "data", "rbt3_model_aspect")))
     ap.add_argument("--heldout", action="store_true",
-                    help="严格口径：只在模型训练时未见过的 48 条 eval 评论上评估三个方法")
+                    help="严格口径：只在模型训练时未见过的 eval 评论上评估三个方法")
+    ap.add_argument("--eval-ids", default="",
+                    help="留出集 ID JSON；默认读取模型目录的 holdout_ids.json，再回退标注集 gold_eval_ids.json")
     args = ap.parse_args()
 
     data = load_data()
     if args.heldout:
-        with open(os.path.join(ANN, "gold_eval_ids.json"), encoding="utf-8") as f:
+        ids_path = args.eval_ids
+        if not ids_path:
+            model_dir = args.rbt3_model if os.path.isdir(args.rbt3_model) else os.path.dirname(os.path.abspath(args.rbt3_model))
+            model_ids = os.path.join(model_dir, "holdout_ids.json")
+            ids_path = model_ids if os.path.exists(model_ids) else os.path.join(ANN, "gold_eval_ids.json")
+        with open(ids_path, encoding="utf-8") as f:
             eval_ids = set(json.load(f))
         data = [d for d in data if d["id"] in eval_ids]
-        print(f"严格留出集评估：模型未见过的 {len(data)} 条评论（三方法口径一致）\n")
+        print(f"严格留出集评估：模型未见过的 {len(data)} 条评论（三方法口径一致）")
+        print(f"留出集来源: {ids_path}\n")
     else:
         print(f"语义金标样本: {len(data)} 条\n")
 
@@ -150,8 +158,8 @@ def main():
             print(f"RBT3 评估失败: {e}\n")
 
     if args.heldout:
-        print("说明：严格留出集口径。RBT3 仅在 192 条 train 评论上微调，此处三方法")
-        print("      都在它未见过的 48 条 eval 评论上评估，可直接写进报告。")
+        print(f"说明：严格留出集口径。三方法都在 RBT3 未见过的 {len(data)} 条 eval 评论上评估，")
+        print("      留出集以模型目录 holdout_ids.json（或 --eval-ids）为准，可直接写进报告。")
     else:
         print("说明：在全体 240 条语义金标上评估（含 RBT3 训练用过的评论，数字偏乐观）。")
         print("      写报告请用 --heldout 的严格留出集数字。")
