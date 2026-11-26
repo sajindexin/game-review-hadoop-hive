@@ -2,13 +2,20 @@
 """
 联调用本地服务：静态站 + POST /api/ask。
 
-    python server.py --port 8000
+两种模式：
 
-接口契约（与 README / assets/ask.js 一致）：
+1) 本地规则引擎（默认）
+       python server.py --port 8021
+   只读 data/ 下已导出的离线数据包，不依赖任何外部服务。
+
+2) 接通检索 Agent（唐宇杰模块）
+       python server.py --port 8021 --agent-base http://127.0.0.1:8000
+   把 /api/ask 转发到对方的 POST /api/agent/ask，并把返回字段映射成前端契约。
+   后端不可用时自动回退到本地规则引擎，页面不白屏。
+
+前端契约：
     POST /api/ask  {"patch_id": "...", "question": "..."}
     → {"answer": "<p>…</p>", "citations": [...], "stats": {...}, "intent": "..."}
-
-后端只读 data/ 下已导出的离线数据包，不连 Hive，用于前端联调与演示。
 """
 from __future__ import annotations
 
@@ -16,12 +23,201 @@ import argparse
 import json
 import mimetypes
 import re
+import urllib.error
+import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
+
+# 由 --agent-base 指定；为 None 时走本地规则引擎
+AGENT_BASE: str | None = None
+
+
+# ---------------------------------------------------------------- Agent 适配层
+#
+# 唐宇杰模块（feat/agent-retrieval）的接口是 POST /api/agent/ask，返回
+#   {status, answer(纯文本), numbers[], citations[{type:metric|announcement|review,...}],
+#    links, evidence_status, suggestions, route}
+# 前端页面的契约是
+#   {intent, answer(HTML), stats{before_rate,...}, citations[{text,language,voted_up,url,...}]}
+# 下面的 adapt_agent_response() 负责逐字段翻译，两个模块都不需要改。
+
+# numbers[].label → 前端 stats 字段
+_NUMBER_KEYS = {
+    "更新前": "before_rate",
+    "发布当天": "release_rate",
+    "更新日": "release_rate",
+    "更新后": "after_rate",
+    "变化": "delta_pp",
+    "相比": "delta_pp",
+    "差": "delta_pp",
+}
+
+
+def _split_detail(detail: str) -> dict:
+    """从 '已复核 · 更新后 14 天 · zh-Hans · 推荐' 里抠出结构化字段。"""
+    out = {"verified_note": "", "phase": "", "language": "", "voted_up": None}
+    if not detail:
+        return out
+    parts = [p.strip() for p in detail.split("·") if p.strip()]
+    for p in parts:
+        if "复核" in p:
+            out["verified_note"] = p
+        elif "更新前" in p or "发布前" in p:
+            out["phase"] = "before"
+        elif "发布当天" in p or "更新日" in p:
+            out["phase"] = "release"
+        elif "更新后" in p:
+            out["phase"] = "after"
+        elif p == "推荐":
+            out["voted_up"] = True
+        elif "不推荐" in p:
+            out["voted_up"] = False
+        elif re.match(r"^(zh-Hans|zh-Hant|en|ru|ja|ko|de|es|fr|pt-BR)$", p):
+            out["language"] = p
+    return out
+
+
+def _text_to_html(text: str) -> str:
+    """后端 answer 是纯文本（带 [1] 标记与换行），转成前端能渲染的段落。"""
+    text = (text or "").strip()
+    if not text:
+        return ""
+    if "<p>" in text or "<br" in text:  # 已经是 HTML
+        return text
+
+    def esc(s: str) -> str:
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    blocks = [b.strip() for b in re.split(r"\n\s*\n", text) if b.strip()]
+    html = []
+    for b in blocks:
+        lines = [ln.strip() for ln in b.split("\n") if ln.strip()]
+        # 形如 "1. xxx  2. xxx" 的编号列表
+        if len(lines) > 1 and all(re.match(r"^\d+[.、]\s*", ln) for ln in lines):
+            lis = "".join(f"<li>{esc(re.sub(r'^\\d+[.、]\\s*', '', ln))}</li>" for ln in lines)
+            html.append(f"<ul>{lis}</ul>")
+        elif len(lines) > 1:
+            html.append("<p>" + "<br>".join(esc(ln) for ln in lines) + "</p>")
+        else:
+            html.append(f"<p>{esc(lines[0])}</p>")
+    return "".join(html)
+
+
+def adapt_agent_response(agent: dict, question: str) -> dict:
+    """唐宇杰模块的响应 → 前端契约。"""
+    citations_raw = agent.get("citations") or []
+
+    # ---- stats：从 numbers[] 里挑出三段推荐率与净变化 ----
+    # 后端的量纲约定：unit="%" 时 value 是 0~1 比例；unit="pp" 时 value 已是百分点数值
+    stats: dict = {
+        "before_rate": None,
+        "release_rate": None,
+        "after_rate": None,
+        "delta_pp": None,
+    }
+    for n in agent.get("numbers") or []:
+        label = str(n.get("label") or "")
+        unit = str(n.get("unit") or "")
+        val = n.get("value")
+        if isinstance(val, (int, float)):
+            if unit == "%" and abs(val) <= 1.0001:
+                val = round(val * 100, 2)
+            elif unit == "pp":
+                val = round(float(val), 2)
+        for kw, key in _NUMBER_KEYS.items():
+            if kw in label and stats.get(key) is None:
+                stats[key] = val
+                break
+
+    # 后端 delta 与本地页面各自四舍五入会差 0.01，统一按 before/after 差值重算，避免报告数字打架
+    if stats.get("before_rate") is not None and stats.get("after_rate") is not None:
+        stats["delta_pp"] = round(stats["after_rate"] - stats["before_rate"], 2)
+
+    # 后端没给 numbers 时，用页面自己的统计数据兜底（口径一致）
+    if all(stats[k] is None for k in ("before_rate", "release_rate", "after_rate")):
+        try:
+            local = load_patch(str(agent.get("patch", {}).get("patch_id") or ""))
+            s = local["stats"]["all"]
+            stats["before_rate"] = s.get("before", {}).get("rate")
+            stats["release_rate"] = s.get("release", {}).get("rate")
+            stats["after_rate"] = s.get("after", {}).get("rate")
+            stats["delta_pp"] = local.get("delta_pp")
+        except (FileNotFoundError, KeyError):
+            pass
+
+    # ---- citations：只保留 review 类，转成前端引文结构 ----
+    out_cites = []
+    for c in citations_raw:
+        if c.get("type") != "review":
+            continue
+        parsed = _split_detail(c.get("detail") or "")
+        out_cites.append(
+            {
+                "review_id": c.get("review_id") or "",
+                "steamid": "",  # 后端给的是现成 url，不需要再拼
+                "language": c.get("language_std") or parsed["language"],
+                "voted_up": parsed["voted_up"] if parsed["voted_up"] is not None else True,
+                "phase": c.get("phase") or parsed["phase"],
+                "created_at": "",
+                "votes_up": c.get("votes_up") or 0,
+                "playtime_hours": 0,
+                "text": c.get("snippet") or "",
+                "url": c.get("url") or "",
+                "verified": bool(c.get("verified")),
+                "verification": c.get("verification") or "",
+                "detail": c.get("detail") or "",
+            }
+        )
+
+    # ---- intent：按引用类型推断，仅用于页面上的小标签 ----
+    types = {c.get("type") for c in citations_raw}
+    if out_cites:
+        intent = "negative" if all(not x["voted_up"] for x in out_cites) else "evidence"
+    elif "announcement" in types:
+        intent = "items"
+    elif "metric" in types:
+        intent = "overall"
+    else:
+        intent = "overall"
+
+    answer_html = _text_to_html(agent.get("answer") or "")
+
+    # 来源与证据级别由前端 ask.js 统一渲染（避免和服务端的提示重复），这里只传结构化字段
+    return {
+        "intent": intent,
+        "answer": answer_html,
+        "citations": out_cites,
+        "stats": stats,
+        "source": "agent-retrieval",
+        "evidence_status": agent.get("evidence_status"),
+        "suggestions": agent.get("suggestions") or [],
+        "route": agent.get("route"),
+        "raw_status": agent.get("status"),
+    }
+
+
+def call_agent(patch_id: str, question: str) -> dict:
+    """转发到唐宇杰模块的 /api/agent/ask，超时 30 秒。"""
+    payload = {"question": question, "patch_id": patch_id}
+    try:
+        local = load_patch(patch_id)
+        payload["appid"] = str(local["patch"]["appid"])
+    except (FileNotFoundError, KeyError):
+        pass
+
+    req = urllib.request.Request(
+        (AGENT_BASE or "").rstrip("/") + "/api/agent/ask",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
 
 
 def load_patch(patch_id: str) -> dict:
@@ -221,7 +417,18 @@ class Handler(SimpleHTTPRequestHandler):
             return
 
         try:
-            result = answer(patch_id, question)
+            if AGENT_BASE:
+                try:
+                    agent = call_agent(patch_id, question)
+                    result = adapt_agent_response(agent, question)
+                    result["fallback"] = False
+                except (urllib.error.URLError, TimeoutError, OSError):
+                    result = answer(patch_id, question)
+                    result["fallback"] = True
+                    result["fallback_reason"] = "检索 Agent 不可用"
+            else:
+                result = answer(patch_id, question)
+                result["fallback"] = False
         except FileNotFoundError:
             self.send_error(404, f"unknown patch_id: {patch_id}")
             return
@@ -246,9 +453,16 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 def main():
+    global AGENT_BASE
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument(
+        "--agent-base",
+        default="",
+        help="检索 Agent 地址，如 http://127.0.0.1:8000；留空则用本地规则引擎",
+    )
     args = ap.parse_args()
+    AGENT_BASE = (args.agent_base or "").strip() or None
 
     mimetypes.add_type("application/javascript", ".js")
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
@@ -256,6 +470,10 @@ def main():
     print(f"服务已启动： http://127.0.0.1:{args.port}/index.html")
     print(f"接口：       POST http://127.0.0.1:{args.port}/api/ask")
     print(f"数据：       {idx['source']['games']} 款游戏 / {idx['source']['patches']} 个版本")
+    if AGENT_BASE:
+        print(f"问答后端：   检索 Agent {AGENT_BASE}（不可用时自动回退本地规则引擎）")
+    else:
+        print("问答后端：   本地规则引擎（如需接通检索 Agent，加 --agent-base http://127.0.0.1:8000）")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

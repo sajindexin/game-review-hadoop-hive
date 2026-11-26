@@ -64,21 +64,39 @@
     items: "改动条目",
     trend: "趋势峰值",
     negative: "负面引文",
+    evidence: "玩家原话",
+  };
+
+  const EVIDENCE_LABEL = {
+    verified_quotes: "引文已逐条复核",
+    mixed_evidence: "已复核 + 数据集原文",
+    dataset_quotes: "数据集窗口样本（未复核）",
+    none: "本次无引文",
   };
 
   const pct = (v) => (v == null ? "—" : v.toFixed(1) + "%");
   const pp = (v) => (v == null ? "—" : (v > 0 ? "+" : "") + v.toFixed(2) + " pp");
 
   function quote(c) {
-    const src = `评测者 #${String(c.review_id).slice(-4)} · ${S.langName(c.language)} · ${
-      c.voted_up ? "推荐" : "不推荐"
-    } · ${S.fmtTime(c.created_at)} · ${S.fmtInt(c.votes_up || 0)} 人觉得有用`;
     const text = c.text.length > 240 ? c.text.slice(0, 240) + "…" : c.text;
+
+    // 接通检索 Agent 后，后端会给出 detail（已复核 · 更新后 14 天 · zh-Hans · 推荐），信息比本地拼的更全
+    const src = c.detail
+      ? `评测者 #${String(c.review_id).slice(-4)} · ${c.detail}`
+      : `评测者 #${String(c.review_id).slice(-4)} · ${S.langName(c.language)} · ${
+          c.voted_up ? "推荐" : "不推荐"
+        } · ${S.fmtTime(c.created_at)} · ${S.fmtInt(c.votes_up || 0)} 人觉得有用`;
+
+    const badge = c.verified
+      ? `<span class="verified-badge" title="${S.esc(c.verification || "已复核")}">已复核</span>`
+      : `<span class="unverified-badge">未复核</span>`;
+
     const url = c.url || S.reviewUrl(c, (DATA && DATA.patch && DATA.patch.appid) || "");
     const link = url
       ? `<a class="src-link" href="${url}" target="_blank" rel="noopener">在 Steam 打开原文 →</a>`
       : "";
-    return `<div class="quote">${S.esc(text)}<span class="src">${src}　${link}</span></div>`;
+
+    return `<div class="quote">${badge}${S.esc(text)}<span class="src">${S.esc(src)}　${link}</span></div>`;
   }
 
   function kv(pairs) {
@@ -213,7 +231,17 @@
     ]
       .map(([k, v]) => `<span>${k} <b>${v}</b></span>`)
       .join("");
-    return `<div>${json.answer || ""}</div>
+    const evLabel = json.evidence_status && json.evidence_status !== "none"
+      ? EVIDENCE_LABEL[json.evidence_status]
+      : "";
+    const srcNote = json.source
+      ? `<div class="src-badge">来源：检索 Agent（agent-retrieval）${evLabel ? " · " + evLabel : ""}</div>`
+      : "";
+    const fbNote = json.fallback
+      ? `<div class="src-badge warn">检索 Agent 不可用，已回退本地规则引擎</div>`
+      : "";
+    return `${fbNote}<div>${json.answer || ""}</div>
+      ${srcNote}
       <div class="kv">${chips}</div>
       ${cites}`;
   }
@@ -273,7 +301,7 @@
     ]
       .map((x) => `<div>${x}</div>`)
       .join("");
-    $("#modeTag").textContent = S.useBackend ? "Servlet 接口模式" : "本地规则引擎";
+    $("#modeTag").textContent = S.useBackend ? "接口模式（/api/ask）" : "本地规则引擎";
   }
 
   function renderSelect() {

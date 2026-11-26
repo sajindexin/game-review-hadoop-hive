@@ -20,23 +20,42 @@ steam-review-web/
 ├─ data/
 │  ├─ index.js           12 款游戏 / 26 个版本的清单
 │  └─ patches/*.js       每个版本一个数据包（趋势、阶段统计、条目 + 引文、评论样本）
-├─ screenshots/          页面与联调步骤截图
+├─ screenshots/          页面截图（本地规则引擎模式）
+├─ screenshots-joint/    与检索 Agent 联调的五个步骤截图
 ├─ docs/
-│  ├─ 联调记录.md        五个步骤的实跑记录与实际结果
-│  └─ resp-*.json        五类问题的真实接口响应
+│  ├─ 联调记录-唐宇杰.md  与 agent-retrieval 的真实联调记录（第 7 章用这份）
+│  ├─ joint/*.json       联调时四类问题的完整响应
+│  ├─ 联调记录.md        本地自测记录
+│  └─ resp-*.json        本地规则引擎的五类响应
 └─ tools/
    └─ export_web_data.py 从 parquet + 组内 CSV/JSONL 生成 data/ 的导出脚本
 ```
 
 ## 启动步骤
 
+**方式一：本地规则引擎（无需其它服务）**
+
 ```bash
 cd steam-review-web
 python server.py --port 8021
 ```
 
-打开页面入口 <http://127.0.0.1:8021/index.html>。
-同时具备问答接口 `POST http://127.0.0.1:8021/api/ask`，页面与接口同源，无需处理跨域。
+**方式二：接通检索 Agent（唐宇杰模块，联调用这个）**
+
+```bash
+# 终端 1：先启动对方模块
+cd agent-retrieval
+python -m src.cli serve --port 8000
+
+# 终端 2：前端指定后端地址
+cd steam-review-web
+python server.py --port 8066 --agent-base http://127.0.0.1:8000
+```
+
+启动日志会打印当前问答后端与回退策略。后端挂掉时自动回退本地规则引擎，页面不白屏。
+
+打开页面入口 <http://127.0.0.1:8066/index.html>。
+同时具备问答接口 `POST /api/ask`，页面与接口同源，无需处理跨域。
 
 只想看静态页、不跑接口时，`python -m http.server 8000` 或直接双击 `index.html` 也可以，
 此时问答页会自动回退到本地规则引擎。
@@ -116,7 +135,9 @@ S.backendBase = "http://localhost:8080/review-api";
 
 ## 联调记录
 
-见 [`docs/联调记录.md`](docs/联调记录.md)，含五个步骤的截图、接口实际响应与数据核对结论。
+- [`docs/联调记录-唐宇杰.md`](docs/联调记录-唐宇杰.md) —— **与检索 Agent（`feat/agent-retrieval`）的真实联调**，
+  五个步骤的截图、接口实际响应、量纲与时序问题的修复记录、降级验证。第 7 章直接用这份。
+- [`docs/联调记录.md`](docs/联调记录.md) —— 仅本地规则引擎的自测记录，保留备查。
 
 ## 已知限制
 

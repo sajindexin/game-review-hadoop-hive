@@ -1173,6 +1173,7 @@ img { border: 0; }
   background: rgba(0, 0, 0, 0.2);
 }
 .bubble .quote .src { color: #6d7f8c; font-size: 11px; display: block; margin-top: 3px; }
+.bubble .quote .src .src-link { color: #67c1f5; text-decoration: underline; text-underline-offset: 2px; }
 .bubble .kv { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
 .bubble .kv span {
   background: rgba(102, 192, 244, 0.12);
@@ -1247,6 +1248,50 @@ img { border: 0; }
   border-radius: 2px;
   color: #b9d7ea;
   font-size: 11px;
+}
+
+
+/* ------------------------------------------------- 已复核 / 未复核 徽标 */
+
+.verified-badge,
+.unverified-badge {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.verified-badge {
+  background: rgba(164, 208, 7, 0.18);
+  color: #b9d75a;
+  border: 1px solid rgba(164, 208, 7, 0.35);
+}
+
+.unverified-badge {
+  background: rgba(255, 255, 255, 0.07);
+  color: #8f98a0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* 回答顶部的来源提示 */
+.src-badge.warn {
+  background: rgba(224, 133, 133, 0.14);
+  color: #e0a3a3;
+  border-color: rgba(224, 133, 133, 0.3);
+}
+
+.src-badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 9px;
+  border-radius: 2px;
+  margin-bottom: 8px;
+  background: rgba(103, 193, 245, 0.14);
+  color: #67c1f5;
+  border: 1px solid rgba(103, 193, 245, 0.28);
 }
 
 /* ------------------------------------------------------------------ 页脚 */
