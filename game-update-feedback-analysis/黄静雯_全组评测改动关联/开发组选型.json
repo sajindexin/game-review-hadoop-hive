@@ -1,0 +1,192 @@
+{
+  "selected": "refit",
+  "thresholds": {
+    "base": 0.9500000000000001,
+    "refit": 0.9,
+    "expanded": 0.82
+  },
+  "reports": {
+    "base": {
+      "all": {
+        "reviews": 253,
+        "candidate_pairs": 230,
+        "positive_pairs": 26,
+        "accepted_reviews": 7,
+        "tp": 6,
+        "fp": 1,
+        "fn": 20,
+        "recall_at_5": 0.9615384615384616,
+        "precision": 0.8571428571428571,
+        "recall": 0.23076923076923078,
+        "f1": 0.36363636363636365,
+        "f05": 0.5555555555555556,
+        "false_positive_reviews": 1
+      },
+      "stratified": {
+        "reviews": 216,
+        "candidate_pairs": 165,
+        "positive_pairs": 0,
+        "accepted_reviews": 0,
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "recall_at_5": null,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "f05": null,
+        "false_positive_reviews": 0
+      },
+      "targeted": {
+        "reviews": 37,
+        "candidate_pairs": 65,
+        "positive_pairs": 26,
+        "accepted_reviews": 7,
+        "tp": 6,
+        "fp": 1,
+        "fn": 20,
+        "recall_at_5": 0.9615384615384616,
+        "precision": 0.8571428571428571,
+        "recall": 0.23076923076923078,
+        "f1": 0.36363636363636365,
+        "f05": 0.5555555555555556,
+        "false_positive_reviews": 1
+      }
+    },
+    "refit": {
+      "all": {
+        "reviews": 253,
+        "candidate_pairs": 230,
+        "positive_pairs": 26,
+        "accepted_reviews": 11,
+        "tp": 10,
+        "fp": 1,
+        "fn": 16,
+        "recall_at_5": 0.9615384615384616,
+        "precision": 0.9090909090909091,
+        "recall": 0.38461538461538464,
+        "f1": 0.5405405405405406,
+        "f05": 0.7142857142857143,
+        "false_positive_reviews": 1
+      },
+      "stratified": {
+        "reviews": 216,
+        "candidate_pairs": 165,
+        "positive_pairs": 0,
+        "accepted_reviews": 0,
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "recall_at_5": null,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "f05": null,
+        "false_positive_reviews": 0
+      },
+      "targeted": {
+        "reviews": 37,
+        "candidate_pairs": 65,
+        "positive_pairs": 26,
+        "accepted_reviews": 11,
+        "tp": 10,
+        "fp": 1,
+        "fn": 16,
+        "recall_at_5": 0.9615384615384616,
+        "precision": 0.9090909090909091,
+        "recall": 0.38461538461538464,
+        "f1": 0.5405405405405406,
+        "f05": 0.7142857142857143,
+        "false_positive_reviews": 1
+      }
+    },
+    "expanded": {
+      "all": {
+        "reviews": 253,
+        "candidate_pairs": 230,
+        "positive_pairs": 26,
+        "accepted_reviews": 11,
+        "tp": 10,
+        "fp": 1,
+        "fn": 16,
+        "recall_at_5": 0.9615384615384616,
+        "precision": 0.9090909090909091,
+        "recall": 0.38461538461538464,
+        "f1": 0.5405405405405406,
+        "f05": 0.7142857142857143,
+        "false_positive_reviews": 1
+      },
+      "stratified": {
+        "reviews": 216,
+        "candidate_pairs": 165,
+        "positive_pairs": 0,
+        "accepted_reviews": 0,
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "recall_at_5": null,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "f05": null,
+        "false_positive_reviews": 0
+      },
+      "targeted": {
+        "reviews": 37,
+        "candidate_pairs": 65,
+        "positive_pairs": 26,
+        "accepted_reviews": 11,
+        "tp": 10,
+        "fp": 1,
+        "fn": 16,
+        "recall_at_5": 0.9615384615384616,
+        "precision": 0.9090909090909091,
+        "recall": 0.38461538461538464,
+        "f1": 0.5405405405405406,
+        "f05": 0.7142857142857143,
+        "false_positive_reviews": 1
+      }
+    }
+  },
+  "training_counts": {
+    "refit": {
+      "usable_reviews": 418,
+      "candidate_pairs": 685,
+      "positive_candidate_pairs": 55
+    },
+    "expanded": {
+      "usable_reviews": 418,
+      "candidate_pairs": 699,
+      "positive_candidate_pairs": 56
+    }
+  },
+  "per_variant_seconds": {
+    "refit": {
+      "cross_validation_fits_s": 0.07528049999382347,
+      "final_fit_s": 0.004805400036275387,
+      "feature_and_selection_s": 0.5285214000032283
+    },
+    "expanded": {
+      "cross_validation_fits_s": 0.026891699992120266,
+      "final_fit_s": 0.005070200015325099,
+      "feature_and_selection_s": 0.8734394999919459
+    }
+  },
+  "total_seconds": 1.7079453999758698,
+  "model_sha256": "36b00a2d1db47e478e52b7ad20e7a5d52da869ffdb73d3510e001305206c8d83",
+  "development_games": [
+    550,
+    570,
+    730,
+    4000,
+    271590,
+    1245620
+  ],
+  "held_out_games": [
+    440,
+    105600,
+    359550,
+    2358720
+  ],
+  "ordinary_and_targeted_pooled_for_selection": true
+}
