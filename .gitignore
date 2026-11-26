@@ -221,3 +221,16 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Steam 采集工具的本地数据和配置
+/data/
+/.codex/
+.uv-cache/
+.pytest-tmp*/
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+.DS_Store
+Thumbs.db
+Desktop.ini

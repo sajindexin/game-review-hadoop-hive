@@ -1,0 +1,112 @@
+{
+ "groups": [
+  {
+   "canonical": "crash",
+   "terms": [
+    "闪退",
+    "崩溃",
+    "报错",
+    "闪退报错",
+    "crash",
+    "crashes",
+    "crashing"
+   ]
+  },
+  {
+   "canonical": "performance",
+   "terms": [
+    "卡顿",
+    "掉帧",
+    "帧数",
+    "优化",
+    "性能",
+    "lag",
+    "stutter",
+    "fps"
+   ]
+  },
+  {
+   "canonical": "multiplayer",
+   "terms": [
+    "联机",
+    "多人",
+    "组队",
+    "合作",
+    "co-op",
+    "multiplayer"
+   ]
+  },
+  {
+   "canonical": "map",
+   "terms": [
+    "地图",
+    "新地图",
+    "map",
+    "maps"
+   ]
+  },
+  {
+   "canonical": "story",
+   "terms": [
+    "剧情",
+    "故事",
+    "叙事",
+    "story",
+    "narrative"
+   ]
+  },
+  {
+   "canonical": "difficulty",
+   "terms": [
+    "难度",
+    "太难",
+    "简单",
+    "难度调整",
+    "difficulty",
+    "hard"
+   ]
+  },
+  {
+   "canonical": "price",
+   "terms": [
+    "价格",
+    "售价",
+    "贵",
+    "便宜",
+    "price",
+    "pricing"
+   ]
+  },
+  {
+   "canonical": "content",
+   "terms": [
+    "内容",
+    "更新内容",
+    "新内容",
+    "content",
+    "update"
+   ]
+  },
+  {
+   "canonical": "bug",
+   "terms": [
+    "bug",
+    "漏洞",
+    "故障",
+    "问题",
+    "bugs"
+   ]
+  },
+  {
+   "canonical": "balance",
+   "terms": [
+    "平衡",
+    "数值",
+    "强度",
+    "nerf",
+    "buff",
+    "balance"
+   ]
+  }
+ ]
+}

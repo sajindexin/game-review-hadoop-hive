@@ -1,0 +1,5 @@
+# 上游交付物按原始字节保存，禁止 Git 做换行归一化（否则 SHA-256 会变）
+data_sources/** -text
+
+# Windows 启动脚本固定 CRLF
+*.bat text eol=crlf
