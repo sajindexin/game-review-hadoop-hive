@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Steam 评测分析台 · 版本口碑总览</title>
+<link rel="stylesheet" href="assets/steam.css">
+</head>
+<body>
+
+<header class="global-header" id="siteHeader"></header>
+<div class="sub-nav" id="subNav"></div>
+
+<main class="wrap">
+
+  <!-- 头图区 -->
+  <section class="hero" id="hero">
+    <a class="hero-main" id="heroMain" href="#">
+      <div class="art"></div>
+      <div class="inner">
+        <div class="kicker">本周焦点更新</div>
+        <h1>—</h1>
+        <p>—</p>
+        <span class="btn btn-green">查看版本详情</span>
+      </div>
+    </a>
+    <div class="hero-side" id="heroSide"></div>
+  </section>
+
+  <!-- 游戏 -->
+  <div class="section-head">
+    <h2>按游戏浏览</h2>
+    <span class="sub" id="gameCount"></span>
+    <span class="right"><a href="#patches">查看全部版本 ↓</a></span>
+  </div>
+
+  <div class="filter-bar">
+    <div class="filter-row">
+      <span class="filter-label">口碑筛选</span>
+      <button class="chip on" data-gfilter="all">全部 12 款</button>
+      <button class="chip" data-gfilter="down">口碑下滑</button>
+      <button class="chip" data-gfilter="up">口碑回升</button>
+      <button class="chip" data-gfilter="flat">基本持平</button>
+      <span class="filter-sep"></span>
+      <span class="filter-label">排序</span>
+      <button class="chip on" data-gsort="reviews">评测量</button>
+      <button class="chip" data-gsort="delta">口碑变化</button>
+      <button class="chip" data-gsort="name">名称</button>
+    </div>
+    <div class="filter-row">
+      <label class="filter-search">
+        <span>⌕</span>
+        <input id="localSearch" type="search" placeholder="按游戏名 / 版本名过滤，例如「星露谷」「1.5」">
+      </label>
+      <span class="filter-hint" id="filterHint"></span>
+      <button class="chip chip-clear" id="clearFilter" hidden>清除筛选</button>
+    </div>
+  </div>
+
+  <div class="capsule-grid" id="gameGrid"></div>
+
+  <!-- 版本表 -->
+  <div class="section-head" id="patches">
+    <h2>版本更新一览</h2>
+    <span class="sub">更新前后各 14 天窗口 · 推荐率口径为「好评数 / 有效评论数」</span>
+    <span class="right">
+      <button class="chip on" data-sort="date">按时间</button>
+      <button class="chip" data-sort="impact">按口碑变化</button>
+      <button class="chip" data-sort="volume">按评论量</button>
+    </span>
+  </div>
+  <div class="panel" style="padding:6px 10px">
+    <table class="table" id="patchTable">
+      <thead>
+        <tr>
+          <th style="width:34px">#</th>
+          <th>游戏</th>
+          <th>版本</th>
+          <th style="width:92px">发布日期</th>
+          <th class="num" style="width:84px">更新前</th>
+          <th class="num" style="width:84px">更新后</th>
+          <th class="num" style="width:88px">变化</th>
+          <th class="num" style="width:92px">窗口评论</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+</main>
+
+<footer class="site-footer" id="siteFooter"></footer>
+
+<script src="assets/steam.js"></script>
+<script src="assets/index.js"></script>
+</body>
+</html>
