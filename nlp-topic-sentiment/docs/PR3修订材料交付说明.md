@@ -178,8 +178,8 @@ ORDER BY `条目层标注数` DESC;
 ### 3.3 运行命令（PowerShell）
 
 ```powershell
-$REPO = "C:\Users\hgj\Desktop\大数据大作业\game-review-hadoop-hive"
-$PY   = "C:\Users\hgj\.workbuddy\binaries\python\envs\default\Scripts\python.exe"
+$REPO = (Get-Location).Path          # 在仓库根目录执行
+$PY   = "python"                     # 换成你自己的解释器路径
 Set-Location "$REPO\nlp-topic-sentiment\code"
 $env:HF_ENDPOINT = "https://hf-mirror.com"
 
@@ -244,6 +244,21 @@ $env:HF_ENDPOINT = "https://hf-mirror.com"
   只写 `rbt3_item_silver_*.csv`，**不覆盖**金标 train/eval 与留出 ID。
   银标切分按 review_id 分组（并查集把同一评论、同一文本连成一组整组切分），
   `--limit` 也按组抽样，所以同一评论的多个条目不会一半在训练集、一半在验证集。
+
+**交付前自检加固（本轮补充，均可用命令直接验证）**
+
+- `code/verify_split_guard.py` 为**纯标准库**实现（不需要 torch / numpy / pandas / pyarrow），
+  干净 Python 解释器即可跑完 27 项回归；`evaluate_full.py` 不带 `--rbt3` 时同样零第三方依赖。
+- 原子发布补了**回滚分支**：目标目录被占用导致替换失败时，会把旧模型目录改回来，
+  不会出现"保存失败 → 模型目录消失"。守卫测试用例 6 用打桩 `os.replace` 覆盖了这条路径。
+- 切分随机性按层固定种子：`--item-only` 与"两层全跑"得到的条目层切分**完全一致**
+  （615/154，可直接 `diff` 两个文件验证），不再依赖前面那层跑没跑。
+- `task_meta.json` 里的 `train_file` / `eval_file` / `model` 改为仓库相对路径，
+  重跑不会因为本机绝对路径产生整份 diff，也不会泄露个人目录。
+- 新增 `requirements.txt`（核心：pandas/pyarrow/numpy）与 `requirements-train.txt`
+  （再加 torch/transformers/scikit-learn）；README 与本文档的示例命令去掉本机绝对路径。
+- `.gitignore` 增加 `data/rbt3_model_*.old-*`、`data/.rbt3_model_*.tmp-*`，
+  避免回滚/中断留下的权重备份被误提交。
 
 ### 3.6 复跑评估结果（严格留出集，48 条评论，三方法同口径）
 

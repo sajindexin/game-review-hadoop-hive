@@ -66,29 +66,37 @@ nlp-topic-sentiment/
 
 ## 三、环境准备
 
-**规则打标 + 结果表**：本机隔离环境已装好 `pandas` / `pyarrow` / `numpy`，**无需准备**。
-
-**真训 RBT3**（本机已装：torch 2.15.0+cpu / transformers 5.24 / sklearn 1.9.1）：
+**跑规则打标 / 结果表 / 全部自检**：只需要 `pandas` / `pyarrow` / `numpy`。
 
 ```powershell
-$PY = "C:\Users\hgj\.workbuddy\binaries\python\envs\default\Scripts\python.exe"
-# 若 torch 缺失：阿里云源装的是 CPU 版（RBT3-small CPU 也能训，只是慢）
-& $PY -m pip install -i https://mirrors.aliyun.com/pypi/simple torch
-# 想用 RTX 4060 GPU 加速：先从 PyTorch 官方源装 CUDA 版（需能访问外网/代理）
-# & $PY -m pip install torch --index-url https://download.pytorch.org/whl/cu121
-& $PY -c "import torch,transformers; print(torch.__version__, 'CUDA=', torch.cuda.is_available())"
+# 在仓库根目录执行
+python -m pip install -i https://mirrors.aliyun.com/pypi/simple -r nlp-topic-sentiment/requirements.txt
+```
+
+其中 `code/verify_split_guard.py` 是**纯标准库**实现（正确性回归，含切分与留出集守卫），
+`code/evaluate_full.py` 不带 `--rbt3` 时同样零第三方依赖，因此别人 clone 下来不装任何包就能先跑这两项自检。
+
+**真训 RBT3**：在上面的基础上再装 `requirements-train.txt`（`torch` / `transformers` / `scikit-learn`）。
+CPU 版即可（RBT3-small 在 CPU 上也能训，只是慢）：
+
+```powershell
+# 先装 CPU 版 torch（官方 CPU 源，避免默认拉到 CUDA 大包），再装其余
+python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+python -m pip install -i https://mirrors.aliyun.com/pypi/simple -r requirements-train.txt
+python -c "import torch,transformers; print(torch.__version__, 'CUDA=', torch.cuda.is_available())"
 ```
 
 **模型下载**：脚本已默认走 `hf-mirror.com` 国内镜像（HuggingFace 直连国内常超时）。
-若镜像也失败，可先手动预下载：`$env:HF_ENDPOINT="https://hf-mirror.com"; & $PY -c "from huggingface_hub import snapshot_download; snapshot_download('hfl/rbt3')"`
+若镜像也失败，可先手动预下载：`$env:HF_ENDPOINT="https://hf-mirror.com"; python -c "from huggingface_hub import snapshot_download; snapshot_download('hfl/rbt3')"`
 
 ## 四、运行步骤（可直接复制）
 
-在 `nlp-topic-sentiment/code` 目录执行：
+在仓库根目录执行：
 
 ```powershell
-cd "C:\Users\hgj\Desktop\大数据大作业\game-review-hadoop-hive\nlp-topic-sentiment\code"
-$PY = "C:\Users\hgj\.workbuddy\binaries\python\envs\default\Scripts\python.exe"
+$REPO = (Get-Location).Path          # 当前就在仓库根目录
+$PY   = "python"                     # 换成你自己的解释器，例如 "C:\Python312\python.exe"
+cd (Join-Path $REPO "nlp-topic-sentiment\code")
 
 # 0) 重建两层标签体系（改了条目映射/词典后执行）
 & $PY build_item_taxonomy.py
@@ -129,7 +137,7 @@ $PY = "C:\Users\hgj\.workbuddy\binaries\python\envs\default\Scripts\python.exe"
 #    显式 --rbt3 时若模型加载/评估失败会返回非零退出码，不会误报成功
 & $PY evaluate_full.py --rbt3 --heldout
 
-# 7b) 切分与留出集守卫自检（不需要 torch，秒级）
+# 7b) 切分与留出集守卫自检（纯标准库，不需要 torch / numpy，秒级）
 & $PY verify_split_guard.py
 
 # 8) 推理：默认按层检测权重，缺权重自动规则回退；--rule-fallback 强制两层规则
@@ -188,7 +196,7 @@ $PY = "C:\Users\hgj\.workbuddy\binaries\python\envs\default\Scripts\python.exe"
 在仓库根目录执行：
 
 ```powershell
-$REPO = "C:\Users\hgj\Desktop\大数据大作业\game-review-hadoop-hive"
+$REPO = (Get-Location).Path          # 当前就在仓库根目录
 cd $REPO
 
 git status --short

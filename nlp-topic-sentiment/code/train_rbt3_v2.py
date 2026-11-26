@@ -32,7 +32,6 @@ import json
 import argparse
 import random
 from datetime import datetime
-import numpy as np
 
 # 国内网络：HuggingFace 直连常超时，默认走 hf-mirror 镜像（可用 HF_ENDPOINT 覆盖）
 os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
@@ -167,6 +166,23 @@ def _ids_sha256(ids):
     return hashlib.sha256(json.dumps(sorted(ids)).encode("utf-8")).hexdigest()
 
 
+def _rel_to_root(path):
+    """元数据里的路径优先存成相对模块根的形式。
+
+    否则 task_meta.json 会写进本机绝对路径（C:\\Users\\xxx\\...），
+    既泄露个人目录，又让别人重跑一次就产生整份 diff。
+    """
+    if not path:
+        return ""
+    root = os.path.normpath(os.path.join(HERE, ".."))
+    p = os.path.normpath(os.path.abspath(path))
+    try:
+        rel = os.path.relpath(p, root)
+    except ValueError:      # 跨盘符无法求相对路径
+        return p
+    return p if rel.startswith("..") else rel.replace(os.sep, "/")
+
+
 def publish_model(out_dir, save_fn, meta):
     """先把模型与配套元数据全部写到临时目录，成功后再整体替换 out_dir。
 
@@ -181,27 +197,34 @@ def publish_model(out_dir, save_fn, meta):
     tmp = os.path.join(parent, f".{os.path.basename(out_dir)}.tmp-{os.getpid()}-{int(time.time())}")
     shutil.rmtree(tmp, ignore_errors=True)
     os.makedirs(tmp, exist_ok=True)
+    backup = None
     try:
         save_fn(tmp)
         with open(os.path.join(tmp, "task_meta.json"), "w", encoding="utf-8") as f:
             json.dump(meta, f, ensure_ascii=False, indent=2)
-        backup = None
         if os.path.exists(out_dir):
             backup = f"{out_dir}.old-{int(time.time())}"
             os.replace(out_dir, backup)
+        # Windows 上目录仍被其他进程占用时这里会抛异常：旧模型此时已经被改名，
+        # 必须回滚回去，否则"保存失败"会变成"模型目录凭空消失"。
         os.replace(tmp, out_dir)
-        if backup:
-            shutil.rmtree(backup, ignore_errors=True)
     except BaseException:
         shutil.rmtree(tmp, ignore_errors=True)
+        if backup and os.path.exists(backup) and not os.path.exists(out_dir):
+            try:
+                os.replace(backup, out_dir)
+                print(f"[警告] 发布失败，已回滚到原模型目录: {out_dir}")
+            except OSError as e:
+                print(f"[严重] 发布失败且回滚失败，旧模型仍保留在: {backup}（{e}）")
         raise
+    if backup:
+        shutil.rmtree(backup, ignore_errors=True)
     return out_dir
 
 
 def main():
     args = parse_args()
     random.seed(args.seed)
-    np.random.seed(args.seed)
     if not args.out:
         args.out = os.path.join(HERE, "..", "data",
                                 "rbt3_model_aspect" if args.task == "aspect" else "rbt3_model_item")
@@ -214,14 +237,17 @@ def main():
     print(f"任务: {args.task} | 训练样本: {len(train_rows)}, 验证样本: {len(eval_rows)}")
 
     try:
+        import numpy as np
         import torch
         from torch.utils.data import Dataset, DataLoader
         from transformers import AutoTokenizer, AutoModelForSequenceClassification
     except ImportError as e:
-        print("缺少依赖，请先运行：")
-        print("  pip install -i https://mirrors.aliyun.com/pypi/simple torch transformers scikit-learn")
+        print("缺少依赖，请先运行（在 nlp-topic-sentiment 目录下）：")
+        print("  pip install torch --index-url https://download.pytorch.org/whl/cpu")
+        print("  pip install -i https://mirrors.aliyun.com/pypi/simple -r requirements-train.txt")
         raise SystemExit(f"ImportError: {e}")
 
+    np.random.seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"设备: {device}")
     if device.type == "cuda":
@@ -280,14 +306,17 @@ def main():
 
     # ===== 第 3 步：训练与评估都通过后，才把权重和配套留出 ID 一起发布 =====
     meta = {
-        "task": args.task, "model": args.model, "max_len": args.max_len,
+        "task": args.task,
+        # --model 是本地目录时才转相对路径；HF 仓库 id（hfl/rbt3）原样保留
+        "model": _rel_to_root(args.model) if os.path.exists(args.model) else args.model,
+        "max_len": args.max_len,
         "train_rows": len(train_rows), "eval_rows": len(eval_rows),
         "train_reviews": len({r[0] for r in train_rows if r[0]}),
         "holdout_reviews": len(holdout_ids),
         # 留出 ID 的指纹写进 task_meta，评估时可校验"这组 ID 是否与当前权重同批发布"
         "holdout_sha256": _ids_sha256(holdout_ids) if holdout_ids else "",
-        "train_file": os.path.abspath(args.train),
-        "eval_file": os.path.abspath(args.eval) if args.eval else "",
+        "train_file": _rel_to_root(args.train),
+        "eval_file": _rel_to_root(args.eval),
         "saved_at": datetime.now().astimezone().isoformat(timespec="seconds"),
     }
 

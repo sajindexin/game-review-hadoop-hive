@@ -14,9 +14,10 @@ RBT3 两层标签训练数据准备（v2）
 gold_items_json 格式：
   [{"item_id":"S15_01","sentiment":"positive"},{"item_id":"S16_04","sentiment":"negative"}]
 
-输出（data/annotation/）：
-  rbt3_aspect_train.csv / rbt3_aspect_eval.csv
-  rbt3_item_train.csv   / rbt3_item_eval.csv
+输出（data/annotation/），训练/验证文件首列均为 review_id，留出集 ID 直接取该列：
+  gold  : rbt3_aspect_train.csv / rbt3_aspect_eval.csv（由 prepare_gold_3way 写出）
+  rule  : rbt3_aspect_silver_*.csv / rbt3_item_silver_*.csv（银标，永不覆盖金标）
+  列：review_id, review_text, aspect|item_id, sentiment
 """
 from __future__ import annotations
 import os
@@ -25,7 +26,6 @@ import gzip
 import json
 import random
 import argparse
-import pyarrow.csv as pacsv
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ANN_DIR = os.path.normpath(os.path.join(HERE, "..", "data", "annotation"))
@@ -42,7 +42,7 @@ def parse_args():
     ap.add_argument("--neg-per-review", type=int, default=3,
                     help="gold 模式下每条评论抽多少个未提及主题作 neutral 负例")
     ap.add_argument("--limit", type=int, default=0,
-                    help="每层最多保留多少三元组（随机抽样），0=全部；银标演示建议 20000")
+                    help="每层最多保留多少三元组（按评论整组抽样，不拆散同一条评论），0=全部；银标演示建议 20000")
     ap.add_argument("--item-only", action="store_true",
                     help="只生成条目层银标数据，不触碰主题层金标 train/eval（推荐用于银标演示）")
     return ap.parse_args()
@@ -63,8 +63,13 @@ def _open_maybe_gz(path):
 
 
 def _sample_by_group(triples, limit):
-    """按 review 分组抽样到不超过 limit 条三元组（整组取，不拆散评论）。"""
-    if len(triples) <= limit:
+    """按 review 分组抽样到不超过 limit 条三元组（整组取，不拆散评论）。
+
+    单条评论的样本数本身就可能超过 limit（一条评论常命中多个主题）：
+    装得下的组照常装，装不下的组整组跳过；若所有组都超过 limit，
+    则取样本最少的一组（宁可略超 limit，也不拆散同一条评论）。
+    """
+    if limit <= 0 or len(triples) <= limit:
         return triples
     groups = group_by_review(triples)
     keys = sorted(groups.keys())
@@ -72,15 +77,19 @@ def _sample_by_group(triples, limit):
     picked = []
     for k in keys:
         grp = groups[k]
-        if len(picked) + len(grp) > limit and picked:
-            break
+        if len(picked) + len(grp) > limit:
+            # 跳过装不下的这一组，继续看后面的小组；不能直接 break，
+            # 否则遇到第一个大组就提前收工，实际样本可能远小于 limit。
+            continue
         picked.extend(grp)
         if len(picked) >= limit:
             break
+    if not picked:
+        picked = list(min(groups.values(), key=len))
     return picked
 
 
-def split_write(triples, prefix, ratio, suffix=""):
+def split_write(triples, prefix, ratio, suffix="", seed=None):
     """按『分组』整组切分，suffix='' 写金标文件；suffix='_silver' 写银标独立文件。
 
     一条评论会命中多个主题/条目，三元组数远多于评论数；若直接按三元组随机切分，
@@ -89,7 +98,12 @@ def split_write(triples, prefix, ratio, suffix=""):
       - 同一个原始 review_id 的所有样本
       - 文本完全相同的样本（不同评论也可能有相同证据文本）
     这样 train/eval 的评论 ID 集合与文本集合都严格不相交。
+
+    seed 非空时先重置随机数状态：让每一层的切分只由 seed 决定，
+    不受"前面那一层跑没跑"（例如是否传了 --item-only）影响。
     """
+    if seed is not None:
+        random.seed(seed)
     total = len(triples)
     size = int(total * ratio)
     groups = group_by_review(triples)
@@ -220,7 +234,12 @@ def main():
     # 可选随机抽样（控制训练规模）。按整组抽样，保证同一条评论的样本不被拆散，
     # 否则抽样后 train/eval 的评论结构会与原始分布不一致。
     if args.limit and args.limit > 0:
+        if args.source == "gold":
+            print("[提示] gold 模式的主题层由 prepare_gold_3way 按评论全量写出，--limit 只作用于条目层。")
+        # 每层抽样前重置随机状态：抽样结果只与 seed 有关，不受另一层是否参与影响
+        random.seed(args.seed)
         aspect_triples = _sample_by_group(aspect_triples, args.limit)
+        random.seed(args.seed)
         item_triples = _sample_by_group(item_triples, args.limit)
 
     print(f"来源: {args.source}")
@@ -228,7 +247,7 @@ def main():
         print("第一层(主题): 已由 prepare_gold_3way 写入 train/eval，留出 ID 同步更新")
         if item_triples:
             print(f"第二层(条目)gold 三元组: {len(item_triples)}")
-            split_write(item_triples, "item", args.ratio)
+            split_write(item_triples, "item", args.ratio, seed=args.seed)
         else:
             for name in ("rbt3_item_train.csv", "rbt3_item_eval.csv"):
                 p = os.path.join(ANN_DIR, name)
@@ -243,11 +262,11 @@ def main():
         n1 = (0, 0)
         if not args.item_only:
             print(f"第一层(主题)银标三元组: {len(aspect_triples)}")
-            n1 = split_write(aspect_triples, "aspect", args.ratio, suffix="_silver")
+            n1 = split_write(aspect_triples, "aspect", args.ratio, suffix="_silver", seed=args.seed)
         else:
             print("第一层(主题): --item-only，跳过主题层（金标 train/eval 保持不变）")
         print(f"第二层(条目)银标三元组: {len(item_triples)}")
-        n2 = split_write(item_triples, "item", args.ratio, suffix="_silver")
+        n2 = split_write(item_triples, "item", args.ratio, suffix="_silver", seed=args.seed)
         print(f"\n完成: 主题层银标 train/eval={n1}, 条目层银标 train/eval={n2}")
         print("注意: 银标文件独立保存，金标文件与 gold_eval_ids.json 未被改动；")
         print("      训练时请用 --train/--eval 显式指向银标文件，"

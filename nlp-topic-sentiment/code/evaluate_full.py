@@ -134,7 +134,8 @@ def resolve_holdout_ids(args):
 
     # 与模型指纹比对：task_meta.json 记录了训练时该组留出 ID 的 sha256
     meta_path = os.path.join(model_dir, "task_meta.json")
-    if ids_path == model_ids and os.path.exists(meta_path):
+    same_as_model = os.path.abspath(ids_path) == os.path.abspath(model_ids)
+    if same_as_model and os.path.exists(meta_path):
         with open(meta_path, encoding="utf-8") as f:
             meta = json.load(f)
         want = (meta or {}).get("holdout_sha256") or ""
@@ -145,6 +146,19 @@ def resolve_holdout_ids(args):
                     f"[ERROR] holdout_ids.json 与模型 task_meta.json 记录的指纹不一致：\n"
                     f"        实际文件 {got[:16]}… ≠ 元数据 {want[:16]}…\n"
                     f"        说明这组留出 ID 与当前权重不是同批发布，评估结果不可信。")
+
+    # --eval-ids 是显式覆盖，无法验证它与当前模型配套，但至少要提示差异，
+    # 免得有人把别的模型的留出集套过来当成"模型没见过的数据"。
+    if not same_as_model and os.path.exists(model_ids):
+        try:
+            with open(model_ids, encoding="utf-8") as f:
+                cur = set(json.load(f))
+        except Exception:
+            cur = set()
+        if cur and cur != eval_ids:
+            print(f"[警告] --eval-ids（{len(eval_ids)} 条）与模型目录 holdout_ids.json"
+                  f"（{len(cur)} 条）不一致，已按 --eval-ids 执行；\n"
+                  f"        请自行确认这组评论确实未参与该模型训练，否则数字会偏乐观。")
     return ids_path, eval_ids
 
 

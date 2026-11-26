@@ -16,6 +16,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -195,6 +196,46 @@ def main():
         with open(gt, encoding="utf-8-sig") as f:
             cols = next(csv.reader(f))
         check(cols[:1] == ["review_id"], f"金标训练集首列为 review_id（实际 {cols[:2]}）")
+
+    print("\n=== 6. 原子发布：替换目标目录失败时必须回滚，不能把旧模型弄丢 ===")
+    import train_rbt3_v2 as train_mod
+    out = os.path.join(tmp, "model_rollback")
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, "model.safetensors"), "wb") as f:
+        f.write(b"OLD-WEIGHTS")
+    real_replace = train_mod.os.replace
+    attempts = {"n": 0}
+
+    def flaky_replace(src, dst):
+        # 允许"旧目录 → 备份"这一步，只在第一次"临时目录 → 目标目录"时抛错，
+        # 模拟 Windows 上目标目录被其他进程短暂占用（os.replace 抛 OSError）。
+        # 回滚那一步要放行，否则测的就不是回滚而是回滚失败分支了。
+        if os.path.abspath(dst) == os.path.abspath(out):
+            attempts["n"] += 1
+            if attempts["n"] == 1:
+                raise OSError("模拟目标目录被占用")
+        return real_replace(src, dst)
+
+    def save_ok(d):
+        with open(os.path.join(d, "model.safetensors"), "wb") as f:
+            f.write(b"NEW-WEIGHTS")
+
+    train_mod.os.replace = flaky_replace
+    try:
+        raised = False
+        try:
+            train_mod.publish_model(out, save_ok, {"task": "aspect", "holdout_sha256": ""})
+        except OSError:
+            raised = True
+    finally:
+        train_mod.os.replace = real_replace
+    check(raised, "替换失败时抛异常，不会静默报成功")
+    with open(os.path.join(out, "model.safetensors"), "rb") as f:
+        check(f.read() == b"OLD-WEIGHTS", "旧模型目录已回滚，权重未被覆盖")
+    check(not [d for d in os.listdir(tmp) if d.startswith(".model_rollback.tmp-")],
+          "失败后临时目录已清理")
+
+    shutil.rmtree(tmp, ignore_errors=True)
 
     print("\n" + "=" * 50)
     print(f"通过 {OK} 项，失败 {FAIL} 项")

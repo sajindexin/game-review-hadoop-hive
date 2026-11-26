@@ -24,3 +24,6 @@ data/annotation/rbt3_item_silver_eval.csv
 __pycache__/
 *.py[cod]
 *.bak_*
+# 训练保存失败/回滚时可能留下的临时目录与旧模型备份（含权重，绝不能提交）
+data/.rbt3_model_*.tmp-*
+data/rbt3_model_*.old-*
