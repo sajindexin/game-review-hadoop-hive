@@ -234,8 +234,12 @@
     const evLabel = json.evidence_status && json.evidence_status !== "none"
       ? EVIDENCE_LABEL[json.evidence_status]
       : "";
-    const srcNote = json.source
-      ? `<div class="src-badge">来源：检索 Agent（agent-retrieval）${evLabel ? " · " + evLabel : ""}</div>`
+    const sourceLabel = {
+      "agent-retrieval": "检索 Agent（agent-retrieval）",
+      "local-rules": "本地版本统计与规则引擎",
+    }[json.source];
+    const srcNote = sourceLabel
+      ? `<div class="src-badge">来源：${sourceLabel}${evLabel ? " · " + evLabel : ""}</div>`
       : "";
     const fbNote = json.fallback
       ? `<div class="src-badge warn">检索 Agent 不可用，已回退本地规则引擎</div>`
