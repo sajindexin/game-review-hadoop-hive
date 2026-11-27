@@ -80,12 +80,13 @@
   function quote(c) {
     const text = c.text.length > 240 ? c.text.slice(0, 240) + "…" : c.text;
 
-    // 接通检索 Agent 后，后端会给出 detail（已复核 · 更新后 14 天 · zh-Hans · 推荐），信息比本地拼的更全
-    const src = c.detail
+    // detail 包含证据级别和阶段，点赞数仍以结构化字段为准。
+    const src = (c.detail
       ? `评测者 #${String(c.review_id).slice(-4)} · ${c.detail}`
       : `评测者 #${String(c.review_id).slice(-4)} · ${S.langName(c.language)} · ${
           c.voted_up ? "推荐" : "不推荐"
-        } · ${S.fmtTime(c.created_at)} · ${S.fmtInt(c.votes_up || 0)} 人觉得有用`;
+        } · ${S.fmtTime(c.created_at)}`)
+      + (c.votes_up == null ? "" : ` · ${S.fmtInt(c.votes_up)} 人觉得有用`);
 
     const badge = c.verified
       ? `<span class="verified-badge" title="${S.esc(c.verification || "已复核")}">已复核</span>`
