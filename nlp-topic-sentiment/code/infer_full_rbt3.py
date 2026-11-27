@@ -95,8 +95,13 @@ def main():
             with open(progress_path, encoding="utf-8") as f:
                 prog = json.load(f)
             start_rg = int(prog.get("next_row_group", 0))
+            # 恢复累计计数器，否则续跑后进度文件/ETA 会从零重算
+            resume_n_zh = int(prog.get("n_zh", 0))
+            resume_n_tagged = int(prog.get("n_tagged", 0))
+            resume_n_pairs = int(prog.get("n_pairs", 0))
+            resume_elapsed = float(prog.get("elapsed_s", 0))
             print(f"断点续跑：从 row group {start_rg} 继续"
-                  f"（已完成 {prog.get('n_zh', 0)} 条中文 / {prog.get('n_pairs', 0)} 对前向）")
+                  f"（已完成 {resume_n_zh} 条中文 / {resume_n_pairs} 对前向）")
         else:
             print("未找到进度文件，从头开始")
     elif os.path.exists(detail_path) or os.path.exists(review_path):
@@ -120,9 +125,12 @@ def main():
     # 续跑时输出文件已存在则追加（不写表头）
     first_detail = not (args.resume and os.path.exists(detail_path) and start_rg > 0)
     first_review = not (args.resume and os.path.exists(review_path) and start_rg > 0)
-    n_zh = n_tagged = 0
-    n_pairs = 0
-    t0 = time.time()
+    n_zh = n_tagged = n_pairs = 0
+    if args.resume and start_rg > 0:
+        n_zh, n_tagged, n_pairs = resume_n_zh, resume_n_tagged, resume_n_pairs
+        t0 = time.time() - resume_elapsed
+    else:
+        t0 = time.time()
 
     def flush(rows, path, first):
         if not rows:
