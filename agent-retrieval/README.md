@@ -32,7 +32,8 @@ python -m pip install -r requirements.txt
 # 1) 构建知识库（约 10 秒；只需 v1 parquet，目录/引文都在 data_sources/）
 python -m tools.build_knowledge `
   --parquet "<v1 发布包>\releases\v1\data\cleaned_reviews.parquet" `
-  --out data
+  --out data `
+  --web-verified-out ../steam-review-web/data/verified.js
 
 # 2) 命令行问一句
 python -m src.cli ask "为什么艾尔登法环 1.12 差评变多了？"
@@ -52,6 +53,18 @@ python eval/run_acceptance.py
 
 `data/` 是生成物（约 40MB），不入库；换机器只要重新跑第 1 步。
 
+## 主题情感问答
+
+构建知识库时读取同仓库 `nlp-topic-sentiment/data/result/` 中的中英文规则标注明细（可用 `--nlp-results` 指定目录），按游戏、UTC 日期和版本前后 14 天聚合。问答示例：
+
+- 玩家主要在讨论什么？
+- 英文玩家更新后主要在讨论什么？
+- 更新后哪些方面的负面反馈增加了？
+
+主题排名按主题情感对计数，支持正向、负向和中性标签，前后对比同时给出负向数量及该主题内部负向标签占比。全部语种选项在此工具中覆盖中文和英文。两种语言采用统一的规则弱标注口径，英文尚无独立金标评估。中文 RBT3 模型结果保留在 NLP 模块中。
+
+构建时优先读取上游版本分析模块的 `窗口内已复核可引用关联.jsonl`，可用 `--verified` 覆盖。指定 `--web-verified-out` 时，Agent 的 `verified.json` 与 Web 的 `verified.js` 从同一批标准化记录生成，含 Steam 原文链接。仅独立使用 Agent 时可省略 Web 输出参数。
+
 ## 它怎么回答
 
 一次提问会走四步，**每一步都留下可核对的痕迹**：
@@ -65,8 +78,9 @@ python eval/run_acceptance.py
    - `search_announcements`：在 75 项官方改动里检索；
    - `search_reviews` / `search_verified`：在 6.2 万条窗口样本或 469 条已复核引文里检索，
      按条目、语种、阶段、好评/差评过滤；
+   - `lookup_topic_stats`：查询版本窗口内的中英文 NLP 主题分布及前后负向标签变化；
    - `top_negative_reviews`：问“为什么差评变多”时，取对应阶段被顶得最多的差评；
-4. **模板化作答**：数字只从指标表取，原话只从检索结果取，逐条打 `[n]` 出处；检索不到就写“暂无已复核引文”。
+4. **模板化作答**：数字来自指标表和 NLP 窗口统计，原话来自检索结果，逐条打 `[n]` 出处；检索不到就写“暂无已复核引文”。
 
 LLM 路由通过环境变量开启（不配也能跑，自动用规则）：
 

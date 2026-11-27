@@ -110,6 +110,8 @@ def _text_to_html(text: str) -> str:
 def adapt_agent_response(agent: dict, question: str) -> dict:
     """唐宇杰模块的响应 → 前端契约。"""
     citations_raw = agent.get("citations") or []
+    route = agent.get("route") or {}
+    is_topic = route.get("intent") in ("topic", "topic_change")
 
     # ---- stats：从 numbers[] 里挑出三段推荐率与净变化 ----
     # 后端的量纲约定：unit="%" 时 value 是 0~1 比例；unit="pp" 时 value 已是百分点数值
@@ -120,7 +122,7 @@ def adapt_agent_response(agent: dict, question: str) -> dict:
         "delta_pp": None,
         "language_group": None,
     }
-    for n in agent.get("numbers") or []:
+    for n in ([] if is_topic else agent.get("numbers") or []):
         label = str(n.get("label") or "")
         unit = str(n.get("unit") or "")
         group = n.get("language_group")
@@ -144,7 +146,7 @@ def adapt_agent_response(agent: dict, question: str) -> dict:
         stats["delta_pp"] = round(stats["after_rate"] - stats["before_rate"], 2)
 
     # 后端没给推荐率时，按问答的语种范围使用页面已有的版本统计。
-    if all(stats[k] is None for k in ("before_rate", "release_rate", "after_rate")):
+    if not is_topic and all(stats[k] is None for k in ("before_rate", "release_rate", "after_rate")):
         try:
             local = load_patch(str(agent.get("patch", {}).get("patch_id") or ""))
             group = (agent.get("route") or {}).get("language") or "all"
@@ -183,20 +185,24 @@ def adapt_agent_response(agent: dict, question: str) -> dict:
                 "language": c.get("language_std") or parsed["language"],
                 "voted_up": parsed["voted_up"] if parsed["voted_up"] is not None else True,
                 "phase": c.get("phase") or parsed["phase"],
-                "created_at": "",
-                "votes_up": c.get("votes_up") or 0,
+                "created_at": c.get("created_at") or "",
+                "votes_up": c.get("votes_up"),
                 "playtime_hours": 0,
                 "text": c.get("snippet") or "",
                 "url": c.get("url") or "",
                 "verified": bool(c.get("verified")),
                 "verification": c.get("verification") or "",
+                "item_id": c.get("item_id") or "",
+                "patch_id": (agent.get("patch") or {}).get("patch_id") or "",
                 "detail": c.get("detail") or "",
             }
         )
 
     # ---- intent：按引用类型推断，仅用于页面上的小标签 ----
     types = {c.get("type") for c in citations_raw}
-    if out_cites:
+    if is_topic:
+        intent = route["intent"]
+    elif out_cites:
         intent = "negative" if all(not x["voted_up"] for x in out_cites) else "evidence"
     elif "announcement" in types:
         intent = "items"
@@ -213,7 +219,9 @@ def adapt_agent_response(agent: dict, question: str) -> dict:
         "answer": answer_html,
         "citations": out_cites,
         "announcement_citations": announcements,
-        "stats": stats,
+        "stats": {} if is_topic else stats,
+        "topic_stats": agent.get("topic_stats"),
+        "topic_citations": [c for c in citations_raw if c.get("type") == "topic"],
         "source": "agent-retrieval",
         "evidence_status": agent.get("evidence_status"),
         "suggestions": agent.get("suggestions") or [],
@@ -283,6 +291,17 @@ def review_url(c: dict, appid: str) -> str:
     return f"https://steamcommunity.com/profiles/{c['steamid']}/recommended/{appid}/"
 
 
+def verified_item_quotes(patch_id: str, item_id: str) -> list[dict]:
+    path = DATA / "verified.js"
+    if not path.exists():
+        return []
+    rows = json.loads(path.read_text("utf-8").split("=", 1)[1].strip().rstrip(";"))
+    return [
+        {**row, "language": row["language_std"], "text": row["evidence"], "verified": True}
+        for row in rows if row["patch_id"] == patch_id and row["item_id"] == item_id
+    ]
+
+
 def cites(rows: list[dict], appid: str, limit: int = 3) -> list[dict]:
     out = []
     for c in rows[:limit]:
@@ -293,10 +312,15 @@ def cites(rows: list[dict], appid: str, limit: int = 3) -> list[dict]:
                 "language": c["language"],
                 "voted_up": c["voted_up"],
                 "created_at": c["created_at"],
-                "votes_up": c.get("votes_up", 0),
+                "votes_up": c.get("votes_up"),
                 "playtime_hours": c.get("playtime_hours", 0),
                 "text": c["text"],
-                "url": review_url(c, appid),
+                "url": c.get("url") or review_url(c, appid),
+                "verified": bool(c.get("verified")),
+                "verification": c.get("verification", ""),
+                "phase": c.get("phase", ""),
+                "item_id": c.get("item_id", ""),
+                "patch_id": c.get("patch_id", ""),
             }
         )
     return out
@@ -314,8 +338,17 @@ def status_text(delta) -> str:
     return "口碑回升"
 
 
+def is_topic_question(question: str) -> bool:
+    if re.search(r"改动|条目", question) and re.search(r"提及|提到|讨论", question) and not re.search(r"主题|话题|负面|负向", question):
+        return False
+    return bool(re.search(r"主题|话题|主要.{0,8}(讨论|聊|关注)|讨论.{0,5}(什么|哪些|最多)|哪些方面.{0,8}(反馈|评价|吐槽)", question)
+                or (re.search(r"方面", question) and re.search(r"负面|负向|差评|抱怨|吐槽", question)))
+
+
 def local_statistics_intent(question: str) -> str | None:
     """识别本地数据包支持、检索 Agent 尚未覆盖的版本内统计问题。"""
+    if is_topic_question(question):
+        return None
     if re.search(r"哪个版本|哪些版本|所有版本|全组|各个版本|不同版本", question):
         return None
     compare = re.search(r"对比|比较|差异|差多少|相差|区别", question)
@@ -352,6 +385,10 @@ def answer(patch_id: str, question: str, intent: str | None = None) -> dict:
         "window_reviews": d.get("window_reviews_total"),
         "pool_reviews": d.get("pool_reviews"),
     }
+
+    if is_topic_question(question):
+        return {"intent": "topic", "answer": head + "<p>主题情感分析需要连接并构建好 NLP 知识库的检索 Agent。</p>",
+                "citations": [], "stats": {}, "raw_status": "unsupported"}
 
     # 1) 负面 / 差评
     if intent is None and has("不推荐", "差评", "负面", "问题", "抱怨", "吐槽"):
@@ -400,9 +437,10 @@ def answer(patch_id: str, question: str, intent: str | None = None) -> dict:
         body = head + f"<p>本版本登记 <b>{len(items)}</b> 项改动，按窗口内评测提及次数排序：</p><ul>"
         for it in items:
             body += f"<li>{it['title']}（{it.get('section') or '—'}）· 提及 {it['mentions']} 次 — {it.get('description') or ''}</li>"
-        body += "</ul><p>提及数来自评测正文与官方条目别名的近似匹配。下面是提及最多的改动所命中的抽样评测原文：</p>"
+        body += "</ul><p>提及数来自评测正文与官方条目别名的近似匹配。</p>"
         top = items[0] if items else None
-        ev = top["evidence"] if top else []
+        ev = verified_item_quotes(patch_id, top["item_id"]) if top else []
+        body += "<p>提及最多的改动的已复核引文。</p>" if ev else "<p>提及最多的改动暂无已复核引文。</p>"
         return {"intent": "items", "answer": body, "citations": cites(ev, p["appid"]), "stats": stats}
 
     # 4) 趋势 / 峰值

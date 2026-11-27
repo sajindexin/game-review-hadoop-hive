@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 import httpx
 
-INTENTS = {"metric", "announcement", "review", "why", "mixed", "ranking", "outside", "need_context"}
+INTENTS = {"metric", "announcement", "review", "why", "mixed", "ranking", "topic", "topic_change", "outside", "need_context"}
 PHASES = {"before", "release", "after"}
 
 OUTSIDE_RE = re.compile(
@@ -31,6 +31,18 @@ COMPARE_RE = re.compile(r"更新前后|发布前后|上线前后|前后对比|�
 RELEASE_RE = re.compile(r"发布当天|上线当天|发布日(?:当天)?|更新当天")
 BEFORE_RE = re.compile(r"更新前|发布前|上线前|版本前|之前")
 AFTER_RE = re.compile(r"更新后|发布后|上线后|版本后|之后")
+TOPIC_RE = re.compile(r"主题|话题|主要.{0,8}(讨论|聊|关注)|讨论.{0,5}(什么|哪些|最多)|哪些方面.{0,8}(反馈|评价|吐槽)")
+TOPIC_CHANGE_RE = re.compile(r"(增加|增多|上升|增长|变多|更多|减少|下降|变少|降低|变化|差异)")
+NEGATIVE_RE = re.compile(r"负面|负向|差评|抱怨|吐槽")
+
+
+def topic_intent(question: str) -> str | None:
+    if re.search(r"改动|条目", question) and re.search(r"提及|提到|讨论", question) and not re.search(r"主题|话题|负面|负向", question):
+        return None
+    negative = NEGATIVE_RE.search(question)
+    if TOPIC_RE.search(question) or (negative and "方面" in question):
+        return "topic_change" if negative and TOPIC_CHANGE_RE.search(question) else "topic"
+    return None
 
 
 @dataclass
@@ -60,6 +72,8 @@ class Router:
     # ---- 对外入口 -----------------------------------------------------
     def route(self, question: str, patch: dict | None, items: list[dict] | None = None,
               language: str | None = None) -> Route:
+        if topic_intent(question) and not OUTSIDE_RE.search(question):
+            return self._route_rules(question, patch, items or [], language)
         if self.available:
             try:
                 return self._route_llm(question, patch, items or [], language)
@@ -83,7 +97,7 @@ class Router:
             "你是游戏版本评测问答系统的路由器。只输出 JSON，不要输出解释文字。\n"
             "任务：把用户问题解析成结构化路由，供下游查询指标、公告或已复核引文。\n"
             "字段：\n"
-            '  intent: "metric" | "announcement" | "review" | "why" | "mixed" | "ranking" | "outside" | "need_context"\n'
+            '  intent: "metric" | "announcement" | "review" | "why" | "mixed" | "ranking" | "topic" | "topic_change" | "outside" | "need_context"\n'
             '  phases: 数组，元素只能是 "before" / "release" / "after"；不限制就给 []；\n'
             '          "更新前后" 必须给 ["before","after"]，不能只给 before；\n'
             '  item_ids: 数组，只能从下面条目目录里选；没有明确改动就给 []；\n'
@@ -100,6 +114,7 @@ class Router:
             "4. 天气、退款、客服、硬件、健康、考试等超出数据范围，用 outside；\n"
             "   游戏内作弊/外挂/封号讨论仍属于玩家评价，用 review，不要判 outside。\n"
             "5. 不要编造 item_id；不确定就留空数组。\n"
+            "6. 玩家讨论主题分布用 topic；按主题比较更新前后负面反馈数量用 topic_change。\n"
             "输出示例：{\"intent\":\"review\",\"phases\":[\"before\",\"after\"],"
             "\"item_ids\":[\"S15_01\"],\"language\":\"chinese\",\"ranking\":null,\"confidence\":0.9}"
         )
@@ -215,7 +230,12 @@ class Router:
             return Route(intent="ranking", phases=phases, ranking_phase=rank_phase,
                          ranking_direction=direction, source="rules", confidence=0.6)
 
-        if ask_why:
+        topic = topic_intent(q)
+        if topic:
+            intent = topic
+            if topic == "topic_change":
+                phases = ["before", "after"]
+        elif ask_why:
             intent = "why"
         elif metric and (review or announce):
             intent = "mixed"
@@ -230,8 +250,12 @@ class Router:
 
         lang = language if language in ("all", "chinese", "en") else None
         if lang is None:
-            if re.search(r"中文|汉语|简中|繁中", q):
+            chinese = re.search(r"中文|汉语|简中|繁中", q)
+            english = re.search(r"英文|英语", q, re.I)
+            if topic and (re.search(r"中英文|中英两", q) or (chinese and english)):
+                lang = "all"
+            elif chinese:
                 lang = "chinese"
-            elif re.search(r"英文|英语", q, re.I):
+            elif english:
                 lang = "en"
         return Route(intent=intent, phases=phases, language=lang, source="rules", confidence=0.4)

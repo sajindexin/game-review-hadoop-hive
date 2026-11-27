@@ -1,7 +1,7 @@
 """有依据的问答 Agent：意图识别 -> 调工具（指标/公告/评测）-> 模板化作答。
 
 设计原则（对应交付要求）：
-1. 每个数字都必须来自指标表，并给出 [n] 出处；
+1. 每个数字都必须来自窗口指标或 NLP 主题统计，并给出 [n] 出处；
 2. 每条玩家原话都带 review_id 与 Steam 链接，找不到就不编；
 3. 没有证据时明确返回“暂无已复核引文”，而不是用模型常识补全。
 """
@@ -169,6 +169,9 @@ class Agent:
             group = lang
         else:
             group = lang_filter or self._language_group(question, None)
+
+        if intent in ("topic", "topic_change"):
+            return self._answer_topics(result, patch, group, phases, intent)
 
         metric = None
         want_metric = intent in ("metric", "mixed", "why")
@@ -540,13 +543,117 @@ class Agent:
                          "title": f"玩家评测 {q['review_id']}",
                          "detail": f"{'已复核' if verified else '未复核'} · {q['phase_label']} · {q['language_std']} · {tag}",
                          "snippet": q["snippet"], "url": q["url"], "review_id": q["review_id"],
-                         "votes_up": q.get("votes_up", 0),
+                         "votes_up": q.get("votes_up"),
+                         "created_at": q.get("created_at", ""),
                          "language_std": q.get("language_std", ""),
                          "phase": q.get("phase", ""),
                          "item_id": ((item or {}).get("item_id") or q.get("item_id")
                                      or (q.get("matched_items") or [""])[0] or ""),
                          "verified": bool(verified), "verification": q.get("verification", "")})
         return "\n".join(lines), cits
+
+    def _answer_topics(self, result: dict, patch: dict, group: str, phases: list[str],
+                       intent: str) -> dict:
+        dataset = self.kb.topic_stats
+        languages = ("chinese", "en") if group == "all" else (group,)
+        sources = dataset.get("sources", {})
+        if any(lang not in sources for lang in languages):
+            return self._fail(result, "unsupported", "缺少所选语种的 NLP 主题情感明细，请重新构建知识库。")
+
+        comparing = intent == "topic_change"
+        phases = ["before", "after"] if comparing else (phases or ["before", "release", "after"])
+        result["route"]["phases"] = phases
+        result["route"]["language"] = group
+        counts: dict[str, dict] = {}
+        for row in dataset["rows"]:
+            if (row["patch_id"] != patch["patch_id"] or row["language"] not in languages
+                    or row["phase"] not in phases):
+                continue
+            topic = counts.setdefault(row["aspect"], {
+                "aspect": row["aspect"], "name": row["name"],
+                "positive": 0, "negative": 0, "neutral": 0,
+                "before_negative": 0, "after_negative": 0,
+                "before_total": 0, "after_total": 0,
+            })
+            topic[row["sentiment"]] += row["count"]
+            if row["phase"] in ("before", "after"):
+                topic[f"{row['phase']}_total"] += row["count"]
+                if row["sentiment"] == "negative":
+                    topic[f"{row['phase']}_negative"] += row["count"]
+
+        scope = {"all": "中文和英文", "chinese": "中文", "en": "英文"}[group]
+        periods = "、".join({"before": "更新前14天", "release": "发布当天", "after": "更新后14天"}[p] for p in phases)
+        detail = f"{scope} · {periods} · 规则弱标注"
+        result["citations"] = [{
+            "id": 1, "type": "topic", "title": "NLP 主题情感统计",
+            "detail": detail, "source": "；".join(sources[lang] for lang in languages),
+            "url": "", "snippet": "",
+        }]
+        result["tools"] = [{"name": "lookup_topic_stats", "args": {
+            "patch_id": patch["patch_id"], "languages": list(languages), "phases": phases,
+        }, "status": "ok" if counts else "empty"}]
+        result["topic_stats"] = {"method": "rule", "languages": list(languages),
+                                 "phases": phases, "rows": []}
+        if not counts:
+            result["answer"] = f"{detail}没有命中主题情感标签。[1]"
+            return result
+
+        for topic in counts.values():
+            topic["total"] = topic["positive"] + topic["negative"] + topic["neutral"]
+            if "before" in phases and "after" in phases:
+                topic["negative_change"] = topic["after_negative"] - topic["before_negative"]
+            else:
+                topic["negative_change"] = None
+                for phase in ("before", "after"):
+                    if phase not in phases:
+                        topic[f"{phase}_negative"] = None
+                        topic[f"{phase}_total"] = None
+        question = result["question"]
+        decrease = comparing and bool(re.search(r"减少|下降|变少|降低", question))
+        changing = comparing and bool(re.search(r"变化|差异", question)) and not re.search(r"增加|增多|上升|增长|变多|更多|减少|下降|变少|降低", question)
+        negative_only = not comparing and bool(re.search(r"负面|负向|差评|抱怨|吐槽", question))
+
+        def rank(topic: dict) -> tuple[int, str]:
+            if comparing:
+                delta = topic["negative_change"]
+                score = abs(delta) if changing else -delta if decrease else delta
+            else:
+                score = topic["negative"] if negative_only else topic["total"]
+            return -score, topic["aspect"]
+
+        ordered = sorted(counts.values(), key=rank)
+        result["topic_stats"]["rows"] = ordered
+        lines = [f"《{patch['game']}》{patch['patch_name']}（{detail}）[1]"]
+        if comparing:
+            verb = "变化" if changing else "减少" if decrease else "增加"
+            matching = [t for t in ordered if rank(t)[0] < 0]
+            if matching:
+                lines.append(f"负向主题标签数{verb}的方面：")
+                for index, topic in enumerate(matching, 1):
+                    before_share = _fmt_pct(topic["before_negative"] / topic["before_total"]
+                                            if topic["before_total"] else None)
+                    after_share = _fmt_pct(topic["after_negative"] / topic["after_total"]
+                                           if topic["after_total"] else None)
+                    lines.append(f"{index}. {topic['name']}：{topic['before_negative']:,} → "
+                                 f"{topic['after_negative']:,}（{topic['negative_change']:+,}），"
+                                 f"该主题负向标签占比 {before_share} → {after_share}。[1]")
+            else:
+                lines.append(f"没有主题的负向标签数{verb}。[1]")
+            lines.append("前后各14天，发布当天单独统计。评论量变化也会影响标签数量。")
+        else:
+            count_key = "negative" if negative_only else "total"
+            total = sum(t[count_key] for t in ordered)
+            label = "负向主题标签" if negative_only else "主题情感标签"
+            lines.append(f"共命中 {total:,} 个{label}，{'负向反馈' if negative_only else '讨论'}最多的主题：")
+            for index, topic in enumerate([t for t in ordered if t[count_key] > 0][:5], 1):
+                lines.append(f"{index}. {topic['name']}：{topic[count_key]:,}（{topic[count_key]/total:.1%}），"
+                             f"正向 {topic['positive']:,}，负向 {topic['negative']:,}，"
+                             f"中性 {topic['neutral']:,}。[1]")
+        lines.append("按主题情感对计数，一条评论可涉及多个主题。规则弱标注用于探索性分析。"
+                     + ("英文尚无独立金标评估。" if "en" in languages else ""))
+        result["answer"] = lines[0] + "\n\n" + lines[1] + "\n" + "\n".join(lines[2:])
+        result["suggestions"] = ["玩家主要在讨论什么？", "更新后哪些方面的负面反馈增加了？"]
+        return result
 
     # ---- 其他回答 -----------------------------------------------------
     def _answer_ranking(self, result: dict, question: str, language: str | None,

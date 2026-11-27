@@ -47,6 +47,8 @@ class KnowledgeBase:
         self._patch_items = {p["patch_id"]: p.get("items", []) for p in self.catalog.patches}
         self._texts = self.docs["text"].fillna("").astype(str).to_numpy()
         self._load_verified()
+        topic_path = self.dir / "topic_stats.json"
+        self.topic_stats = json.loads(topic_path.read_text("utf-8")) if topic_path.exists() else {}
         self._global_syn: dict[str, list[str]] = self._load_global_synonyms()
         self._build_item_index()
 
@@ -334,7 +336,7 @@ class KnowledgeBase:
                 "review_id": v["review_id"], "appid": v["appid"], "patch_id": v["patch_id"],
                 "phase": v["phase"], "phase_label": PHASE_LABEL.get(v["phase"], v["phase"]),
                 "language_std": v["language_std"], "voted_up": v["voted_up"],
-                "created_at": v["created_at"], "text": v["evidence"], "snippet": v["evidence"][:240],
+                "created_at": v["created_at"], "text": v["evidence"], "snippet": v["evidence"],
                 "url": v["url"], "item_id": v["item_id"], "item_title": v["item_title"],
                 "verification": v["verification"], "verified": True, "score": float(scores[i]),
                 "matched_items": [v["item_id"]],
