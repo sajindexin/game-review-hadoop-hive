@@ -9,6 +9,7 @@
 steam-review-web/
 ├─ index.html            商店总览：焦点更新、游戏胶囊墙（带筛选）、26 个版本一览表
 ├─ patch.html            版本详情：概览 / 改动条目 / 评测样本 / 问答入口 四个标签页
+├─ nlp.html              NLP 洞察：11 类主题情感分布 + 75 项官方改动反馈统计
 ├─ ask.html              Agent 问答页（走 /api/ask，接口不可用时自动回退本地规则引擎）
 ├─ server.py             本地服务：静态站 + POST /api/ask（联调用，接口契约与 Servlet 一致）
 ├─ assets/
@@ -19,16 +20,23 @@ steam-review-web/
 │  └─ ask.js             问答页逻辑
 ├─ data/
 │  ├─ index.js           12 款游戏 / 26 个版本的清单
-│  └─ patches/*.js       每个版本一个数据包（趋势、阶段统计、条目 + 引文、评论样本）
+│  ├─ patches/*.js       每个版本一个数据包（趋势、阶段统计、条目 + 引文、评论样本）
+│  └─ nlp/
+│     ├─ topics.js       11 类主题情感：语种 × 阶段 × 版本/游戏 四维切片
+│     └─ items.js        75 项官方改动的正/负/中性统计与窗口分布
 ├─ screenshots/          页面截图（本地规则引擎模式）
 ├─ screenshots-joint/    与检索 Agent 联调的五个步骤截图
+├─ screenshots-nlp/      NLP 洞察页截图
 ├─ docs/
+│  ├─ NLP前端展示说明.md  11 类主题 + 75 项改动的前端落点、口径与验证记录
 │  ├─ 联调记录-唐宇杰.md  与 agent-retrieval 的真实联调记录（第 7 章用这份）
 │  ├─ joint/*.json       联调时四类问题的完整响应
 │  ├─ 联调记录.md        本地自测记录
 │  └─ resp-*.json        本地规则引擎的五类响应
 └─ tools/
-   └─ export_web_data.py 从 parquet + 组内 CSV/JSONL 生成 data/ 的导出脚本
+   ├─ export_web_data.py 从 parquet + 组内 CSV/JSONL 生成 data/ 的导出脚本
+   ├─ export_nlp_data.py 从 NLP 模块结果生成 data/nlp/ 的导出脚本
+   └─ test_nlp_page.js   用 CDP 驱动真实点击，验证 NLP 页的筛选与排序
 ```
 
 ## 启动步骤
@@ -69,6 +77,8 @@ python server.py --port 8066 --agent-base http://127.0.0.1:8000
 | 版本详情 | `/patch.html?id=sdv_20201221_15` | 统计卡、推荐率趋势、每日评论量、三阶段、分语种 |
 | 改动与引文 | `/patch.html?id=sdv_20201221_15&item=S15_01` | 展开指定改动条目的引文面板 |
 | 评测样本 | `/patch.html?id=sdv_20201221_15#reviews` | 按阶段 / 极性筛选，每条带 Steam 原文链接 |
+| NLP 洞察（全局） | `/nlp.html` | 11 类主题情感分布 + 75 项官方改动统计 |
+| NLP 洞察（按版本） | `/nlp.html?patch=sdv_20201221_15&lang=zh&phase=after` | 单版本 + 语种 + 更新阶段的切片 |
 | Agent 问答 | `/ask.html?patch=sdv_20201221_15` | 选版本、提问、看引文、点原文 |
 
 ## 数据来源与口径
