@@ -235,7 +235,13 @@
     const cites = (json.citations || []).map(quote).join("");
     const announcements = announcementReferences(json.announcement_citations || []);
     const st = json.stats || {};
+    const languageGroup = {
+      all: "全部语言",
+      chinese: "简中 + 繁中",
+      en: "英语",
+    }[st.language_group] || "语种未注明";
     const chips = [
+      ["统计口径", languageGroup],
       ["更新前", pct(st.before_rate)],
       ["更新当日", pct(st.release_rate)],
       ["更新后", pct(st.after_rate)],

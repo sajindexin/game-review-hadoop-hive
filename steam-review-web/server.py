@@ -118,10 +118,12 @@ def adapt_agent_response(agent: dict, question: str) -> dict:
         "release_rate": None,
         "after_rate": None,
         "delta_pp": None,
+        "language_group": None,
     }
     for n in agent.get("numbers") or []:
         label = str(n.get("label") or "")
         unit = str(n.get("unit") or "")
+        group = n.get("language_group")
         val = n.get("value")
         if isinstance(val, (int, float)):
             if unit == "%" and abs(val) <= 1.0001:
@@ -130,22 +132,33 @@ def adapt_agent_response(agent: dict, question: str) -> dict:
                 val = round(float(val), 2)
         for kw, key in _NUMBER_KEYS.items():
             if kw in label and stats.get(key) is None:
+                if group and stats["language_group"] not in (None, group):
+                    continue
                 stats[key] = val
+                if group:
+                    stats["language_group"] = group
                 break
 
     # 后端 delta 与本地页面各自四舍五入会差 0.01，统一按 before/after 差值重算，避免报告数字打架
     if stats.get("before_rate") is not None and stats.get("after_rate") is not None:
         stats["delta_pp"] = round(stats["after_rate"] - stats["before_rate"], 2)
 
-    # 后端没给 numbers 时，用页面自己的统计数据兜底（口径一致）
+    # 后端没给推荐率时，按问答的语种范围使用页面已有的版本统计。
     if all(stats[k] is None for k in ("before_rate", "release_rate", "after_rate")):
         try:
             local = load_patch(str(agent.get("patch", {}).get("patch_id") or ""))
-            s = local["stats"]["all"]
+            group = (agent.get("route") or {}).get("language") or "all"
+            if group not in local["stats"]:
+                group = "all"
+            s = local["stats"][group]
+            stats["language_group"] = group
             stats["before_rate"] = s.get("before", {}).get("rate")
             stats["release_rate"] = s.get("release", {}).get("rate")
             stats["after_rate"] = s.get("after", {}).get("rate")
-            stats["delta_pp"] = local.get("delta_pp")
+            before, after = stats["before_rate"], stats["after_rate"]
+            stats["delta_pp"] = round(after - before, 2) if before is not None and after is not None else None
+            if group == "all":
+                stats["delta_pp"] = local.get("delta_pp")
         except (FileNotFoundError, KeyError):
             pass
 
@@ -335,6 +348,7 @@ def answer(patch_id: str, question: str, intent: str | None = None) -> dict:
         "release_rate": r.get("rate"),
         "after_rate": a.get("rate"),
         "delta_pp": delta,
+        "language_group": "all",
         "window_reviews": d.get("window_reviews_total"),
         "pool_reviews": d.get("pool_reviews"),
     }

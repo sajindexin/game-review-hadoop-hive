@@ -31,6 +31,31 @@ class LocalStatisticsTests(unittest.TestCase):
 
 
 class AgentAdapterTests(unittest.TestCase):
+    def test_agent_metrics_keep_language_group(self):
+        response = adapt_agent_response({
+            "numbers": [
+                {"label": "更新前推荐率", "value": 0.8011, "unit": "%", "language_group": "en"},
+                {"label": "更新后推荐率", "value": 0.7874, "unit": "%", "language_group": "en"},
+            ],
+        }, "英文推荐率是多少？")
+        self.assertEqual(response["stats"]["language_group"], "en")
+        self.assertEqual(response["stats"]["before_rate"], 80.11)
+        self.assertEqual(response["stats"]["after_rate"], 78.74)
+
+    def test_scoped_review_uses_matching_local_metrics(self):
+        response = adapt_agent_response({
+            "patch": {"patch_id": "sdv_20201221_15"},
+            "route": {"intent": "review", "language": "chinese"},
+        }, "中文玩家怎么评价姜岛探索？")
+        self.assertEqual(response["stats"], {
+            "before_rate": 93.51,
+            "release_rate": 100.0,
+            "after_rate": 93.9,
+            "delta_pp": 0.39,
+            "language_group": "chinese",
+        })
+        self.assertEqual(answer("sdv_20201221_15", "评论量峰值出现在哪一天？")["stats"]["language_group"], "all")
+
     def test_announcement_sources_keep_the_original_citation_numbers(self):
         url = "https://www.stardewvalley.net/stardew-valley-1-5-update-full-changelog/"
         response = adapt_agent_response({
