@@ -1,0 +1,244 @@
+# 中文 NLP 与专题统计 —— 交付包（v2 两层标签）
+
+> 负责人模块：主题情感标签 + RBT3 + 小样本验算 Hive 指标
+> 输入：游戏评论清洗成果 v1（`cleaned_reviews.parquet`，488.5 万行 / 12 款游戏）
+> 官方更新条目来源：黄静雯版本建模分支（`items.jsonl` 75 项 / `patches.jsonl` 26 版本）
+
+## 一、做了什么（两层标签体系）
+
+本模块把"游戏更新反馈分析"拆成两层，一条评论可同时打两层标签：
+
+| 层 | 内容 | 来源 | 数量 |
+|---|---|---|---|
+| **第一层 · 通用主题** | 内容玩法/联机/画质/性能… 每类正/负/中 | 从评论原文归纳 | 11 类 |
+| **第二层 · 具体更新条目** | 姜岛探索/八人联机/盾牌重做… 每条正/负/中 | 黄静雯分支的官方 changelog 条目 | 75 项 |
+
+**为什么要两层**：第一层回答"玩家在聊什么、态度如何"；第二层回答"玩家在聊**哪一条具体改动**、态度如何"。例如"姜岛探索好玩，但八人联机老掉线"→ 第一层 `地图关卡=正 + 联机=负`，第二层 `S15_01姜岛探索=正 + S16_04八人联机=负`。第二层直接对接课程项目主题，也和黄静雯的关联模型、版本窗口天然对齐。
+
+**关键设计**：条目是**游戏特定**的，匹配时按 `appid` 约束候选集——"姜岛"只会在星露谷评论里匹配，不会被误判到 CS2。
+
+具体流程：
+1. 抽中文 165.7 万行 → 2. 建两层标签体系 + 情感词典 → 3. 规则弱标注跑全量（当天出结果表）→ 4. 生成带条目层的标注集并内置语义金标 → 5. RBT3 两层微调脚本 → 6. 11 组 Hive 指标（含版本前后窗口）。
+
+## 二、目录结构
+
+```
+nlp-topic-sentiment/
+├── README.md                        本说明
+├── code/
+│   ├── lexicon.py                     主题体系 + 情感词典
+│   ├── build_item_taxonomy.py         构建两层标签体系 -> taxonomy + item_lexicon.py
+│   ├── item_lexicon.py                （自动生成）75 项条目词典 + appid 约束
+│   ├── rule_labeler.py                两层规则打标引擎（核心）
+│   ├── item_matcher.py                具体条目匹配器（按 appid 约束）
+│   ├── build_topic_results.py         第一层全量打标 -> 主题结果表
+│   ├── build_item_results.py          第二层全量打标 -> 条目结果表
+│   ├── build_annotation_set.py        生成两层标注集 + 工具内嵌数据
+│   ├── prepare_rbt3_data_v2.py        两层标注 -> RBT3 训练格式
+│   ├── train_rbt3_v2.py               RBT3 两层微调（--task aspect/item）
+│   ├── infer_rbt3_v2.py               RBT3 两层推理（含规则回退）
+│   ├── evaluate.py                    效果评估/基线对比
+│   └── final_check.py                 结果表校验
+├── data/
+│   ├── taxonomy/
+│   │   ├── items_enriched.json         75 项条目（含通用主题归属、匹配词）
+│   │   ├── patches.json                26 个版本窗口
+│   │   └── appid_game_map.json         appid -> 游戏名
+│   ├── annotation/
+│   │   ├── annotation_tasks.csv        标注集（含两层预填 + 已合并的语义金标）
+│   │   ├── gold_samples.csv            金标样例（含条目层与跨游戏反例）
+│   │   └── rbt3_{aspect,item}_{train,eval}.csv  （运行 prepare 后生成）
+│   └── result/
+│       ├── topic_sentiment_detail.csv.gz      第一层主题情感明细（提交版压缩包）
+│       ├── topic_sentiment_review_summary.csv.gz 评论级汇总（提交版压缩包）
+│       ├── topic_distribution.csv             主题分布
+│       ├── item_sentiment_detail.csv          第二层条目情感明细
+│       ├── item_distribution.csv              条目分布
+│       └── item_patch_summary.csv             条目×版本窗口统计
+├── docs/
+│   ├── 两层标签体系说明.md             ★ 两层设计、映射、接入方式
+│   ├── 标注规范.md                     标注标准与争议处理
+│   ├── 结果表字段说明.md
+│   └── 效果对比方案.md
+└── sql/
+    └── hive_metrics.sql                11 组 Hive 指标 SQL（含两层 + 版本窗口）
+```
+
+## 三、环境准备
+
+**跑规则打标 / 结果表 / 全部自检**：只需要 `pandas` / `pyarrow` / `numpy`。
+
+```powershell
+# 在仓库根目录执行
+python -m pip install -i https://mirrors.aliyun.com/pypi/simple -r nlp-topic-sentiment/requirements.txt
+```
+
+其中 `code/verify_split_guard.py` 是**纯标准库**实现（正确性回归，含切分与留出集守卫），
+`code/evaluate_full.py` 不带 `--rbt3` 时同样零第三方依赖，因此别人 clone 下来不装任何包就能先跑这两项自检。
+
+**真训 RBT3**：在上面的基础上再装 `requirements-train.txt`（`torch` / `transformers` / `scikit-learn`）。
+CPU 版即可（RBT3-small 在 CPU 上也能训，只是慢）：
+
+```powershell
+# 先装 CPU 版 torch（官方 CPU 源，避免默认拉到 CUDA 大包），再装其余
+python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+python -m pip install -i https://mirrors.aliyun.com/pypi/simple -r nlp-topic-sentiment/requirements-train.txt
+python -c "import torch,transformers; print(torch.__version__, 'CUDA=', torch.cuda.is_available())"
+```
+
+**模型下载**：脚本已默认走 `hf-mirror.com` 国内镜像（HuggingFace 直连国内常超时）。
+若镜像也失败，可先手动预下载：`$env:HF_ENDPOINT="https://hf-mirror.com"; python -c "from huggingface_hub import snapshot_download; snapshot_download('hfl/rbt3')"`
+
+## 四、运行步骤（可直接复制）
+
+在仓库根目录执行：
+
+```powershell
+$REPO = (Get-Location).Path          # 当前就在仓库根目录
+$PY   = "python"                     # 换成你自己的解释器，例如 "C:\Python312\python.exe"
+cd (Join-Path $REPO "nlp-topic-sentiment\code")
+
+# 0) 重建两层标签体系（改了条目映射/词典后执行）
+& $PY build_item_taxonomy.py
+
+# 1) 两层规则弱标注（结果表已生成，需重跑时执行；各约 4-6 分钟）
+& $PY build_topic_results.py
+& $PY build_item_results.py
+
+# 2) （可选）重新生成两层标注集；当前 annotation_tasks.csv 已内置 240 条语义金标，通常跳过
+& $PY build_annotation_set.py --per-game 60 --item-quota 20
+#    若本地另行标注并导出了 gold_labels_*.csv，再合并回标注集（会先自动备份）：
+& $PY merge_gold.py --gold ..\data\annotation\gold_labels_2026-11-23.csv
+
+# 3) 效果评估（规则基线）
+& $PY evaluate.py
+
+# 4) 演示推理（无需模型，规则回退；含两层）
+& $PY infer_rbt3_v2.py --text "姜岛探索很好玩，但是八人联机老是掉线" --appid 413150 --rule-fallback
+
+# --- 以下需先装 torch；金标已合并进 annotation_tasks.csv，无需手动标注 ---
+
+# 5) 主题层训练数据：按「评论组」整组切分（同一 review_id、以及文本完全相同的不同 review_id
+#    都整组进同一侧），切分后脚本会自检并打印"评论 ID 重叠 0 / 文本重叠 0"
+& $PY prepare_rbt3_data_v2.py --source gold
+#    条目层目前没有人工金标：脚本会删除旧的空训练文件并提示；条目层验收请用第 4 步规则模式
+#    若只想训一个可演示的条目层模型，用银标（写独立 *_silver 文件，绝不覆盖上面的金标 train/eval）：
+#    & $PY prepare_rbt3_data_v2.py --source rule --item-only --limit 20000
+#    银标切分按原始 review_id 分组（同一评论的多个条目整组进同一侧），重复文本也不跨集合；
+#    训练数据首列就是 review_id，留出 ID 直接取验证集的该列，不再靠文本回查标注集。
+
+# 6) 主题层 RBT3 微调；训练脚本会把本次 eval 的 review_id 写入模型目录 holdout_ids.json
+#    校验全部前置：评论文本、review_id 双零重叠，验证集必须带 review_id，
+#    任何一项不过直接在训练前退出，且不会创建或覆盖已有模型目录。
+#    发布时只替换模型产物（权重/分词器/task_meta/holdout_ids），目录里其它文件（自己的
+#    train.csv、notes.txt 等）会原样保留；输出路径带尾部反斜杠也能正常发布。
+& $PY train_rbt3_v2.py --task aspect --train ..\data\annotation\rbt3_aspect_train.csv --eval ..\data\annotation\rbt3_aspect_eval.csv --epochs 3
+
+# 7) 严格留出集评估：自动读取模型目录 holdout_ids.json（可用 --eval-ids 覆盖）
+#    以下情况一律报错退出（不再静默放行）：
+#      - task_meta.json 缺失 / 为 {} / 缺 holdout_sha256 / 值为空串 / 指纹与留出 ID 不符
+#      - 留出集为空，或留出 ID 有部分在标注集里找不到金标
+#    指纹按「实际选中的 ID 集合」现算，因此 --eval-ids 指向别处、或把过期文件复制到
+#    其他路径，同样会被识破。确实只要参考数字时显式加 --allow-unverified-holdout
+#    （或 --allow-fallback-ids），输出会明确标为「参考评估」，不会写成严格留出集结论。
+#    显式 --rbt3 时若模型加载/评估失败会返回非零退出码，不会误报成功
+#    显式 --rbt3-model <目录> 同样视为要评估该模型（不会静默跳过第三方法）；
+#    权重未入库，干净 clone 需先跑第 6 步训练或把权重放进 data/rbt3_model_aspect，
+#    否则报"no file named model.safetensors"并以退出码 2 结束；
+#    没要求评估 RBT3 时，结论只会写"只完成 ①② 两个基线"，不会写成三方法均已评估
+& $PY evaluate_full.py --rbt3 --heldout
+
+# 7b) 切分与留出集守卫自检（纯标准库，不需要 torch / numpy，71 项约 10 秒）
+#     verify_guard_mutation.py 把历史缺陷注回源码副本，要求上述用例必须变红（约 75 秒），
+#     用来确认绿灯有效，而不是"断言刚好兼容了缺陷"
+& $PY verify_split_guard.py
+& $PY verify_guard_mutation.py
+
+# 8) 推理：默认按层检测权重，缺权重自动规则回退；--rule-fallback 强制两层规则
+& $PY infer_rbt3_v2.py --text "姜岛探索很好玩，但是八人联机老是掉线" --appid 413150
+```
+
+## 五、当前结果摘要
+
+**第一层（通用主题，全量 165.7 万中文评论）**
+
+| 指标 | 数值 |
+|---|---|
+| 主题情感标注数 | 535,623 |
+| 内容/玩法-正向 | 30,830（最多）|
+| 性能/优化-负向 | 21,773（最多负向）|
+| 混合情感评论 | 9,332 |
+
+**第二层（具体更新条目）**
+
+| 指标 | 数值 |
+|---|---|
+| 官方更新条目 | 75 项 / 12 款游戏 |
+| 条目标注数 | 1,593（命中 1,437 条评论）|
+| 金标样例 | 5 条（含一条多条目 + 跨游戏反例）|
+
+> 注：第二层命中率天然低（如"姜岛探索"只在星露谷评论里出现），这是**精确率优先**的设计——
+> 已剔除"连战/复战/挑战"等会大量误命中的歧义短词，只保留明确的官方标题与专名别名。
+
+**RBT3 已用 240 条语义金标重训并实测（CPU，模型已保存）**
+
+金标对比结果（**严格留出集 48 条**——RBT3 训练时未见过的评论，三方法口径一致；
+命令 `evaluate_full.py --rbt3 --heldout`，详见 `docs/效果对比方案.md`）：
+
+| 方法 | micro-F1 | macro-F1 |
+|---|---|---|
+| baseline_voted_up | 0.8169 | 0.8299 |
+| rule_absm（规则）| 0.2836 | 0.2936 |
+| **rbt3-aspect（金标微调）** | **0.5361** | **0.5255** |
+| rbt3-aspect（全量回灌交付结果复算）| 0.5056 | 0.4327 |
+
+> 金标来自标注集 `annotation_tasks.csv` 的 `gold_aspects_json`（240 条），**无需手动标注**。
+> RBT3 明显高于规则引擎（0.5361 vs 0.2836），但低于 voted_up 基线：本留出集 39/48 是推荐评论，
+> 整体情感与主题情感高度重叠，voted_up 把整体情感复制给所有主题即可得分，却指不出是哪个主题被批评；
+> RBT3 不做规则门控、需逐主题判别，召回偏低（0.486），这是该方法的真实短板，报告里如实写即可。
+> 早期 5 条样例上规则 F1=0.92 是虚高，240 条真实金标暴露了规则召回缺陷（0.18）。
+> 若不带 `--heldout` 会在全部 240 条上评估（含训练用过的评论，数字偏乐观：rbt3 0.5985），**写报告请用严格口径**。
+
+**两套 RBT3 推理口径的区别（写报告时注意引用对应数字）**：
+
+- **在线评估口径（0.5361 / 0.5255）**：`evaluate_full.py --rbt3 --heldout` 现场逐主题推理，
+  prompt 为 `评价方面：{name_zh}`（展示名，如"内容/玩法"），非中性判定用 argmax（无阈值），fp32。
+- **全量回灌口径（0.5056 / 0.4327）**：交付的全量结果 `topic_sentiment_detail_rbt3.csv.gz` 由
+  `infer_full_rbt3.py` 批量推理生成，prompt 为训练时的 `评价方面：{ASPECT_PROMPT}`（如"内容玩法"），
+  非中性判定要求该类概率 ≥ 0.5 且不小于对侧（比 argmax 保守，精度升召回降），fp16 autocast。
+  将全量结果限定到同一批 48 条留出评论、按与上表**相同的金标口径**复算即得上行数字。
+- **金标口径（两处一致，勿混用旧数字）**：上表所有行的 gold 均来自 `annotation_tasks.csv` 的
+  `gold_aspects_json`，保留全部 107 个金标三元组（正 67 / 负 34 / 中 6），预测只含非中性对，
+  中性金标命中不到即计 FN。曾按"剔除 6 个中性金标"复算出 0.5233 / 0.4375，与其他行口径
+  不一致，已废弃。
+- 差异解读：全量口径更保守（micro-P 0.5977→0.6338，micro-R 0.4860→0.4206），
+  macro-F1 从 0.5255 降到 0.4327（约 -9 个点），主要因阈值过滤掉了低置信度的正负判定。
+  两套口径的结论方向一致：RBT3 仍显著高于规则基线（0.2836 / 0.2936），仍低于 voted_up，
+  各方法排序不变。**报告引用全量结果时请用全量口径数字，引用在线评估时用 0.5361 / 0.5255，勿混用。**
+
+## 六、注意事项
+
+- **条目按 appid 约束**：推理时必须传 `--appid`，否则条目层会跳过。
+- **条目层验收用规则模式**：当前没有条目级人工金标，不生成空训练文件；推理默认按层检测权重，缺权重自动回退规则。
+- 规则弱标注是**银标**（冷启动/演示用）；正式效果以人工金标 + RBT3 为准。
+- 版本窗口按**条目自身的 patch_id** 计算（不是按评论日期猜同游戏版本）；`item_patch_summary.csv` 固定输出 `pre_14d/release_day/post_14d/out_of_window` 四列并补零。
+- 所有时间口径 UTC；每份结果请注明数据版本 v1。
+- **提交到 Git 时**：82MB 的 `topic_sentiment_detail.csv`、249MB 的 `topic_sentiment_review_summary.csv`、两个 154MB 模型权重，以及过程工具 `标注工具.html` / 个人备忘 `你现在该怎么做.md` 均按 `.gitignore` 忽略，保留本地；仓库内提交 `.csv.gz` 压缩版与模型配置/分词器，详见 `data/result/README.md`。
+
+## 七、提交命令
+
+在仓库根目录执行：
+
+```powershell
+$REPO = (Get-Location).Path          # 当前就在仓库根目录
+cd $REPO
+
+git status --short
+git add nlp-topic-sentiment README.md
+git status --short
+git diff --cached --stat
+
+git commit -m "Add Chinese NLP topic sentiment module"
+# 需要推到远端再执行：
+git push origin main
+```

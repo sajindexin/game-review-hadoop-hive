@@ -1,0 +1,12 @@
+# 中文 NLP 与专题统计模块 —— 核心依赖
+#
+#   python -m pip install -r requirements.txt
+#
+# 这一档足够跑：规则弱标注（build_topic_results / build_item_results）、
+# 结果表重建（build_item_taxonomy）、基线评估（evaluate_full 不带 --rbt3）。
+# 另外 code/verify_split_guard.py 是纯标准库实现，不装任何包也能跑。
+#
+# 需要真训 / 推理 RBT3 时再装：python -m pip install -r requirements-train.txt
+pandas>=1.5
+pyarrow>=10
+numpy>=1.23
