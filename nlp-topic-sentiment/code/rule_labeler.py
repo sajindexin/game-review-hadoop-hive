@@ -61,10 +61,14 @@ _EN_INTENS_RE = _en_alt(INTENSIFIERS_EN)
 _NEG_WINDOW = {"zh": 4, "en": 25}
 
 _SPLIT_RE = re.compile("[" + re.escape(CLAUSE_SPLIT_CHARS) + "]")
-# 转折切分：中文关键词 + 英文词边界
+# 英文句尾句号：后跟空白或串尾的 "." 视为分句符（替换为换行再走统一分句），
+# 不直接把 "." 加进 CLAUSE_SPLIT_CHARS，避免劈开 "9.5" / 版本号这类小数点。
+_EN_PERIOD_RE = re.compile(r"\.(?=\s|$)")
+# 转折切分：中文关键词 + 英文词边界；必须 re.I，否则 "BUT"/"However"
+# 这类大写开头的转折词不会命中，整句情感词正负抵消成中性。
 _CONTRAST_SPLIT_RE = re.compile(
-    r"(但|但是|不过|然而|只是|就是|可惜|美中不足|唯一的问题是|" + CONTRAST_SPLIT_RE_EN + r")"
-)
+    r"(但|但是|不过|然而|只是|就是|可惜|美中不足|唯一的问题是|" + CONTRAST_SPLIT_RE_EN + r")",
+    re.I)
 _CONTRAST_SET = set(CONTRAST_WORDS) | {w.lower() for w in CONTRAST_WORDS_EN}
 # 子句起始是否为转折词：英文用词边界（避免 "button..." 误配 "but"），中文直接匹配
 _CONTRAST_START_RE = re.compile(
@@ -89,6 +93,8 @@ def split_clauses(text: str) -> list[str]:
     text = (text or "").strip()
     if not text:
         return []
+    # 英文句尾句号先归一成分句符（句号后必须紧跟空白/串尾，小数点不受影响）
+    text = _EN_PERIOD_RE.sub("\n", text)
     raw = [c.strip() for c in _SPLIT_RE.split(text) if c.strip()]
     clauses: list[str] = []
     for seg in raw:
