@@ -1,6 +1,6 @@
 import unittest
 
-from server import answer, local_statistics_intent
+from server import adapt_agent_response, answer, local_statistics_intent
 
 
 class LocalStatisticsTests(unittest.TestCase):
@@ -28,6 +28,25 @@ class LocalStatisticsTests(unittest.TestCase):
         ):
             with self.subTest(question=question):
                 self.assertIsNone(local_statistics_intent(question))
+
+
+class AgentAdapterTests(unittest.TestCase):
+    def test_announcement_sources_keep_the_original_citation_numbers(self):
+        url = "https://www.stardewvalley.net/stardew-valley-1-5-update-full-changelog/"
+        response = adapt_agent_response({
+            "citations": [
+                {"id": 1, "type": "metric"},
+                {"id": 2, "type": "announcement", "title": "姜岛探索", "url": url},
+                {"id": 3, "type": "review", "review_id": "83814498", "snippet": "姜岛"},
+                {"id": 4, "type": "announcement", "title": "海滩农场"},
+            ],
+            "links": {"announcement": url},
+        }, "星露谷改了什么？")
+        self.assertEqual(response["announcement_citations"], [
+            {"id": 2, "title": "姜岛探索", "url": url},
+            {"id": 4, "title": "海滩农场", "url": url},
+        ])
+        self.assertEqual([c["review_id"] for c in response["citations"]], ["83814498"])
 
 
 if __name__ == "__main__":

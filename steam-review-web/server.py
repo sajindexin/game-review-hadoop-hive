@@ -149,7 +149,15 @@ def adapt_agent_response(agent: dict, question: str) -> dict:
         except (FileNotFoundError, KeyError):
             pass
 
-    # ---- citations：只保留 review 类，转成前端引文结构 ----
+    # ---- citations：保留公告出处，评测引用仍使用原有前端契约 ----
+    announcements = [
+        {
+            "id": c.get("id"),
+            "title": c.get("title") or "官方公告",
+            "url": c.get("url") or (agent.get("links") or {}).get("announcement") or "",
+        }
+        for c in citations_raw if c.get("type") == "announcement"
+    ]
     out_cites = []
     for c in citations_raw:
         if c.get("type") != "review":
@@ -191,6 +199,7 @@ def adapt_agent_response(agent: dict, question: str) -> dict:
         "intent": intent,
         "answer": answer_html,
         "citations": out_cites,
+        "announcement_citations": announcements,
         "stats": stats,
         "source": "agent-retrieval",
         "evidence_status": agent.get("evidence_status"),

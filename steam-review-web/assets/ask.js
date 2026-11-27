@@ -103,6 +103,18 @@
     return `<div class="kv">${pairs.map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join("")}</div>`;
   }
 
+  function announcementReferences(citations) {
+    if (!citations.length) return "";
+    const rows = citations.map((c) => {
+      const title = `${c.id == null ? "" : `[${c.id}] `}${c.title || "官方公告"}`;
+      const link = /^https?:\/\//i.test(c.url || "")
+        ? `<a class="src-link" href="${S.esc(c.url)}" target="_blank" rel="noopener">${S.esc(title)}</a>`
+        : `${S.esc(title)}（暂无来源链接）`;
+      return `<div class="src">${link}</div>`;
+    }).join("");
+    return `<div class="quote"><b>官方公告来源</b>${rows}</div>`;
+  }
+
   /* ---------------------------------------------------------- 本地应答器 */
 
   function localAnswer(q) {
@@ -221,6 +233,7 @@
     const json = await res.json();
     // 约定返回：{ answer: "markdown/html 文本", citations: [{review_id, text}], stats: {...} }
     const cites = (json.citations || []).map(quote).join("");
+    const announcements = announcementReferences(json.announcement_citations || []);
     const st = json.stats || {};
     const chips = [
       ["更新前", pct(st.before_rate)],
@@ -247,6 +260,7 @@
     return `${fbNote}<div>${json.answer || ""}</div>
       ${srcNote}
       <div class="kv">${chips}</div>
+      ${announcements}
       ${cites}`;
   }
 
