@@ -80,6 +80,8 @@
 
     $("#askBtn").href = "ask.html?patch=" + encodeURIComponent(p.patch_id);
     $("#askFull").href = "ask.html?patch=" + encodeURIComponent(p.patch_id);
+    const nlp = $("#nlpBtn");
+    if (nlp) nlp.href = "nlp.html?patch=" + encodeURIComponent(p.patch_id) + "&phase=after";
   }
 
   /* --------------------------------------------------------------- 概览 */

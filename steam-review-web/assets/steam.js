@@ -88,6 +88,7 @@
     const nav = [
       ["index.html", "商店", "store"],
       ["index.html#patches", "版本", "patches"],
+      ["nlp.html", "NLP 洞察", "nlp"],
       ["ask.html", "问答", "ask"],
     ];
     const html = `
@@ -161,6 +162,17 @@
     await SRW.loadScript("data/patches/" + encodeURIComponent(patchId) + ".js");
     if (!window.SRW_PATCH) throw new Error("找不到版本数据：" + patchId);
     return window.SRW_PATCH;
+  };
+
+  /* NLP 结果包：主题情感切片 + 75 项官方改动统计 */
+  SRW.loadNlpTopics = async function () {
+    if (!window.SRW_NLP_TOPICS) await SRW.loadScript("data/nlp/topics.js");
+    return window.SRW_NLP_TOPICS;
+  };
+
+  SRW.loadNlpItems = async function () {
+    if (!window.SRW_NLP_ITEMS) await SRW.loadScript("data/nlp/items.js");
+    return window.SRW_NLP_ITEMS;
   };
 
   /* -------------------------------------------------------------- SVG 图表 */
