@@ -1,0 +1,12 @@
+# 训练 / 推理 RBT3 需要的额外依赖（在核心依赖之上）
+#
+#   python -m pip install -r requirements-train.txt
+#
+# CPU 版 torch 体积小很多，RBT3-small 在 CPU 上也能训（只是慢）：
+#   python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+# 有 NVIDIA 显卡想加速时，改用官方 CUDA 源安装对应版本。
+-r requirements.txt
+numpy>=1.23
+torch>=2.0
+transformers>=4.30
+scikit-learn>=1.2

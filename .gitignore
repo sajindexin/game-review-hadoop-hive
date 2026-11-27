@@ -234,3 +234,12 @@ __marimo__/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# 大体积结果原表：超过 GitHub 100MB 单文件限制，提交版用同名 .gz 代替（见 data/result/README.md）
+nlp-topic-sentiment/data/result/topic_sentiment_detail_en.csv
+nlp-topic-sentiment/data/result/topic_sentiment_review_summary_en.csv
+nlp-topic-sentiment/data/result/topic_sentiment_detail_rbt3.csv
+nlp-topic-sentiment/data/result/topic_sentiment_review_summary_rbt3.csv
+nlp-topic-sentiment/data/result/topic_sentiment_detail.csv
+nlp-topic-sentiment/data/result/topic_sentiment_review_summary.csv
+nlp-topic-sentiment/data/result/infer_rbt3_progress.json

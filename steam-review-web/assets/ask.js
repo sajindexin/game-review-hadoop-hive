@@ -80,12 +80,13 @@
   function quote(c) {
     const text = c.text.length > 240 ? c.text.slice(0, 240) + "…" : c.text;
 
-    // 接通检索 Agent 后，后端会给出 detail（已复核 · 更新后 14 天 · zh-Hans · 推荐），信息比本地拼的更全
-    const src = c.detail
+    // detail 包含证据级别和阶段，点赞数仍以结构化字段为准。
+    const src = (c.detail
       ? `评测者 #${String(c.review_id).slice(-4)} · ${c.detail}`
       : `评测者 #${String(c.review_id).slice(-4)} · ${S.langName(c.language)} · ${
           c.voted_up ? "推荐" : "不推荐"
-        } · ${S.fmtTime(c.created_at)} · ${S.fmtInt(c.votes_up || 0)} 人觉得有用`;
+        } · ${S.fmtTime(c.created_at)}`)
+      + (c.votes_up == null ? "" : ` · ${S.fmtInt(c.votes_up)} 人觉得有用`);
 
     const badge = c.verified
       ? `<span class="verified-badge" title="${S.esc(c.verification || "已复核")}">已复核</span>`
@@ -101,6 +102,18 @@
 
   function kv(pairs) {
     return `<div class="kv">${pairs.map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join("")}</div>`;
+  }
+
+  function announcementReferences(citations) {
+    if (!citations.length) return "";
+    const rows = citations.map((c) => {
+      const title = `${c.id == null ? "" : `[${c.id}] `}${c.title || "官方公告"}`;
+      const link = /^https?:\/\//i.test(c.url || "")
+        ? `<a class="src-link" href="${S.esc(c.url)}" target="_blank" rel="noopener">${S.esc(title)}</a>`
+        : `${S.esc(title)}（暂无来源链接）`;
+      return `<div class="src">${link}</div>`;
+    }).join("");
+    return `<div class="quote"><b>官方公告来源</b>${rows}</div>`;
   }
 
   /* ---------------------------------------------------------- 本地应答器 */
@@ -221,8 +234,15 @@
     const json = await res.json();
     // 约定返回：{ answer: "markdown/html 文本", citations: [{review_id, text}], stats: {...} }
     const cites = (json.citations || []).map(quote).join("");
+    const announcements = announcementReferences(json.announcement_citations || []);
     const st = json.stats || {};
+    const languageGroup = {
+      all: "全部语言",
+      chinese: "简中 + 繁中",
+      en: "英语",
+    }[st.language_group] || "语种未注明";
     const chips = [
+      ["统计口径", languageGroup],
       ["更新前", pct(st.before_rate)],
       ["更新当日", pct(st.release_rate)],
       ["更新后", pct(st.after_rate)],
@@ -234,8 +254,12 @@
     const evLabel = json.evidence_status && json.evidence_status !== "none"
       ? EVIDENCE_LABEL[json.evidence_status]
       : "";
-    const srcNote = json.source
-      ? `<div class="src-badge">来源：检索 Agent（agent-retrieval）${evLabel ? " · " + evLabel : ""}</div>`
+    const sourceLabel = {
+      "agent-retrieval": "检索 Agent（agent-retrieval）",
+      "local-rules": "本地版本统计与规则引擎",
+    }[json.source];
+    const srcNote = sourceLabel
+      ? `<div class="src-badge">来源：${sourceLabel}${evLabel ? " · " + evLabel : ""}</div>`
       : "";
     const fbNote = json.fallback
       ? `<div class="src-badge warn">检索 Agent 不可用，已回退本地规则引擎</div>`
@@ -243,6 +267,7 @@
     return `${fbNote}<div>${json.answer || ""}</div>
       ${srcNote}
       <div class="kv">${chips}</div>
+      ${announcements}
       ${cites}`;
   }
 

@@ -1,0 +1,6 @@
+﻿review_id,appid,review_text,gold_aspects_json,gold_items_json,note
+DEMO-001,413150,新关卡好玩，但联机老掉线,"[{""aspect"":""content"",""sentiment"":""positive""},{""aspect"":""multiplayer"",""sentiment"":""negative""}]",[],主题层示例：内容正向 + 联机负向；本句无具体条目专名
+DEMO-002,413150,姜岛探索很好玩，但是八人联机老是掉线,"[{""aspect"":""level_design"",""sentiment"":""positive""},{""aspect"":""multiplayer"",""sentiment"":""negative""}]","[{""item_id"":""S15_01"",""sentiment"":""positive""},{""item_id"":""S16_04"",""sentiment"":""negative""}]",两层示例：姜岛探索正向 + 八人联机负向（一句多条目、情感相反）
+DEMO-003,252490,海浪效果太惊艳了，拖船也很有意思,"[{""aspect"":""graphics"",""sentiment"":""positive""}]","[{""item_id"":""D01"",""sentiment"":""positive""},{""item_id"":""D02"",""sentiment"":""positive""}]",条目层示例：Rust 深海更新的海浪改版 + 拖船，均正向
+DEMO-004,359550,盾牌重做之后平衡性一坨,"[{""aspect"":""cheating"",""sentiment"":""negative""}]","[{""item_id"":""359550_20240312_02"",""sentiment"":""negative""}]",条目层示例：彩虹六号盾牌机制重做，负向
+DEMO-005,730,姜岛探索很好玩,"[{""aspect"":""level_design"",""sentiment"":""positive""}]",[],跨游戏反例：CS2 评论里出现『姜岛』不算命中星露谷条目，gold_items 为空

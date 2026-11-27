@@ -1,0 +1,13 @@
+{
+  "task": "aspect",
+  "model": "hfl/rbt3",
+  "max_len": 160,
+  "train_rows": 958,
+  "eval_rows": 250,
+  "train_reviews": 192,
+  "holdout_reviews": 48,
+  "holdout_sha256": "6844c02f427c33ba3ab8735527b34fa1ab8a8e993e1cad597c41bb0d3253ddb3",
+  "train_file": "data/annotation/rbt3_aspect_train.csv",
+  "eval_file": "data/annotation/rbt3_aspect_eval.csv",
+  "saved_at": "2026-11-26T17:29:52+08:00"
+}

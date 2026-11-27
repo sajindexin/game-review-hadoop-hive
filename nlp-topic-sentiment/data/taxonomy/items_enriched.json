@@ -1,0 +1,2367 @@
+[
+  {
+    "item_id": "D01",
+    "patch_id": "rust_20230706_deep_sea",
+    "appid": 252490,
+    "game_en": "Rust",
+    "game_zh": "",
+    "title": "海浪与水面改版",
+    "title_en": "Water rendering and waves",
+    "description": "海浪向岸边推进，镜头半浸没时的水面过渡也有调整。",
+    "section": "WATER Refresh",
+    "aliases_zh": [
+      "新海浪",
+      "海浪效果",
+      "水面過渡"
+    ],
+    "aliases_en": [
+      "ocean waves",
+      "water overhaul",
+      "waterline"
+    ],
+    "annotation_note": "评测须涉及海浪或水面效果，单说喜欢出海不足以判定。",
+    "aspect": "graphics",
+    "match_terms": [
+      "Water rendering and waves",
+      "water overhaul",
+      "ocean waves",
+      "waterline",
+      "海浪与水面改版",
+      "海浪效果",
+      "水面過渡",
+      "新海浪"
+    ]
+  },
+  {
+    "item_id": "D02",
+    "patch_id": "rust_20230706_deep_sea",
+    "appid": 252490,
+    "game_en": "Rust",
+    "game_zh": "",
+    "title": "可驾驶、布置的拖船",
+    "title_en": "Drivable tugboat",
+    "description": "玩家可驾驶拖船并在船上安门、放置部分物品。",
+    "section": "DRIVABLE TUGBOAT",
+    "aliases_zh": [
+      "拖船",
+      "拖轮",
+      "拖輪",
+      "船上建家"
+    ],
+    "aliases_en": [
+      "tugboat",
+      "tug boat",
+      "tugboats",
+      "floating base"
+    ],
+    "annotation_note": "核对船只类型，普通小艇和货船另算。",
+    "aspect": "content",
+    "match_terms": [
+      "Drivable tugboat",
+      "floating base",
+      "可驾驶、布置的拖船",
+      "tug boat",
+      "tugboats",
+      "tugboat",
+      "船上建家",
+      "拖船",
+      "拖轮",
+      "拖輪"
+    ]
+  },
+  {
+    "item_id": "D03",
+    "patch_id": "rust_20230706_deep_sea",
+    "appid": 252490,
+    "game_en": "Rust",
+    "game_zh": "",
+    "title": "渡轮码头据点",
+    "title_en": "Ferry terminal",
+    "description": "首次开放渡轮码头据点，带回收机和地铁连接。",
+    "section": "FERRY TERMINAL MONUMENT",
+    "aliases_zh": [
+      "渡轮码头",
+      "渡輪碼頭",
+      "轮渡码头"
+    ],
+    "aliases_en": [
+      "ferry terminal",
+      "ferry monument"
+    ],
+    "annotation_note": "一般港口也有回收机，须有渡轮码头线索。",
+    "aspect": "level_design",
+    "match_terms": [
+      "Ferry terminal",
+      "ferry monument",
+      "渡轮码头据点",
+      "渡轮码头",
+      "渡輪碼頭",
+      "轮渡码头"
+    ]
+  },
+  {
+    "item_id": "D04",
+    "patch_id": "rust_20230706_deep_sea",
+    "appid": 252490,
+    "game_en": "Rust",
+    "game_zh": "",
+    "title": "深渊主题物品包",
+    "title_en": "Abyss item pack",
+    "description": "商店加入深渊主题外观，包括潜水服外观和工具外观。",
+    "section": "ABYSS: ITEM STORE PACK",
+    "aliases_zh": [
+      "深渊套装",
+      "深淵套裝",
+      "深渊潜水服"
+    ],
+    "aliases_en": [
+      "abyss pack",
+      "abyss divers suit",
+      "abyss skins"
+    ],
+    "annotation_note": "单说 DLC 或价格时，须再出现本物品包的特征。",
+    "aspect": "monetization",
+    "match_terms": [
+      "abyss divers suit",
+      "Abyss item pack",
+      "abyss skins",
+      "abyss pack",
+      "深渊主题物品包",
+      "深渊潜水服",
+      "深渊套装",
+      "深淵套裝"
+    ]
+  },
+  {
+    "item_id": "W01",
+    "patch_id": "rust_20241003_world_2",
+    "appid": 252490,
+    "game_en": "Rust",
+    "game_zh": "",
+    "title": "辐射镇回归",
+    "title_en": "Radtown returns",
+    "description": "旧版辐射镇以重新设计的路线和空间回归。",
+    "section": "Radtown",
+    "aliases_zh": [
+      "辐射镇",
+      "輻射鎮",
+      "辐射小镇"
+    ],
+    "aliases_en": [
+      "radtown",
+      "rad town"
+    ],
+    "annotation_note": "一般辐射区或辐射伤害不足以定位据点。",
+    "aspect": "level_design",
+    "match_terms": [
+      "Radtown returns",
+      "rad town",
+      "radtown",
+      "辐射镇回归",
+      "辐射小镇",
+      "辐射镇",
+      "輻射鎮"
+    ]
+  },
+  {
+    "item_id": "W02",
+    "patch_id": "rust_20241003_world_2",
+    "appid": 252490,
+    "game_en": "Rust",
+    "game_zh": "",
+    "title": "海岸与内陆悬崖重做",
+    "title_en": "Reworked cliffs",
+    "description": "海岸高崖和内陆斜坡重新制作，可通行路线也改变。",
+    "section": "CLIFFS",
+    "aliases_zh": [
+      "海岸悬崖",
+      "内陆悬崖",
+      "懸崖地形",
+      "悬崖改版"
+    ],
+    "aliases_en": [
+      "coastal cliffs",
+      "inland cliffs",
+      "new cliffs"
+    ],
+    "annotation_note": "须提到悬崖形状、攀爬或通行变化。",
+    "aspect": "level_design",
+    "match_terms": [
+      "Reworked cliffs",
+      "coastal cliffs",
+      "inland cliffs",
+      "new cliffs",
+      "海岸与内陆悬崖重做",
+      "海岸悬崖",
+      "内陆悬崖",
+      "懸崖地形",
+      "悬崖改版"
+    ]
+  },
+  {
+    "item_id": "W03",
+    "patch_id": "rust_20241003_world_2",
+    "appid": 252490,
+    "game_en": "Rust",
+    "game_zh": "",
+    "title": "大型岩石地貌回归",
+    "title_en": "Large rock formations",
+    "description": "重做大型岩石组合，部分旧地貌回归，影响可建家地点。",
+    "section": "Revamped Rock Formations",
+    "aliases_zh": [
+      "拱形岩",
+      "铁砧岩",
+      "岩石建家",
+      "岩洞建家"
+    ],
+    "aliases_en": [
+      "god rock",
+      "anvil rock",
+      "arch rock"
+    ],
+    "annotation_note": "普通采石不能定位大型地貌。",
+    "aspect": "level_design",
+    "match_terms": [
+      "Large rock formations",
+      "anvil rock",
+      "arch rock",
+      "大型岩石地貌回归",
+      "god rock",
+      "岩石建家",
+      "岩洞建家",
+      "拱形岩",
+      "铁砧岩"
+    ]
+  },
+  {
+    "item_id": "W04",
+    "patch_id": "rust_20241003_world_2",
+    "appid": 252490,
+    "game_en": "Rust",
+    "game_zh": "",
+    "title": "峡谷、湖泊和绿洲",
+    "title_en": "Canyons, lakes and oases",
+    "description": "程序生成地图新增峡谷、湖泊与沙漠绿洲环境。",
+    "section": "Unique Environments",
+    "aliases_zh": [
+      "沙漠绿洲",
+      "沙漠綠洲",
+      "新峡谷",
+      "新湖泊"
+    ],
+    "aliases_en": [
+      "desert oasis",
+      "oases",
+      "new canyons",
+      "new lakes"
+    ],
+    "annotation_note": "涉及绿洲、峡谷或湖泊本身；沿河移动另看河流条目。",
+    "aspect": "level_design",
+    "match_terms": [
+      "Canyons, lakes and oases",
+      "desert oasis",
+      "new canyons",
+      "new lakes",
+      "峡谷、湖泊和绿洲",
+      "oases",
+      "沙漠绿洲",
+      "沙漠綠洲",
+      "新峡谷",
+      "新湖泊"
+    ]
+  },
+  {
+    "item_id": "W05",
+    "patch_id": "rust_20241003_world_2",
+    "appid": 252490,
+    "game_en": "Rust",
+    "game_zh": "",
+    "title": "河道形态更新",
+    "title_en": "River generation",
+    "description": "河道延长、流向更自然，沿途逐渐变宽。",
+    "section": "Rivers",
+    "aliases_zh": [
+      "河道生成",
+      "河道变宽",
+      "河道變寬",
+      "更长的河"
+    ],
+    "aliases_en": [
+      "river generation",
+      "longer rivers",
+      "wider rivers"
+    ],
+    "annotation_note": "同丛林更新的过河改动区分，核对版本和描述的变化。",
+    "aspect": "level_design",
+    "match_terms": [
+      "River generation",
+      "longer rivers",
+      "wider rivers",
+      "河道形态更新",
+      "河道生成",
+      "河道变宽",
+      "河道變寬",
+      "更长的河"
+    ]
+  },
+  {
+    "item_id": "J01",
+    "patch_id": "rust_20250501_jungle",
+    "appid": 252490,
+    "game_en": "Rust",
+    "game_zh": "",
+    "title": "丛林地形与新手出生海岸",
+    "title_en": "Jungle coastal biome",
+    "description": "新增丛林，分布在部分新手出生的温带海岸。未公布玩家重复出生概率。",
+    "section": "Jungle Biome",
+    "aliases_zh": [
+      "丛林地形",
+      "叢林地形",
+      "丛林出生"
+    ],
+    "aliases_en": [
+      "jungle biome",
+      "jungle spawn",
+      "coastal jungle"
+    ],
+    "annotation_note": "核对丛林地貌或出生海岸。",
+    "aspect": "level_design",
+    "match_terms": [
+      "Jungle coastal biome",
+      "coastal jungle",
+      "jungle biome",
+      "jungle spawn",
+      "丛林地形与新手出生海岸",
+      "丛林地形",
+      "叢林地形",
+      "丛林出生"
+    ]
+  },
+  {
+    "item_id": "J02",
+    "patch_id": "rust_20250501_jungle",
+    "appid": 252490,
+    "game_en": "Rust",
+    "game_zh": "",
+    "title": "丛林野生动物",
+    "title_en": "Jungle wildlife",
+    "description": "加入虎、豹、鳄和蛇。可关联提及新动物的评测，血量和刷新频率的主观感受须单列。",
+    "section": "Features",
+    "aliases_zh": [
+      "老虎",
+      "黑豹",
+      "鳄鱼",
+      "鱷魚",
+      "丛林蛇"
+    ],
+    "aliases_en": [
+      "tiger",
+      "tigers",
+      "panther",
+      "panthers",
+      "crocodile",
+      "crocodiles",
+      "snake",
+      "snakes"
+    ],
+    "annotation_note": "野生动物需结合游戏上下文，如指玩家昵称则排除。",
+    "aspect": "content",
+    "match_terms": [
+      "Jungle wildlife",
+      "crocodiles",
+      "crocodile",
+      "panthers",
+      "panther",
+      "丛林野生动物",
+      "tigers",
+      "snakes",
+      "tiger",
+      "snake",
+      "丛林蛇",
+      "老虎",
+      "黑豹",
+      "鳄鱼",
+      "鱷魚"
+    ]
+  },
+  {
+    "item_id": "J03",
+    "patch_id": "rust_20250501_jungle",
+    "appid": 252490,
+    "game_en": "Rust",
+    "game_zh": "",
+    "title": "攀树与藤蔓移动",
+    "title_en": "Climbing and vine swinging",
+    "description": "可攀爬特定树木，利用藤蔓在树枝之间移动或降到地面。",
+    "section": "Vine Swinging",
+    "aliases_zh": [
+      "荡藤蔓",
+      "盪藤蔓",
+      "爬树",
+      "爬樹"
+    ],
+    "aliases_en": [
+      "vine swinging",
+      "swinging vines",
+      "climbable trees"
+    ],
+    "annotation_note": "区分藤蔓移动与原有滑索。",
+    "aspect": "controls",
+    "match_terms": [
+      "Climbing and vine swinging",
+      "climbable trees",
+      "swinging vines",
+      "vine swinging",
+      "攀树与藤蔓移动",
+      "荡藤蔓",
+      "盪藤蔓",
+      "爬树",
+      "爬樹"
+    ]
+  },
+  {
+    "item_id": "J04",
+    "patch_id": "rust_20250501_jungle",
+    "appid": 252490,
+    "game_en": "Rust",
+    "game_zh": "",
+    "title": "丛林遗迹与塔庙",
+    "title_en": "Jungle ruins and ziggurat",
+    "description": "加入丛林遗迹和一处阶梯形塔庙，可探索这些新地点。",
+    "section": "Features",
+    "aliases_zh": [
+      "丛林遗迹",
+      "叢林遺跡",
+      "阶梯神庙"
+    ],
+    "aliases_en": [
+      "jungle ruins",
+      "jungle remnants",
+      "ziggurat"
+    ],
+    "annotation_note": "确认是新丛林地点。",
+    "aspect": "level_design",
+    "match_terms": [
+      "Jungle ruins and ziggurat",
+      "jungle remnants",
+      "jungle ruins",
+      "ziggurat",
+      "丛林遗迹与塔庙",
+      "丛林遗迹",
+      "叢林遺跡",
+      "阶梯神庙"
+    ]
+  },
+  {
+    "item_id": "J05",
+    "patch_id": "rust_20250501_jungle",
+    "appid": 252490,
+    "game_en": "Rust",
+    "game_zh": "",
+    "title": "河流通行",
+    "title_en": "River crossings",
+    "description": "河流加长、加宽、加深，部分原有涉水路线需要游泳穿越。",
+    "section": "Features",
+    "aliases_zh": [
+      "游泳过河",
+      "過河要游泳",
+      "河流加深"
+    ],
+    "aliases_en": [
+      "swim across",
+      "deeper rivers",
+      "river crossings"
+    ],
+    "annotation_note": "优先核实涉水与游泳通行体验。",
+    "aspect": "level_design",
+    "match_terms": [
+      "River crossings",
+      "deeper rivers",
+      "swim across",
+      "過河要游泳",
+      "河流通行",
+      "游泳过河",
+      "河流加深"
+    ]
+  },
+  {
+    "item_id": "J06",
+    "patch_id": "rust_20250501_jungle",
+    "appid": 252490,
+    "game_en": "Rust",
+    "game_zh": "",
+    "title": "回旋镖与吹管",
+    "title_en": "Boomerang and blowpipe",
+    "description": "加入可投掷的回旋镖和配有多种吹箭的吹管。",
+    "section": "Features",
+    "aliases_zh": [
+      "回旋镖",
+      "迴旋鏢",
+      "吹管",
+      "吹箭"
+    ],
+    "aliases_en": [
+      "boomerang",
+      "blowpipe",
+      "blow pipe",
+      "blow darts"
+    ],
+    "annotation_note": "限游戏内新增物品的体验。",
+    "aspect": "content",
+    "match_terms": [
+      "Boomerang and blowpipe",
+      "blow darts",
+      "boomerang",
+      "blow pipe",
+      "blowpipe",
+      "回旋镖与吹管",
+      "回旋镖",
+      "迴旋鏢",
+      "吹管",
+      "吹箭"
+    ]
+  },
+  {
+    "item_id": "J07",
+    "patch_id": "rust_20250501_jungle",
+    "appid": 252490,
+    "game_en": "Rust",
+    "game_zh": "",
+    "title": "丛林主题付费包",
+    "title_en": "Jungle Pack",
+    "description": "本次有可选的 Jungle Pack。泛指收费、其他 DLC 或月度消费时，不能直接归入此项。",
+    "section": "Jungle Pack",
+    "aliases_zh": [
+      "丛林付费包",
+      "叢林包",
+      "丛林礼包"
+    ],
+    "aliases_en": [
+      "jungle pack",
+      "jungle dlc"
+    ],
+    "annotation_note": "明确提及丛林主题付费包。",
+    "aspect": "monetization",
+    "match_terms": [
+      "Jungle Pack",
+      "jungle dlc",
+      "丛林主题付费包",
+      "丛林付费包",
+      "丛林礼包",
+      "叢林包"
+    ]
+  },
+  {
+    "item_id": "J08",
+    "patch_id": "rust_20250501_jungle",
+    "appid": 252490,
+    "game_en": "Rust",
+    "game_zh": "",
+    "title": "冷藏提示与售货机",
+    "title_en": "Refrigeration and vending machines",
+    "description": "增加物品冷藏图标，售货机可作为冰箱使用。",
+    "section": "Improvements",
+    "aliases_zh": [
+      "售货机冷藏",
+      "售貨機冰箱",
+      "冷藏图标"
+    ],
+    "aliases_en": [
+      "vending machine fridge",
+      "refrigeration icon",
+      "freezing icon"
+    ],
+    "annotation_note": "区分普通售卖功能与冷藏。",
+    "aspect": "content",
+    "match_terms": [
+      "Refrigeration and vending machines",
+      "vending machine fridge",
+      "refrigeration icon",
+      "freezing icon",
+      "冷藏提示与售货机",
+      "售货机冷藏",
+      "售貨機冰箱",
+      "冷藏图标"
+    ]
+  },
+  {
+    "item_id": "J09",
+    "patch_id": "rust_20250501_jungle",
+    "appid": 252490,
+    "game_en": "Rust",
+    "game_zh": "",
+    "title": "鸡舍布局与光照",
+    "title_en": "Chicken coop and sunlight",
+    "description": "调整鸡舍尺寸和对齐方式，鸡的光照数值增长加快。",
+    "section": "Improvements",
+    "aliases_zh": [
+      "鸡舍对齐",
+      "雞舍尺寸",
+      "鸡舍光照"
+    ],
+    "aliases_en": [
+      "chicken coop snapping",
+      "chicken sunlight",
+      "coop size"
+    ],
+    "annotation_note": "核对鸡舍布局或光照数值。",
+    "aspect": "content",
+    "match_terms": [
+      "Chicken coop and sunlight",
+      "chicken coop snapping",
+      "chicken sunlight",
+      "coop size",
+      "鸡舍布局与光照",
+      "鸡舍对齐",
+      "雞舍尺寸",
+      "鸡舍光照"
+    ]
+  },
+  {
+    "item_id": "J10",
+    "patch_id": "rust_20250501_jungle",
+    "appid": 252490,
+    "game_en": "Rust",
+    "game_zh": "",
+    "title": "服务器与传送带性能",
+    "title_en": "Server and conveyor performance",
+    "description": "部分电路实体恢复使用网络缓存，并改善通电工业传送带的渲染。笼统掉帧不足以定位到这两项。",
+    "section": "Improvements",
+    "aliases_zh": [
+      "传送带渲染",
+      "傳送帶效能",
+      "电路实体缓存"
+    ],
+    "aliases_en": [
+      "conveyor rendering",
+      "industrial conveyor performance",
+      "network cache"
+    ],
+    "annotation_note": "单说卡顿不能定位传送带或电路实体。",
+    "aspect": "performance",
+    "match_terms": [
+      "Server and conveyor performance",
+      "industrial conveyor performance",
+      "conveyor rendering",
+      "network cache",
+      "服务器与传送带性能",
+      "电路实体缓存",
+      "传送带渲染",
+      "傳送帶效能"
+    ]
+  },
+  {
+    "item_id": "S14_01",
+    "patch_id": "sdv_20191126_14",
+    "appid": 413150,
+    "game_en": "星露谷物语",
+    "game_zh": "Stardew Valley",
+    "title": "四角农场",
+    "title_en": "Four Corners Farm",
+    "description": "新增分为四块区域的农场布局，适合多人分区经营。",
+    "section": "New content and features",
+    "aliases_zh": [
+      "四角农场",
+      "四角農場",
+      "四角地图"
+    ],
+    "aliases_en": [
+      "four corners farm",
+      "four corners map",
+      "four corners"
+    ],
+    "annotation_note": "单说和朋友联机不足以识别地图。",
+    "aspect": "level_design",
+    "match_terms": [
+      "Four Corners Farm",
+      "four corners map",
+      "four corners",
+      "四角农场",
+      "四角農場",
+      "四角地图"
+    ]
+  },
+  {
+    "item_id": "S14_02",
+    "patch_id": "sdv_20191126_14",
+    "appid": 413150,
+    "game_en": "星露谷物语",
+    "game_zh": "Stardew Valley",
+    "title": "可养鱼的鱼塘建筑",
+    "title_en": "Fish ponds",
+    "description": "农场新增鱼塘建筑，可养殖鱼类并产出物品。",
+    "section": "New content and features",
+    "aliases_zh": [
+      "鱼塘",
+      "魚塘",
+      "养鱼池"
+    ],
+    "aliases_en": [
+      "fish pond",
+      "fish ponds",
+      "fishpond"
+    ],
+    "annotation_note": "核对农场养殖建筑，避免混入野外水塘和室内鱼缸。",
+    "aspect": "content",
+    "match_terms": [
+      "Fish ponds",
+      "fish pond",
+      "可养鱼的鱼塘建筑",
+      "fishpond",
+      "养鱼池",
+      "鱼塘",
+      "魚塘"
+    ]
+  },
+  {
+    "item_id": "S14_03",
+    "patch_id": "sdv_20191126_14",
+    "appid": 413150,
+    "game_en": "星露谷物语",
+    "game_zh": "Stardew Valley",
+    "title": "后期电影院",
+    "title_en": "Movie theater",
+    "description": "后期可以解锁电影院，观看电影。",
+    "section": "New content and features",
+    "aliases_zh": [
+      "电影院",
+      "電影院",
+      "看电影"
+    ],
+    "aliases_en": [
+      "movie theater",
+      "movie theatre",
+      "cinema"
+    ],
+    "annotation_note": "须指游戏内电影院，评测中的影视作品类比另算。",
+    "aspect": "content",
+    "match_terms": [
+      "Movie theater",
+      "movie theatre",
+      "cinema",
+      "后期电影院",
+      "电影院",
+      "電影院",
+      "看电影"
+    ]
+  },
+  {
+    "item_id": "S14_04",
+    "patch_id": "sdv_20191126_14",
+    "appid": 413150,
+    "game_en": "星露谷物语",
+    "game_zh": "Stardew Valley",
+    "title": "服装裁剪与染色",
+    "title_en": "Tailoring and dyeing clothes",
+    "description": "玩家可制作服装并给衣服染色。",
+    "section": "New content and features",
+    "aliases_zh": [
+      "缝纫机",
+      "縫紉機",
+      "衣服染色",
+      "服装裁剪"
+    ],
+    "aliases_en": [
+      "sewing machine",
+      "tailoring",
+      "dye clothes"
+    ],
+    "annotation_note": "确认描述的是游戏内制衣或染色。",
+    "aspect": "content",
+    "match_terms": [
+      "Tailoring and dyeing clothes",
+      "sewing machine",
+      "dye clothes",
+      "tailoring",
+      "服装裁剪与染色",
+      "衣服染色",
+      "服装裁剪",
+      "缝纫机",
+      "縫紉機"
+    ]
+  },
+  {
+    "item_id": "S14_05",
+    "patch_id": "sdv_20191126_14",
+    "appid": 413150,
+    "game_en": "星露谷物语",
+    "game_zh": "Stardew Valley",
+    "title": "配偶十四心事件",
+    "title_en": "Spouse fourteen-heart events",
+    "description": "每位可婚配配偶新增十四心事件。",
+    "section": "New content and features",
+    "aliases_zh": [
+      "十四心事件",
+      "14心事件",
+      "婚后十四心"
+    ],
+    "aliases_en": [
+      "14 heart event",
+      "14-heart event",
+      "fourteen heart event"
+    ],
+    "annotation_note": "一般结婚、送礼或十心事件不足以定位。",
+    "aspect": "story",
+    "match_terms": [
+      "Spouse fourteen-heart events",
+      "fourteen heart event",
+      "14 heart event",
+      "14-heart event",
+      "配偶十四心事件",
+      "十四心事件",
+      "14心事件",
+      "婚后十四心"
+    ]
+  },
+  {
+    "item_id": "S15_01",
+    "patch_id": "sdv_20201221_15",
+    "appid": 413150,
+    "game_en": "星露谷物语",
+    "game_zh": "Stardew Valley",
+    "title": "姜岛探索",
+    "title_en": "Ginger Island",
+    "description": "新增可探索地区姜岛，包含岛上的任务与可解锁地点。",
+    "section": "New world area",
+    "aliases_zh": [
+      "姜岛",
+      "薑島",
+      "姜岛探险"
+    ],
+    "aliases_en": [
+      "ginger island",
+      "island farm"
+    ],
+    "annotation_note": "评测只讨论金核桃时优先标具体条目。独立评价岛屿探索时可同时标两项。",
+    "aspect": "content",
+    "match_terms": [
+      "Ginger Island",
+      "island farm",
+      "姜岛探索",
+      "姜岛探险",
+      "姜岛",
+      "薑島"
+    ]
+  },
+  {
+    "item_id": "S15_02",
+    "patch_id": "sdv_20201221_15",
+    "appid": 413150,
+    "game_en": "星露谷物语",
+    "game_zh": "Stardew Valley",
+    "title": "金核桃解锁",
+    "title_en": "Golden walnuts",
+    "description": "在岛上收集金核桃，可解锁新的区域和内容。",
+    "section": "New world area",
+    "aliases_zh": [
+      "金核桃",
+      "黃金核桃",
+      "黄金核桃"
+    ],
+    "aliases_en": [
+      "golden walnuts",
+      "golden walnut"
+    ],
+    "annotation_note": "1.6 的金色鹦鹉另有改动，需分辨具体机制。",
+    "aspect": "content",
+    "match_terms": [
+      "Golden walnuts",
+      "golden walnut",
+      "金核桃解锁",
+      "黃金核桃",
+      "黄金核桃",
+      "金核桃"
+    ]
+  },
+  {
+    "item_id": "S15_03",
+    "patch_id": "sdv_20201221_15",
+    "appid": 413150,
+    "game_en": "星露谷物语",
+    "game_zh": "Stardew Valley",
+    "title": "火山地牢",
+    "title_en": "Volcano dungeon",
+    "description": "姜岛新增火山地牢，进入时地牢布局会变化。",
+    "section": "New world area",
+    "aliases_zh": [
+      "火山地牢",
+      "火山矿洞",
+      "火山礦洞"
+    ],
+    "aliases_en": [
+      "volcano dungeon",
+      "volcano mine"
+    ],
+    "annotation_note": "普通矿井和骷髅洞穴不足以定位。",
+    "aspect": "level_design",
+    "match_terms": [
+      "Volcano dungeon",
+      "volcano mine",
+      "火山地牢",
+      "火山矿洞",
+      "火山礦洞"
+    ]
+  },
+  {
+    "item_id": "S15_04",
+    "patch_id": "sdv_20201221_15",
+    "appid": 413150,
+    "game_en": "星露谷物语",
+    "game_zh": "Stardew Valley",
+    "title": "海滩农场",
+    "title_en": "Beach Farm",
+    "description": "新增海滩布局，大部分沙地无法使用洒水器。",
+    "section": "New farm features",
+    "aliases_zh": [
+      "海滩农场",
+      "海灘農場",
+      "沙滩农场"
+    ],
+    "aliases_en": [
+      "beach farm",
+      "beach layout",
+      "sandy farm"
+    ],
+    "annotation_note": "区分海滩农场开局与姜岛农场。",
+    "aspect": "level_design",
+    "match_terms": [
+      "beach layout",
+      "Beach Farm",
+      "sandy farm",
+      "海滩农场",
+      "海灘農場",
+      "沙滩农场"
+    ]
+  },
+  {
+    "item_id": "S15_05",
+    "patch_id": "sdv_20201221_15",
+    "appid": 413150,
+    "game_en": "星露谷物语",
+    "game_zh": "Stardew Valley",
+    "title": "本地分屏合作",
+    "title_en": "Local split-screen co-op",
+    "description": "同一台设备上的玩家可以分屏合作经营农场。",
+    "section": "Multiplayer changes",
+    "aliases_zh": [
+      "本地分屏",
+      "同屏合作",
+      "分屏联机",
+      "分割畫面"
+    ],
+    "aliases_en": [
+      "split screen",
+      "split-screen",
+      "splitscreen",
+      "local co-op"
+    ],
+    "annotation_note": "普通远程联机不足以定位分屏。",
+    "aspect": "multiplayer",
+    "match_terms": [
+      "Local split-screen co-op",
+      "split screen",
+      "split-screen",
+      "splitscreen",
+      "local co-op",
+      "本地分屏合作",
+      "本地分屏",
+      "同屏合作",
+      "分屏联机",
+      "分割畫面"
+    ]
+  },
+  {
+    "item_id": "S16_01",
+    "patch_id": "sdv_20240319_16",
+    "appid": 413150,
+    "game_en": "星露谷物语",
+    "game_zh": "Stardew Valley",
+    "title": "草原农场",
+    "title_en": "Meadowlands Farm",
+    "description": "新增草原农场，开局有鸡舍、两只鸡和动物喜欢的蓝草。",
+    "section": "New content and features",
+    "aliases_zh": [
+      "草原农场",
+      "草原農場",
+      "蓝草农场",
+      "藍草農場"
+    ],
+    "aliases_en": [
+      "meadowlands farm",
+      "meadowlands",
+      "blue grass farm"
+    ],
+    "annotation_note": "一般养鸡也可发生在其他农场，需补充地图或开局特征。",
+    "aspect": "level_design",
+    "match_terms": [
+      "Meadowlands Farm",
+      "blue grass farm",
+      "meadowlands",
+      "草原农场",
+      "草原農場",
+      "蓝草农场",
+      "藍草農場"
+    ]
+  },
+  {
+    "item_id": "S16_02",
+    "patch_id": "sdv_20240319_16",
+    "appid": 413150,
+    "game_en": "星露谷物语",
+    "game_zh": "Stardew Valley",
+    "title": "沙漠节",
+    "title_en": "Desert Festival",
+    "description": "修好巴士后可以参加持续三个游戏日的春季沙漠节。",
+    "section": "New content and features",
+    "aliases_zh": [
+      "沙漠节",
+      "沙漠節",
+      "沙漠庆典"
+    ],
+    "aliases_en": [
+      "desert festival",
+      "calico desert festival"
+    ],
+    "annotation_note": "普通沙漠探矿不足以识别节庆。",
+    "aspect": "content",
+    "match_terms": [
+      "calico desert festival",
+      "Desert Festival",
+      "沙漠庆典",
+      "沙漠节",
+      "沙漠節"
+    ]
+  },
+  {
+    "item_id": "S16_03",
+    "patch_id": "sdv_20240319_16",
+    "appid": 413150,
+    "game_en": "星露谷物语",
+    "game_zh": "Stardew Valley",
+    "title": "精通系统",
+    "title_en": "Skill mastery",
+    "description": "新增精通系统，可在新区域取得额外能力与物品。",
+    "section": "New content and features",
+    "aliases_zh": [
+      "技能精通",
+      "精通洞穴",
+      "精通系统",
+      "精通系統"
+    ],
+    "aliases_en": [
+      "mastery system",
+      "mastery cave",
+      "skill mastery"
+    ],
+    "annotation_note": "区分新精通机制与原有技能升级。",
+    "aspect": "content",
+    "match_terms": [
+      "mastery system",
+      "Skill mastery",
+      "mastery cave",
+      "精通系统",
+      "技能精通",
+      "精通洞穴",
+      "精通系統"
+    ]
+  },
+  {
+    "item_id": "S16_04",
+    "patch_id": "sdv_20240319_16",
+    "appid": 413150,
+    "game_en": "星露谷物语",
+    "game_zh": "Stardew Valley",
+    "title": "电脑端最多八人联机",
+    "title_en": "Eight-player multiplayer",
+    "description": "电脑端联机人数上限提高到八人。",
+    "section": "Multiplayer changes",
+    "aliases_zh": [
+      "八人联机",
+      "8人联机",
+      "八人聯機",
+      "八人農場"
+    ],
+    "aliases_en": [
+      "8 players",
+      "eight players",
+      "8 player co-op",
+      "8-player"
+    ],
+    "annotation_note": "泛称联机不够，核对人数或人数上限。",
+    "aspect": "multiplayer",
+    "match_terms": [
+      "Eight-player multiplayer",
+      "8 player co-op",
+      "eight players",
+      "电脑端最多八人联机",
+      "8 players",
+      "8-player",
+      "八人联机",
+      "8人联机",
+      "八人聯機",
+      "八人農場"
+    ]
+  },
+  {
+    "item_id": "S16_05",
+    "patch_id": "sdv_20240319_16",
+    "appid": 413150,
+    "game_en": "星露谷物语",
+    "game_zh": "Stardew Valley",
+    "title": "饲养多只宠物",
+    "title_en": "Multiple pets",
+    "description": "初始宠物好感满后可以再养其他宠物。",
+    "section": "New content and features",
+    "aliases_zh": [
+      "多只宠物",
+      "多隻寵物",
+      "第二只猫",
+      "第二隻狗"
+    ],
+    "aliases_en": [
+      "multiple pets",
+      "second cat",
+      "second dog",
+      "more than one pet"
+    ],
+    "annotation_note": "区分猫狗等宠物与生产用农场动物。",
+    "aspect": "content",
+    "match_terms": [
+      "more than one pet",
+      "Multiple pets",
+      "second cat",
+      "second dog",
+      "饲养多只宠物",
+      "多只宠物",
+      "多隻寵物",
+      "第二只猫",
+      "第二隻狗"
+    ]
+  },
+  {
+    "item_id": "S16_06",
+    "patch_id": "sdv_20240319_16",
+    "appid": 413150,
+    "game_en": "星露谷物语",
+    "game_zh": "Stardew Valley",
+    "title": "定期到访的书商",
+    "title_en": "Visiting bookseller",
+    "description": "书商每季进城两次。",
+    "section": "New content and features",
+    "aliases_zh": [
+      "书商",
+      "書商",
+      "卖书人",
+      "書販"
+    ],
+    "aliases_en": [
+      "bookseller",
+      "book seller",
+      "book vendor"
+    ],
+    "annotation_note": "只说捡到技能书无法确定与书商有关。",
+    "aspect": "content",
+    "match_terms": [
+      "Visiting bookseller",
+      "book seller",
+      "book vendor",
+      "bookseller",
+      "定期到访的书商",
+      "卖书人",
+      "書商",
+      "書販"
+    ]
+  },
+  {
+    "item_id": "105600_20200516_01",
+    "patch_id": "steam_105600_20200516",
+    "appid": 105600,
+    "game_en": "Terraria",
+    "game_zh": "",
+    "title": "旅途模式",
+    "title_en": "Journey Mode",
+    "description": "新增可研究并复制物品的玩法模式。",
+    "section": "Journey Mode",
+    "aliases_zh": [
+      "旅途模式",
+      "旅行模式"
+    ],
+    "aliases_en": [
+      "journey mode",
+      "journey difficulty"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“旅途模式”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "journey difficulty",
+      "Journey Mode",
+      "旅途模式",
+      "旅行模式"
+    ]
+  },
+  {
+    "item_id": "105600_20200516_02",
+    "patch_id": "steam_105600_20200516",
+    "appid": 105600,
+    "game_en": "Terraria",
+    "game_zh": "",
+    "title": "大师模式",
+    "title_en": "Master Mode",
+    "description": "新增高于专家模式的难度选择。",
+    "section": "Master Mode",
+    "aliases_zh": [
+      "大师模式",
+      "大師模式"
+    ],
+    "aliases_en": [
+      "master mode",
+      "master difficulty"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“大师模式”；仅提到游戏或版本名不计。",
+    "aspect": "controls",
+    "match_terms": [
+      "master difficulty",
+      "Master Mode",
+      "大师模式",
+      "大師模式"
+    ]
+  },
+  {
+    "item_id": "105600_20220928_01",
+    "patch_id": "steam_105600_20220928",
+    "appid": 105600,
+    "game_en": "Terraria",
+    "game_zh": "",
+    "title": "装备配置切换",
+    "title_en": "Equipment loadouts",
+    "description": "玩家可在多套装备和饰品配置间切换。",
+    "section": "Equipment loadouts",
+    "aliases_zh": [
+      "装备预设",
+      "装备栏切换",
+      "裝備配置"
+    ],
+    "aliases_en": [
+      "equipment loadouts",
+      "gear loadouts"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“装备配置切换”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "Equipment loadouts",
+      "gear loadouts",
+      "装备配置切换",
+      "装备栏切换",
+      "装备预设",
+      "裝備配置"
+    ]
+  },
+  {
+    "item_id": "105600_20220928_02",
+    "patch_id": "steam_105600_20220928",
+    "appid": 105600,
+    "game_en": "Terraria",
+    "game_zh": "",
+    "title": "碎石机装饰工具",
+    "title_en": "Rubblemaker",
+    "description": "新增可放置自然装饰物的建造工具。",
+    "section": "Rubblemaker",
+    "aliases_zh": [
+      "碎石机",
+      "碎石機"
+    ],
+    "aliases_en": [
+      "rubblemaker",
+      "rubble maker"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“碎石机装饰工具”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "rubble maker",
+      "Rubblemaker",
+      "碎石机装饰工具",
+      "碎石机",
+      "碎石機"
+    ]
+  },
+  {
+    "item_id": "1245620_20221207_01",
+    "patch_id": "steam_1245620_20221207",
+    "appid": 1245620,
+    "game_en": "ELDEN RING",
+    "game_zh": "",
+    "title": "竞技场对战",
+    "title_en": "Colosseum arenas",
+    "description": "开放三处斗技场，提供决斗、混战等对战规则。",
+    "section": "Colosseum arenas",
+    "aliases_zh": [
+      "竞技场决斗",
+      "斗技场",
+      "競技場對戰"
+    ],
+    "aliases_en": [
+      "colosseum duels",
+      "colosseum arena",
+      "united combat"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“竞技场对战”；仅提到游戏或版本名不计。",
+    "aspect": "multiplayer",
+    "match_terms": [
+      "Colosseum arenas",
+      "colosseum duels",
+      "colosseum arena",
+      "united combat",
+      "竞技场对战",
+      "竞技场决斗",
+      "競技場對戰",
+      "斗技场"
+    ]
+  },
+  {
+    "item_id": "1245620_20221207_02",
+    "patch_id": "steam_1245620_20221207",
+    "appid": 1245620,
+    "game_en": "ELDEN RING",
+    "game_zh": "",
+    "title": "新增角色发型",
+    "title_en": "New hairstyles",
+    "description": "创建或重新编辑角色时可选新发型。",
+    "section": "New hairstyles",
+    "aliases_zh": [
+      "新发型",
+      "新髮型"
+    ],
+    "aliases_en": [
+      "new hairstyles",
+      "new hair styles"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“新增角色发型”；仅提到游戏或版本名不计。",
+    "aspect": "graphics",
+    "match_terms": [
+      "new hair styles",
+      "New hairstyles",
+      "新增角色发型",
+      "新发型",
+      "新髮型"
+    ]
+  },
+  {
+    "item_id": "1245620_20240620_01",
+    "patch_id": "steam_1245620_20240620",
+    "appid": 1245620,
+    "game_en": "ELDEN RING",
+    "game_zh": "",
+    "title": "最近获得物品页",
+    "title_en": "Recent Items tab",
+    "description": "背包增加查看最近入手物品的分页。",
+    "section": "Recent Items tab",
+    "aliases_zh": [
+      "最近获得的物品",
+      "最近取得的道具",
+      "新物品栏"
+    ],
+    "aliases_en": [
+      "recent items tab",
+      "recent items inventory"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“最近获得物品页”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "recent items inventory",
+      "Recent Items tab",
+      "最近获得物品页",
+      "最近获得的物品",
+      "最近取得的道具",
+      "新物品栏"
+    ]
+  },
+  {
+    "item_id": "1245620_20240620_02",
+    "patch_id": "steam_1245620_20240620",
+    "appid": 1245620,
+    "game_en": "ELDEN RING",
+    "game_zh": "",
+    "title": "艾尔登之兽战可骑乘",
+    "title_en": "Spectral steed in Elden Beast fight",
+    "description": "允许在艾尔登之兽战斗中召唤灵马。",
+    "section": "Spectral steed in Elden Beast fight",
+    "aliases_zh": [
+      "艾尔登之兽骑马",
+      "骑马打艾兽",
+      "艾爾登之獸騎馬"
+    ],
+    "aliases_en": [
+      "torrent in the elden beast fight",
+      "horse against elden beast"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“艾尔登之兽战可骑乘”；仅提到游戏或版本名不计。",
+    "aspect": "controls",
+    "match_terms": [
+      "Spectral steed in Elden Beast fight",
+      "torrent in the elden beast fight",
+      "horse against elden beast",
+      "艾尔登之兽战可骑乘",
+      "艾尔登之兽骑马",
+      "艾爾登之獸騎馬",
+      "骑马打艾兽"
+    ]
+  },
+  {
+    "item_id": "2358720_20240923_01",
+    "patch_id": "steam_2358720_20240923",
+    "appid": 2358720,
+    "game_en": "Black Myth: Wukong",
+    "game_zh": "",
+    "title": "百眼魔君战斗调整",
+    "title_en": "Hundred-Eyed Daoist Master fight",
+    "description": "调整百眼魔君的战斗体验；公告没有细分具体判定数值。",
+    "section": "Hundred-Eyed Daoist Master fight",
+    "aliases_zh": [
+      "百眼魔君战斗",
+      "百眼魔君判定",
+      "百眼魔君戰鬥"
+    ],
+    "aliases_en": [
+      "hundred-eyed daoist master fight",
+      "hundred eyed daoist fight"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“百眼魔君战斗调整”；仅提到游戏或版本名不计。",
+    "aspect": "controls",
+    "match_terms": [
+      "Hundred-Eyed Daoist Master fight",
+      "hundred eyed daoist fight",
+      "百眼魔君战斗调整",
+      "百眼魔君战斗",
+      "百眼魔君判定",
+      "百眼魔君戰鬥"
+    ]
+  },
+  {
+    "item_id": "2358720_20240923_02",
+    "patch_id": "steam_2358720_20240923",
+    "appid": 2358720,
+    "game_en": "Black Myth: Wukong",
+    "game_zh": "",
+    "title": "狼牙棒增加法力上限",
+    "title_en": "Spikeshaft Staff mana bonus",
+    "description": "使用狼牙棒时法力上限增加 30 点。",
+    "section": "Spikeshaft Staff mana bonus",
+    "aliases_zh": [
+      "狼牙棒法力",
+      "狼牙棒蓝量",
+      "狼牙棒法力上限"
+    ],
+    "aliases_en": [
+      "spikeshaft staff mana",
+      "spikeshaft staff"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“狼牙棒增加法力上限”；仅提到游戏或版本名不计。",
+    "aspect": "controls",
+    "match_terms": [
+      "Spikeshaft Staff mana bonus",
+      "spikeshaft staff mana",
+      "spikeshaft staff",
+      "狼牙棒增加法力上限",
+      "狼牙棒法力上限",
+      "狼牙棒法力",
+      "狼牙棒蓝量"
+    ]
+  },
+  {
+    "item_id": "2358720_20241214_01",
+    "patch_id": "steam_2358720_20241214",
+    "appid": 2358720,
+    "game_en": "Black Myth: Wukong",
+    "game_zh": "",
+    "title": "土地庙挑战",
+    "title_en": "Keeper's Shrine challenges",
+    "description": "通关后可在土地庙挑战旧对手，或连续挑战多名对手。",
+    "section": "Keeper's Shrine challenges",
+    "aliases_zh": [
+      "复战",
+      "连战",
+      "復戰",
+      "連戰"
+    ],
+    "aliases_en": [
+      "return of rivals",
+      "gauntlet of legends"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“土地庙挑战”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "Keeper's Shrine challenges",
+      "gauntlet of legends",
+      "return of rivals",
+      "土地庙挑战"
+    ]
+  },
+  {
+    "item_id": "2358720_20241214_02",
+    "patch_id": "steam_2358720_20241214",
+    "appid": 2358720,
+    "game_en": "Black Myth: Wukong",
+    "game_zh": "",
+    "title": "行旅图",
+    "title_en": "Journeyer's Chart",
+    "description": "加入用于查看和探索各区域的行旅图。",
+    "section": "Journeyer's Chart",
+    "aliases_zh": [
+      "行旅图",
+      "行旅圖"
+    ],
+    "aliases_en": [
+      "journeyer's chart",
+      "journeyer’s chart"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“行旅图”；仅提到游戏或版本名不计。",
+    "aspect": "level_design",
+    "match_terms": [
+      "Journeyer's Chart",
+      "journeyer’s chart",
+      "行旅图",
+      "行旅圖"
+    ]
+  },
+  {
+    "item_id": "271590_20230613_01",
+    "patch_id": "steam_271590_20230613",
+    "appid": 271590,
+    "game_en": "Grand Theft Auto V Legacy",
+    "game_zh": "",
+    "title": "颠覆计划任务",
+    "title_en": "Project Overthrow",
+    "description": "加入与查理·里德合作对抗梅利威瑟的系列任务。",
+    "section": "Project Overthrow",
+    "aliases_zh": [
+      "颠覆计划",
+      "顛覆計畫"
+    ],
+    "aliases_en": [
+      "project overthrow"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“颠覆计划任务”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "Project Overthrow",
+      "颠覆计划任务",
+      "颠覆计划",
+      "顛覆計畫"
+    ]
+  },
+  {
+    "item_id": "271590_20230613_02",
+    "patch_id": "steam_271590_20230613",
+    "appid": 271590,
+    "game_en": "Grand Theft Auto V Legacy",
+    "game_zh": "",
+    "title": "洛圣都天使行动",
+    "title_en": "LSA Operations",
+    "description": "加入洛圣都天使的额外行动任务。",
+    "section": "LSA Operations",
+    "aliases_zh": [
+      "洛圣都天使行动",
+      "洛聖都天使行動",
+      "LSA行动"
+    ],
+    "aliases_en": [
+      "lsa operations",
+      "lsa operation"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“洛圣都天使行动”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "LSA Operations",
+      "lsa operation",
+      "洛圣都天使行动",
+      "洛聖都天使行動",
+      "LSA行动"
+    ]
+  },
+  {
+    "item_id": "271590_20240625_01",
+    "patch_id": "steam_271590_20240625",
+    "appid": 271590,
+    "game_en": "Grand Theft Auto V Legacy",
+    "game_zh": "",
+    "title": "保金执法事务所",
+    "title_en": "Bail Enforcement business",
+    "description": "可购入执法事务所并接取追捕悬赏目标的工作。",
+    "section": "Bail Enforcement business",
+    "aliases_zh": [
+      "保金执法",
+      "保释事务所",
+      "保金執法"
+    ],
+    "aliases_en": [
+      "bail enforcement office",
+      "bail office",
+      "bottom dollar bail enforcement"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“保金执法事务所”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "bottom dollar bail enforcement",
+      "Bail Enforcement business",
+      "bail enforcement office",
+      "bail office",
+      "保金执法事务所",
+      "保释事务所",
+      "保金执法",
+      "保金執法"
+    ]
+  },
+  {
+    "item_id": "271590_20240625_02",
+    "patch_id": "steam_271590_20240625",
+    "appid": 271590,
+    "game_en": "Grand Theft Auto V Legacy",
+    "game_zh": "",
+    "title": "警车派遣任务",
+    "title_en": "Dispatch Work",
+    "description": "加入可在自由模式中执行的警务派遣工作。",
+    "section": "Dispatch Work",
+    "aliases_zh": [
+      "派遣工作",
+      "警车派遣",
+      "警車派遣"
+    ],
+    "aliases_en": [
+      "dispatch work",
+      "dispatch missions"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“警车派遣任务”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "dispatch missions",
+      "Dispatch Work",
+      "警车派遣任务",
+      "派遣工作",
+      "警车派遣",
+      "警車派遣"
+    ]
+  },
+  {
+    "item_id": "359550_20231206_01",
+    "patch_id": "steam_359550_20231206",
+    "appid": 359550,
+    "game_en": "Tom Clancy's Rainbow Six Siege",
+    "game_zh": "",
+    "title": "液氮装置",
+    "title_en": "Zoto Canister",
+    "description": "防守方 Tubarão 的装置能减缓干员行动并干扰装备。",
+    "section": "Zoto Canister",
+    "aliases_zh": [
+      "冷冻罐",
+      "冰冻罐",
+      "Zoto罐"
+    ],
+    "aliases_en": [
+      "zoto canister",
+      "zoto canisters"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“液氮装置”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "zoto canisters",
+      "Zoto Canister",
+      "Zoto罐",
+      "液氮装置",
+      "冷冻罐",
+      "冰冻罐"
+    ]
+  },
+  {
+    "item_id": "359550_20231206_02",
+    "patch_id": "steam_359550_20231206",
+    "appid": 359550,
+    "game_en": "Tom Clancy's Rainbow Six Siege",
+    "game_zh": "",
+    "title": "巢穴地图",
+    "title_en": "Lair ranked map",
+    "description": "新增具有三层结构、可用于排位的巢穴地图。",
+    "section": "Lair ranked map",
+    "aliases_zh": [
+      "巢穴地图",
+      "巢穴地圖"
+    ],
+    "aliases_en": [
+      "lair map",
+      "ranked map lair"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“巢穴地图”；仅提到游戏或版本名不计。",
+    "aspect": "level_design",
+    "match_terms": [
+      "Lair ranked map",
+      "ranked map lair",
+      "lair map",
+      "巢穴地图",
+      "巢穴地圖"
+    ]
+  },
+  {
+    "item_id": "359550_20240312_01",
+    "patch_id": "steam_359550_20240312",
+    "appid": 359550,
+    "game_en": "Tom Clancy's Rainbow Six Siege",
+    "game_zh": "",
+    "title": "追踪探测器",
+    "title_en": "DeathMARK tracker",
+    "description": "Deimos 可用飞行探测器追踪指定目标，双方位置会暴露。",
+    "section": "DeathMARK tracker",
+    "aliases_zh": [
+      "死亡标记",
+      "死亡標記",
+      "戴莫斯追踪"
+    ],
+    "aliases_en": [
+      "deathmark tracker",
+      "deathmark",
+      "death mark probe"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“追踪探测器”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "DeathMARK tracker",
+      "death mark probe",
+      "deathmark",
+      "追踪探测器",
+      "戴莫斯追踪",
+      "死亡标记",
+      "死亡標記"
+    ]
+  },
+  {
+    "item_id": "359550_20240312_02",
+    "patch_id": "steam_359550_20240312",
+    "appid": 359550,
+    "game_en": "Tom Clancy's Rainbow Six Siege",
+    "game_zh": "",
+    "title": "盾牌机制重做",
+    "title_en": "Ballistic shield rework",
+    "description": "调整持盾操作，取消腰射并允许持盾冲刺等动作。",
+    "section": "Ballistic shield rework",
+    "aliases_zh": [
+      "盾牌重做",
+      "盾牌腰射",
+      "盾牌衝刺"
+    ],
+    "aliases_en": [
+      "shield rework",
+      "shield hipfire",
+      "shield hip fire"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“盾牌机制重做”；仅提到游戏或版本名不计。",
+    "aspect": "controls",
+    "match_terms": [
+      "Ballistic shield rework",
+      "shield hip fire",
+      "shield hipfire",
+      "shield rework",
+      "盾牌机制重做",
+      "盾牌重做",
+      "盾牌腰射",
+      "盾牌衝刺"
+    ]
+  },
+  {
+    "item_id": "4000_20240313_01",
+    "patch_id": "steam_4000_20240313",
+    "appid": 4000,
+    "game_en": "Garry's Mod",
+    "game_zh": "",
+    "title": "分享插件预设",
+    "title_en": "Share addon presets",
+    "description": "插件预设支持分享，也可从合集导入。",
+    "section": "Share addon presets",
+    "aliases_zh": [
+      "插件预设分享",
+      "分享模组预设",
+      "插件預設"
+    ],
+    "aliases_en": [
+      "addon presets",
+      "share addon presets"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“分享插件预设”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "Share addon presets",
+      "addon presets",
+      "分享插件预设",
+      "插件预设分享",
+      "分享模组预设",
+      "插件預設"
+    ]
+  },
+  {
+    "item_id": "4000_20240313_02",
+    "patch_id": "steam_4000_20240313",
+    "appid": 4000,
+    "game_en": "Garry's Mod",
+    "game_zh": "",
+    "title": "复制器保存 NPC 生命值",
+    "title_en": "Duplicator NPC health",
+    "description": "复制器可保存 NPC 的当前和最大生命值。",
+    "section": "Duplicator NPC health",
+    "aliases_zh": [
+      "复制器血量",
+      "复制NPC血量",
+      "複製器血量"
+    ],
+    "aliases_en": [
+      "duplicator health",
+      "npc health duplicator"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“复制器保存 NPC 生命值”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "Duplicator NPC health",
+      "npc health duplicator",
+      "duplicator health",
+      "复制器保存 NPC 生命值",
+      "复制NPC血量",
+      "复制器血量",
+      "複製器血量"
+    ]
+  },
+  {
+    "item_id": "4000_20250326_01",
+    "patch_id": "steam_4000_20250326",
+    "appid": 4000,
+    "game_en": "Garry's Mod",
+    "game_zh": "",
+    "title": "挂载 Treason 资源",
+    "title_en": "Treason asset mounting",
+    "description": "可挂载 Treason 的地图、模型和其他资源。",
+    "section": "Treason asset mounting",
+    "aliases_zh": [
+      "挂载Treason",
+      "Treason资源",
+      "掛載Treason"
+    ],
+    "aliases_en": [
+      "mount treason",
+      "treason assets",
+      "klaus veen's treason"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“挂载 Treason 资源”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "Treason asset mounting",
+      "klaus veen's treason",
+      "treason assets",
+      "挂载 Treason 资源",
+      "mount treason",
+      "挂载Treason",
+      "Treason资源",
+      "掛載Treason"
+    ]
+  },
+  {
+    "item_id": "4000_20250326_02",
+    "patch_id": "steam_4000_20250326",
+    "appid": 4000,
+    "game_en": "Garry's Mod",
+    "game_zh": "",
+    "title": "部分自定义着色器支持",
+    "title_en": "Partial custom shader support",
+    "description": "为模组制作者加入部分自定义着色器支持。",
+    "section": "Partial custom shader support",
+    "aliases_zh": [
+      "自定义着色器",
+      "自訂著色器"
+    ],
+    "aliases_en": [
+      "custom shader support",
+      "custom shaders"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“部分自定义着色器支持”；仅提到游戏或版本名不计。",
+    "aspect": "graphics",
+    "match_terms": [
+      "Partial custom shader support",
+      "custom shader support",
+      "custom shaders",
+      "部分自定义着色器支持",
+      "自定义着色器",
+      "自訂著色器"
+    ]
+  },
+  {
+    "item_id": "440_20171020_01",
+    "patch_id": "steam_440_20171020",
+    "appid": 440,
+    "game_en": "Team Fortress 2",
+    "game_zh": "",
+    "title": "佣兵公园地图",
+    "title_en": "Mercenary Park",
+    "description": "加入官方地图佣兵公园。",
+    "section": "Mercenary Park",
+    "aliases_zh": [
+      "佣兵公园",
+      "傭兵公園"
+    ],
+    "aliases_en": [
+      "mercenary park",
+      "cp_mercenarypark"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“佣兵公园地图”；仅提到游戏或版本名不计。",
+    "aspect": "level_design",
+    "match_terms": [
+      "cp_mercenarypark",
+      "Mercenary Park",
+      "佣兵公园地图",
+      "佣兵公园",
+      "傭兵公園"
+    ]
+  },
+  {
+    "item_id": "440_20171020_02",
+    "patch_id": "steam_440_20171020",
+    "appid": 440,
+    "game_en": "Team Fortress 2",
+    "game_zh": "",
+    "title": "热能推进器",
+    "title_en": "Thermal Thruster",
+    "description": "为火焰兵加入喷气推进装备。",
+    "section": "Thermal Thruster",
+    "aliases_zh": [
+      "热能推进器",
+      "熱能推進器",
+      "火焰兵喷气背包"
+    ],
+    "aliases_en": [
+      "thermal thruster",
+      "pyro jetpack"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“热能推进器”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "Thermal Thruster",
+      "pyro jetpack",
+      "火焰兵喷气背包",
+      "热能推进器",
+      "熱能推進器"
+    ]
+  },
+  {
+    "item_id": "440_20230712_01",
+    "patch_id": "steam_440_20230712",
+    "appid": 440,
+    "game_en": "Team Fortress 2",
+    "game_zh": "",
+    "title": "新增社区地图",
+    "title_en": "Summer community maps",
+    "description": "收录包括 Selbyen 和多张 VSH 地图在内的社区地图。",
+    "section": "Summer community maps",
+    "aliases_zh": [
+      "塞尔比恩",
+      "海豹地图",
+      "VSH地图"
+    ],
+    "aliases_en": [
+      "selbyen",
+      "vsh tiny rock",
+      "vsh distillery"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“新增社区地图”；仅提到游戏或版本名不计。",
+    "aspect": "level_design",
+    "match_terms": [
+      "Summer community maps",
+      "vsh distillery",
+      "vsh tiny rock",
+      "selbyen",
+      "新增社区地图",
+      "VSH地图",
+      "塞尔比恩",
+      "海豹地图"
+    ]
+  },
+  {
+    "item_id": "440_20230712_02",
+    "patch_id": "steam_440_20230712",
+    "appid": 440,
+    "game_en": "Team Fortress 2",
+    "game_zh": "",
+    "title": "夏季战绘箱",
+    "title_en": "Summer 2023 War Paint Case",
+    "description": "新战绘箱收录十款社区创作的战绘。",
+    "section": "Summer 2023 War Paint Case",
+    "aliases_zh": [
+      "夏季战绘箱",
+      "夏季戰繪箱"
+    ],
+    "aliases_en": [
+      "summer 2023 war paint case",
+      "summer war paint case"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“夏季战绘箱”；仅提到游戏或版本名不计。",
+    "aspect": "monetization",
+    "match_terms": [
+      "Summer 2023 War Paint Case",
+      "summer war paint case",
+      "夏季战绘箱",
+      "夏季戰繪箱"
+    ]
+  },
+  {
+    "item_id": "550_20200924_01",
+    "patch_id": "steam_550_20200924",
+    "appid": 550,
+    "game_en": "Left 4 Dead 2",
+    "game_zh": "",
+    "title": "灯塔战役",
+    "title_en": "Lighthouse campaign",
+    "description": "以原生存地图的灯塔为基础制作可通关的新战役。",
+    "section": "Lighthouse campaign",
+    "aliases_zh": [
+      "灯塔战役",
+      "最後一刻戰役",
+      "最后一搏战役"
+    ],
+    "aliases_en": [
+      "lighthouse campaign",
+      "last stand campaign"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“灯塔战役”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "Lighthouse campaign",
+      "last stand campaign",
+      "最後一刻戰役",
+      "最后一搏战役",
+      "灯塔战役"
+    ]
+  },
+  {
+    "item_id": "550_20200924_02",
+    "patch_id": "steam_550_20200924",
+    "appid": 550,
+    "game_en": "Left 4 Dead 2",
+    "game_zh": "",
+    "title": "铁铲与草叉",
+    "title_en": "Shovel and pitchfork",
+    "description": "加入铁铲与草叉两种近战装备。",
+    "section": "Shovel and pitchfork",
+    "aliases_zh": [
+      "草叉",
+      "铁铲近战",
+      "鐵鏟近戰"
+    ],
+    "aliases_en": [
+      "pitchfork",
+      "shovel melee"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“铁铲与草叉”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "Shovel and pitchfork",
+      "shovel melee",
+      "pitchfork",
+      "铁铲与草叉",
+      "铁铲近战",
+      "鐵鏟近戰",
+      "草叉"
+    ]
+  },
+  {
+    "item_id": "550_20210708_01",
+    "patch_id": "steam_550_20210708",
+    "appid": 550,
+    "game_en": "Left 4 Dead 2",
+    "game_zh": "",
+    "title": "手柄跳过片头崩溃修复",
+    "title_en": "Controller intro skip crash",
+    "description": "修复使用手柄跳过开场动画时的崩溃。",
+    "section": "Controller intro skip crash",
+    "aliases_zh": [
+      "手柄跳片头",
+      "手柄跳過片頭"
+    ],
+    "aliases_en": [
+      "controller intro crash",
+      "skip intro with controller"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“手柄跳过片头崩溃修复”；仅提到游戏或版本名不计。",
+    "aspect": "performance",
+    "match_terms": [
+      "Controller intro skip crash",
+      "skip intro with controller",
+      "controller intro crash",
+      "手柄跳过片头崩溃修复",
+      "手柄跳過片頭",
+      "手柄跳片头"
+    ]
+  },
+  {
+    "item_id": "550_20210708_02",
+    "patch_id": "steam_550_20210708",
+    "appid": 550,
+    "game_en": "Left 4 Dead 2",
+    "game_zh": "",
+    "title": "视野设置可保存",
+    "title_en": "Persistent field of view",
+    "description": "将 FOV 设为可持久保存的配置项。",
+    "section": "Persistent field of view",
+    "aliases_zh": [
+      "保存FOV",
+      "视野设置保存",
+      "儲存FOV"
+    ],
+    "aliases_en": [
+      "fov saved",
+      "fov reset",
+      "archived fov"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“视野设置可保存”；仅提到游戏或版本名不计。",
+    "aspect": "controls",
+    "match_terms": [
+      "Persistent field of view",
+      "archived fov",
+      "fov saved",
+      "fov reset",
+      "视野设置可保存",
+      "视野设置保存",
+      "保存FOV",
+      "儲存FOV"
+    ]
+  },
+  {
+    "item_id": "570_20230420_01",
+    "patch_id": "steam_570_20230420",
+    "appid": 570,
+    "game_en": "Dota 2",
+    "game_zh": "",
+    "title": "对战地图扩展",
+    "title_en": "Expanded battlefield",
+    "description": "对战地图面积扩大约四成。",
+    "section": "Expanded battlefield",
+    "aliases_zh": [
+      "地图扩大",
+      "地图扩张",
+      "地圖變大"
+    ],
+    "aliases_en": [
+      "map expansion",
+      "bigger map",
+      "larger map"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“对战地图扩展”；仅提到游戏或版本名不计。",
+    "aspect": "level_design",
+    "match_terms": [
+      "Expanded battlefield",
+      "map expansion",
+      "bigger map",
+      "larger map",
+      "对战地图扩展",
+      "地图扩大",
+      "地图扩张",
+      "地圖變大"
+    ]
+  },
+  {
+    "item_id": "570_20230420_02",
+    "patch_id": "steam_570_20230420",
+    "appid": 570,
+    "game_en": "Dota 2",
+    "game_zh": "",
+    "title": "全才英雄属性",
+    "title_en": "Universal hero attribute",
+    "description": "引入新的全才英雄属性类别。",
+    "section": "Universal hero attribute",
+    "aliases_zh": [
+      "全才英雄",
+      "万能英雄",
+      "全才屬性"
+    ],
+    "aliases_en": [
+      "universal heroes",
+      "universal attribute"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“全才英雄属性”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "Universal hero attribute",
+      "universal attribute",
+      "universal heroes",
+      "全才英雄属性",
+      "全才英雄",
+      "万能英雄",
+      "全才屬性"
+    ]
+  },
+  {
+    "item_id": "570_20240523_01",
+    "patch_id": "steam_570_20240523",
+    "appid": 570,
+    "game_en": "Dota 2",
+    "game_zh": "",
+    "title": "先天技能",
+    "title_en": "Innate abilities",
+    "description": "每个英雄从开局就具备自己的先天能力。",
+    "section": "Innate abilities",
+    "aliases_zh": [
+      "先天技能",
+      "先天能力"
+    ],
+    "aliases_en": [
+      "innate ability",
+      "innate abilities"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“先天技能”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "Innate abilities",
+      "innate ability",
+      "先天技能",
+      "先天能力"
+    ]
+  },
+  {
+    "item_id": "570_20240523_02",
+    "patch_id": "steam_570_20240523",
+    "appid": 570,
+    "game_en": "Dota 2",
+    "game_zh": "",
+    "title": "英雄命石",
+    "title_en": "Hero facets",
+    "description": "玩家可在赛前策略阶段为英雄选择命石。",
+    "section": "Hero facets",
+    "aliases_zh": [
+      "英雄命石",
+      "命石选择",
+      "命石選擇"
+    ],
+    "aliases_en": [
+      "hero facets",
+      "facet choice"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“英雄命石”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "facet choice",
+      "Hero facets",
+      "英雄命石",
+      "命石选择",
+      "命石選擇"
+    ]
+  },
+  {
+    "item_id": "730_20240207_01",
+    "patch_id": "steam_730_20240207",
+    "appid": 730,
+    "game_en": "Counter-Strike 2",
+    "game_zh": "",
+    "title": "军备竞赛模式",
+    "title_en": "Arms Race mode",
+    "description": "将军备竞赛及配套地图加入可玩内容。",
+    "section": "Arms Race mode",
+    "aliases_zh": [
+      "军备竞赛",
+      "軍備競賽"
+    ],
+    "aliases_en": [
+      "arms race",
+      "armsrace"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“军备竞赛模式”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "Arms Race mode",
+      "arms race",
+      "armsrace",
+      "军备竞赛模式",
+      "军备竞赛",
+      "軍備競賽"
+    ]
+  },
+  {
+    "item_id": "730_20240207_02",
+    "patch_id": "steam_730_20240207",
+    "appid": 730,
+    "game_en": "Counter-Strike 2",
+    "game_zh": "",
+    "title": "贴纸自由摆放",
+    "title_en": "Flexible sticker placement",
+    "description": "支持自行决定贴纸的位置与旋转角度。",
+    "section": "Flexible sticker placement",
+    "aliases_zh": [
+      "自由贴纸",
+      "自由貼紙",
+      "自定义贴纸位置"
+    ],
+    "aliases_en": [
+      "sticker placement",
+      "rotate stickers"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“贴纸自由摆放”；仅提到游戏或版本名不计。",
+    "aspect": "content",
+    "match_terms": [
+      "Flexible sticker placement",
+      "sticker placement",
+      "rotate stickers",
+      "自定义贴纸位置",
+      "贴纸自由摆放",
+      "自由贴纸",
+      "自由貼紙"
+    ]
+  },
+  {
+    "item_id": "730_20241002_01",
+    "patch_id": "steam_730_20241002",
+    "appid": 730,
+    "game_en": "Counter-Strike 2",
+    "game_zh": "",
+    "title": "军械库通行证",
+    "title_en": "Armory Pass",
+    "description": "激活通行证后可随经验获取军械库点数并兑换物品。",
+    "section": "Armory Pass",
+    "aliases_zh": [
+      "军械库通行证",
+      "軍械庫通行證",
+      "武库通行证"
+    ],
+    "aliases_en": [
+      "armory pass",
+      "armory credits"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“军械库通行证”；仅提到游戏或版本名不计。",
+    "aspect": "monetization",
+    "match_terms": [
+      "armory credits",
+      "Armory Pass",
+      "军械库通行证",
+      "軍械庫通行證",
+      "武库通行证"
+    ]
+  },
+  {
+    "item_id": "730_20241002_02",
+    "patch_id": "steam_730_20241002",
+    "appid": 730,
+    "game_en": "Counter-Strike 2",
+    "game_zh": "",
+    "title": "武器挂件",
+    "title_en": "Weapon charms",
+    "description": "可在枪械上安装挂件，并用拆卸工具取回。",
+    "section": "Weapon charms",
+    "aliases_zh": [
+      "武器挂件",
+      "武器吊饰",
+      "武器吊飾"
+    ],
+    "aliases_en": [
+      "weapon charms",
+      "charm detachment"
+    ],
+    "annotation_note": "须结合上下文判断是否具体提到了“武器挂件”；仅提到游戏或版本名不计。",
+    "aspect": "monetization",
+    "match_terms": [
+      "charm detachment",
+      "Weapon charms",
+      "武器挂件",
+      "武器吊饰",
+      "武器吊飾"
+    ]
+  }
+]

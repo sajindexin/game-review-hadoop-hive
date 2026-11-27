@@ -118,10 +118,12 @@ def adapt_agent_response(agent: dict, question: str) -> dict:
         "release_rate": None,
         "after_rate": None,
         "delta_pp": None,
+        "language_group": None,
     }
     for n in agent.get("numbers") or []:
         label = str(n.get("label") or "")
         unit = str(n.get("unit") or "")
+        group = n.get("language_group")
         val = n.get("value")
         if isinstance(val, (int, float)):
             if unit == "%" and abs(val) <= 1.0001:
@@ -130,26 +132,45 @@ def adapt_agent_response(agent: dict, question: str) -> dict:
                 val = round(float(val), 2)
         for kw, key in _NUMBER_KEYS.items():
             if kw in label and stats.get(key) is None:
+                if group and stats["language_group"] not in (None, group):
+                    continue
                 stats[key] = val
+                if group:
+                    stats["language_group"] = group
                 break
 
     # 后端 delta 与本地页面各自四舍五入会差 0.01，统一按 before/after 差值重算，避免报告数字打架
     if stats.get("before_rate") is not None and stats.get("after_rate") is not None:
         stats["delta_pp"] = round(stats["after_rate"] - stats["before_rate"], 2)
 
-    # 后端没给 numbers 时，用页面自己的统计数据兜底（口径一致）
+    # 后端没给推荐率时，按问答的语种范围使用页面已有的版本统计。
     if all(stats[k] is None for k in ("before_rate", "release_rate", "after_rate")):
         try:
             local = load_patch(str(agent.get("patch", {}).get("patch_id") or ""))
-            s = local["stats"]["all"]
+            group = (agent.get("route") or {}).get("language") or "all"
+            if group not in local["stats"]:
+                group = "all"
+            s = local["stats"][group]
+            stats["language_group"] = group
             stats["before_rate"] = s.get("before", {}).get("rate")
             stats["release_rate"] = s.get("release", {}).get("rate")
             stats["after_rate"] = s.get("after", {}).get("rate")
-            stats["delta_pp"] = local.get("delta_pp")
+            before, after = stats["before_rate"], stats["after_rate"]
+            stats["delta_pp"] = round(after - before, 2) if before is not None and after is not None else None
+            if group == "all":
+                stats["delta_pp"] = local.get("delta_pp")
         except (FileNotFoundError, KeyError):
             pass
 
-    # ---- citations：只保留 review 类，转成前端引文结构 ----
+    # ---- citations：保留公告出处，评测引用仍使用原有前端契约 ----
+    announcements = [
+        {
+            "id": c.get("id"),
+            "title": c.get("title") or "官方公告",
+            "url": c.get("url") or (agent.get("links") or {}).get("announcement") or "",
+        }
+        for c in citations_raw if c.get("type") == "announcement"
+    ]
     out_cites = []
     for c in citations_raw:
         if c.get("type") != "review":
@@ -191,6 +212,7 @@ def adapt_agent_response(agent: dict, question: str) -> dict:
         "intent": intent,
         "answer": answer_html,
         "citations": out_cites,
+        "announcement_citations": announcements,
         "stats": stats,
         "source": "agent-retrieval",
         "evidence_status": agent.get("evidence_status"),
@@ -292,7 +314,24 @@ def status_text(delta) -> str:
     return "口碑回升"
 
 
-def answer(patch_id: str, question: str) -> dict:
+def local_statistics_intent(question: str) -> str | None:
+    """识别本地数据包支持、检索 Agent 尚未覆盖的版本内统计问题。"""
+    if re.search(r"哪个版本|哪些版本|所有版本|全组|各个版本|不同版本", question):
+        return None
+    compare = re.search(r"对比|比较|差异|差多少|相差|区别", question)
+    chinese = re.search(r"中文|简中|繁中|汉语", question)
+    english = re.search(r"英文|英语", question)
+    if compare and ((chinese and english) or re.search(r"语种|语言", question)):
+        return "language"
+    if re.search(r"提到|提及|讨论", question) and re.search(r"最多|最少|次数|排序|排行|排名", question):
+        if re.search(r"改动|条目|哪一?项", question):
+            return "items"
+    if re.search(r"评论量|评测量|评论数量|评测数量", question) and re.search(r"峰值|趋势|最多|哪一天|哪天|波动", question):
+        return "trend"
+    return None
+
+
+def answer(patch_id: str, question: str, intent: str | None = None) -> dict:
     d = load_patch(patch_id)
     p = d["patch"]
     allst = d["stats"].get("all", {})
@@ -309,12 +348,13 @@ def answer(patch_id: str, question: str) -> dict:
         "release_rate": r.get("rate"),
         "after_rate": a.get("rate"),
         "delta_pp": delta,
+        "language_group": "all",
         "window_reviews": d.get("window_reviews_total"),
         "pool_reviews": d.get("pool_reviews"),
     }
 
     # 1) 负面 / 差评
-    if has("不推荐", "差评", "负面", "问题", "抱怨", "吐槽"):
+    if intent is None and has("不推荐", "差评", "负面", "问题", "抱怨", "吐槽"):
         downs = [c for c in d["comments"] if not c["voted_up"]]
         downs.sort(key=lambda c: -c["votes_up"])
         body = (
@@ -330,44 +370,46 @@ def answer(patch_id: str, question: str) -> dict:
         }
 
     # 2) 语种差异
-    if has("语种", "中文", "英文", "语言", "简中", "繁中"):
+    if intent == "language" or (intent is None and has("语种", "中文", "英文", "语言", "简中", "繁中")):
         rows = [x for x in d["language_compare"] if x["lang"] != "all"]
         cn = next((x for x in rows if x["lang"] == "chinese"), None)
         en = next((x for x in rows if x["lang"] == "en"), None)
-        worst = min(rows, key=lambda x: x["delta"]) if rows else None
+        changes = [x for x in rows if x.get("delta") is not None]
+        largest = max(changes, key=lambda x: abs(x["delta"])) if changes else None
         body = head + f"<p>中文与英文口径对比（更新前 → 更新后）：</p><ul>"
         if cn:
             body += f"<li>简中 + 繁中：{pct(cn['before_rate'])} → {pct(cn['after_rate'])}（{pp(cn['delta'])}，样本 {cn['before_reviews']}+{cn['after_reviews']} 条）</li>"
         if en:
             body += f"<li>英语：{pct(en['before_rate'])} → {pct(en['after_rate'])}（{pp(en['delta'])}，样本 {en['before_reviews']}+{en['after_reviews']} 条）</li>"
         body += "</ul>"
-        if cn and en:
+        if cn and en and cn.get("after_rate") is not None and en.get("after_rate") is not None:
             gap = round(en["after_rate"] - cn["after_rate"], 2)
             body += (
-                f"<p>更新后英语口径比中文口径高 <b>{gap:.2f} pp</b>"
-                f"（{pct(en['after_rate'])} vs {pct(cn['after_rate'])}），"
-                f"两端变化方向一致，中文样本量约为英语的 1/6，波动更大。</p>"
+                f"<p>更新后英语与中文推荐率相差 <b>{abs(gap):.2f} pp</b>"
+                f"（英语 {pct(en['after_rate'])}，中文 {pct(cn['after_rate'])}）。</p>"
             )
-        if worst:
-            body += f"<p>相对变化绝对值最大的是 <b>{LANG_CN.get(worst['lang'], worst['lang'])}</b>（{pp(worst['delta'])}）。</p>"
+        if largest:
+            body += f"<p>推荐率变化绝对值最大的是 <b>{LANG_CN.get(largest['lang'], largest['lang'])}</b>（{pp(largest['delta'])}）。</p>"
         zh = [c for c in d["comments"] if c["language"] in ("zh-Hans", "zh-Hant")]
         zh.sort(key=lambda c: -c["votes_up"])
         return {"intent": "language", "answer": body, "citations": cites(zh, p["appid"]), "stats": stats}
 
     # 3) 改动条目
-    if has("改动", "条目", "更新内容", "哪一项", "改了什么", "提及", "新增"):
+    if intent == "items" or (intent is None and has("改动", "条目", "更新内容", "哪一项", "改了什么", "提及", "新增")):
         items = sorted(p["items"], key=lambda x: -x["mentions"])
         body = head + f"<p>本版本登记 <b>{len(items)}</b> 项改动，按窗口内评测提及次数排序：</p><ul>"
         for it in items:
             body += f"<li>{it['title']}（{it.get('section') or '—'}）· 提及 {it['mentions']} 次 — {it.get('description') or ''}</li>"
-        body += "</ul><p>下面是提及最多的那项改动所命中的评测原文：</p>"
+        body += "</ul><p>提及数来自评测正文与官方条目别名的近似匹配。下面是提及最多的改动所命中的抽样评测原文：</p>"
         top = items[0] if items else None
         ev = top["evidence"] if top else []
         return {"intent": "items", "answer": body, "citations": cites(ev, p["appid"]), "stats": stats}
 
     # 4) 趋势 / 峰值
-    if has("趋势", "峰值", "哪天", "时间", "评论量", "波动"):
+    if intent == "trend" or (intent is None and has("趋势", "峰值", "哪天", "时间", "评论量", "波动")):
         trend = [x for x in d["trend"] if x["rate"] is not None]
+        if not trend:
+            return {"intent": "trend", "answer": head + "<p>窗口内没有可用趋势数据。</p>", "citations": [], "stats": stats}
         peak = max(trend, key=lambda x: x["reviews"])
         low = min(trend, key=lambda x: x["rate"])
         body = (
@@ -417,17 +459,20 @@ class Handler(SimpleHTTPRequestHandler):
             return
 
         try:
-            if AGENT_BASE:
+            local_intent = local_statistics_intent(question)
+            if AGENT_BASE and local_intent is None:
                 try:
                     agent = call_agent(patch_id, question)
                     result = adapt_agent_response(agent, question)
                     result["fallback"] = False
                 except (urllib.error.URLError, TimeoutError, OSError):
                     result = answer(patch_id, question)
+                    result["source"] = "local-rules"
                     result["fallback"] = True
                     result["fallback_reason"] = "检索 Agent 不可用"
             else:
-                result = answer(patch_id, question)
+                result = answer(patch_id, question, local_intent)
+                result["source"] = "local-rules"
                 result["fallback"] = False
         except FileNotFoundError:
             self.send_error(404, f"unknown patch_id: {patch_id}")
