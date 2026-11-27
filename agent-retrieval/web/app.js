@@ -164,12 +164,13 @@ function renderAnswer(res) {
       const list = el("div", "cites");
       res.citations.forEach((c) => {
         const item = el("div", `cite ${c.type}`);
-        item.appendChild(el("span", "badge", { metric: "指标", review: "原文", announcement: "公告" }[c.type] || c.type));
+        item.appendChild(el("span", "badge", { metric: "指标", review: "原文", announcement: "公告", topic: "主题情感" }[c.type] || c.type));
         if (c.verified) item.appendChild(el("span", "badge verified", "已复核"));
         const title = c.url ? el("a", null, c.title) : el("span", null, c.title);
         if (c.url) { title.href = c.url; title.target = "_blank"; }
         item.appendChild(title);
         if (c.detail) item.appendChild(el("span", "muted", ` ${c.detail}`));
+        if (c.type === "topic" && c.source) item.appendChild(el("div", "muted", c.source));
         list.appendChild(item);
       });
       b.appendChild(list);

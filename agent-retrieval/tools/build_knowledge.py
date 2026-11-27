@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.bm25 import BM25Index  # noqa: E402
 from src.dense import load_encoder, save_vectors  # noqa: E402
 from src.tokenize import normalize_for_match, tokenize  # noqa: E402
+from tools.topic_stats import build_topic_stats  # noqa: E402
 
 CJK = re.compile(r"[\u4e00-\u9fff]")
 MAX_TEXT = 1000
@@ -324,7 +325,12 @@ def main() -> None:
     ap.add_argument("--patches", help="patches.jsonl 路径（可选）")
     ap.add_argument("--metrics", help="更新前后对比.csv 路径（可选）")
     ap.add_argument("--verified", help="窗口内已复核可引用关联.jsonl（可选）")
+    ap.add_argument("--web-verified-out", type=Path,
+                    help="同步导出 Web 详情页使用的已复核引文 JS")
     ap.add_argument("--lexicon", help="条目同义词表 items_extra.jsonl（可选）")
+    ap.add_argument("--nlp-results", type=Path,
+                    default=Path(__file__).resolve().parents[2] / "nlp-topic-sentiment/data/result",
+                    help="中英文主题情感规则明细目录")
     ap.add_argument("--out", default="data")
     ap.add_argument("--quick", action="store_true", help="只扫前 8 个 batch，冒烟用")
     args = ap.parse_args()
@@ -389,6 +395,10 @@ def main() -> None:
     print(f"catalog: {len(catalog['patches'])} patches, {len(catalog['items'])} items, "
           f"{len(catalog['metrics'])} metric rows")
 
+    topic_stats = build_topic_stats(patches, args.nlp_results)
+    (root / "topic_stats.json").write_text(json.dumps(topic_stats, ensure_ascii=False), encoding="utf-8")
+    print(f"topic stats: {len(topic_stats['rows'])} rows, sources={list(topic_stats['sources'])}")
+
     print("scanning reviews ...", flush=True)
     docs, stats = scan_corpus(parquet, patches, items, max_batches=8 if args.quick else None)
     print("corpus:", json.dumps(stats, ensure_ascii=False))
@@ -410,10 +420,21 @@ def main() -> None:
     print(f"  encoder={enc.meta()['name']} dim={vectors.shape[1]}")
 
     verified_meta = {"count": 0}
-    verified_path = Path(args.verified) if args.verified else Path("data_sources/verified_quotes.jsonl")
+    upstream = Path(args.branch) if args.branch else Path(__file__).resolve().parents[2] / "game-update-feedback-analysis"
+    upstream_verified = discover_upstream(upstream, "窗口内已复核可引用关联.jsonl")
+    verified_path = Path(args.verified) if args.verified else (
+        upstream_verified if upstream_verified.exists() else Path("data_sources/verified_quotes.jsonl"))
+    if not verified_path.exists() and (args.verified or args.web_verified_out):
+        raise SystemExit(f"缺少已复核引文文件：{verified_path}")
     if verified_path.exists():
         verified = load_verified(verified_path, parquet)
         (root / "verified.json").write_text(json.dumps(verified, ensure_ascii=False), encoding="utf-8")
+        if args.web_verified_out:
+            args.web_verified_out.parent.mkdir(parents=True, exist_ok=True)
+            args.web_verified_out.write_text(
+                "window.SRW_VERIFIED = " + json.dumps(verified, ensure_ascii=False) + ";\n",
+                encoding="utf-8",
+            )
         vtokens = [tokenize(v["evidence"] + " " + v["item_title"]) for v in verified]
         vbm = BM25Index().build(vtokens)
         vbm.save(root / "verified_bm25.pkl")
@@ -438,6 +459,7 @@ def main() -> None:
         "items": len(catalog["items"]),
         "metrics_rows": len(catalog["metrics"]),
         "verified": verified_meta,
+        "topic_stats": {"rows": len(topic_stats["rows"]), "sources": topic_stats["sources"]},
     }
     (root / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
     print("done:", json.dumps(meta, ensure_ascii=False))

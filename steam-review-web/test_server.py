@@ -1,6 +1,6 @@
 import unittest
 
-from server import adapt_agent_response, answer, local_statistics_intent
+from server import adapt_agent_response, answer, local_statistics_intent, verified_item_quotes
 
 
 class LocalStatisticsTests(unittest.TestCase):
@@ -31,6 +31,31 @@ class LocalStatisticsTests(unittest.TestCase):
 
 
 class AgentAdapterTests(unittest.TestCase):
+    def test_topic_response_keeps_nlp_source(self):
+        response = adapt_agent_response({
+            "route": {"intent": "topic_change", "language": "all"},
+            "patch": {"patch_id": "sdv_20201221_15"},
+            "topic_stats": {"method": "rule", "rows": []},
+            "citations": [{"id": 1, "type": "topic", "title": "NLP", "source": "detail.csv.gz"}],
+        }, "更新后哪些方面的负面反馈增加了？")
+        self.assertEqual(response["intent"], "topic_change")
+        self.assertEqual(response["stats"], {})
+        self.assertEqual(response["topic_stats"]["method"], "rule")
+        self.assertEqual(response["topic_citations"][0]["source"], "detail.csv.gz")
+
+    def test_topic_question_fallback_is_explicit(self):
+        for question in ("玩家主要在讨论什么？", "更新后哪些方面的负面反馈增加了？"):
+            self.assertIsNone(local_statistics_intent(question))
+            result = answer("sdv_20201221_15", question)
+            self.assertEqual(result["raw_status"], "unsupported")
+            self.assertEqual(result["citations"], [])
+
+    def test_reviewed_item_quotes(self):
+        rows = verified_item_quotes("sdv_20201221_15", "S15_01")
+        self.assertTrue(rows)
+        self.assertTrue(all(r["verified"] for r in rows))
+        self.assertTrue(all(r["text"] == r["evidence"] and "/profiles/" in r["url"] for r in rows))
+
     def test_agent_metrics_keep_language_group(self):
         response = adapt_agent_response({
             "numbers": [

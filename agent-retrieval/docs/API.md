@@ -198,6 +198,7 @@ Base URL：`http://127.0.0.1:8000`（启动：`python -m src.cli serve --port 80
 | type | 内容 | 前端展示 |
 |---|---|---|
 | `metric` | 指标表出处；`url` 为空，用 `links.stats` 跳“查看统计” | 指标卡片 |
+| `topic` | NLP 主题情感统计，`source` 为明细文件名 | 主题统计出处 |
 | `announcement` | 官方改动条目，`url` 为官方公告链接 | “查看公告” |
 | `review` | 玩家原话，`url` 为 Steam 评测永久链接 | “查看原文” |
 
@@ -215,6 +216,13 @@ Base URL：`http://127.0.0.1:8000`（启动：`python -m src.cli serve --port 80
 
 `kind=verified` 指向版本反馈页（已复核库）；`kind=steam` 表示该条目只有未复核原文，
 直接指向 `citations[].url` 的 Steam 原页，避免跳到空结果。
+
+主题类问题的 `route.intent` 为 `topic` 或 `topic_change`，统计数据放在 `topic_stats`：
+
+- `method` 为 `rule`，`languages`、`phases` 给出实际统计范围。
+- `rows` 每项含 `aspect`、`name`、`positive`、`negative`、`neutral`、`total`。
+- `before_negative`、`after_negative`、`negative_change`、`before_total`、`after_total` 用于前后对比。前后对比固定排除发布当天。未纳入查询的阶段对应字段为 `null`。
+- `citations` 返回 `type=topic` 的明细文件出处。
 
 ### evidence_status
 - `verified_quotes`：引文来自上游版本分析模块的 469 条已复核关联，`citations[].verified=true`，前端应显示“已复核”徽标；

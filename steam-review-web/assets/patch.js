@@ -212,15 +212,16 @@
       .map((it) => {
         const words = (it.aliases || []).slice(0, 5).map((w) => `<span class="tag gray">${S.esc(w)}</span>`).join("");
         const isOpen = openItem === it.item_id;
-        const evi = it.evidence || [];
+        const evi = (window.SRW_VERIFIED || []).filter(
+          (e) => e.patch_id === DATA.patch.patch_id && e.item_id === it.item_id
+        );
         const panel = !isOpen
           ? ""
           : `<div class="evi-list">
               <div class="evi-title">
-                引文（窗口内高赞命中评测，最多 4 条）
-                <span class="muted small">关键词：${S.esc((it.aliases || []).join(" / "))}</span>
+                已复核引文（${evi.length} 条）
               </div>
-              ${evi.length ? evi.map(evidenceCard).join("") : '<div class="empty small">该改动在窗口内没有被评测正文提到</div>'}
+              ${evi.length ? evi.map(evidenceCard).join("") : `<div class="empty small">${window.SRW_VERIFIED ? "暂无已复核引文" : "复核引文数据未加载"}</div>`}
             </div>`;
         return `<div class="item-block ${isOpen ? "open" : ""}" data-item="${S.esc(it.item_id)}">
           <div class="item-card">
@@ -250,7 +251,7 @@
     $("#itemNote").textContent =
       `共 ${items.length} 条改动，其中 ${n} 条在窗口内被评测正文直接提及。命中数采用「官方条目 + 别名表」` +
       `做不区分大小写的子串匹配，仅衡量该改动在评测中的能见度，不等价于情感极性；` +
-      `多数 Steam 评测不会逐条点评更新内容，因此该数值普遍偏低属于正常现象。点击条目可展开引文并跳转 Steam 原文。`;
+      `多数 Steam 评测不会逐条点评更新内容，因此该数值普遍偏低属于正常现象。点击条目可查看与 Agent 同源的已复核引文，并跳转 Steam 原文。`;
 
     $$("#itemList .item-card").forEach((card) => {
       card.addEventListener("click", () => {
@@ -264,22 +265,24 @@
   /* ----------------------------------------------------------- 评测样本 */
 
   function srcLink(rev, label) {
-    const url = S.reviewUrl(rev, (DATA && DATA.patch && DATA.patch.appid) || "");
+    const url = rev.url || S.reviewUrl(rev, (DATA && DATA.patch && DATA.patch.appid) || "");
     if (!url) return `<span class="src-link muted">原文链接不可用</span>`;
-    return `<a class="src-link" href="${url}" target="_blank" rel="noopener">${label}</a>`;
+    return `<a class="src-link" href="${S.esc(url)}" target="_blank" rel="noopener">${label}</a>`;
   }
 
   function evidenceCard(e) {
-    return `<div class="evi">
+    const phase = { before: "更新前", release: "发布当天", after: "更新后" }[e.phase];
+    return `<div class="evi" id="quote-${S.esc(e.item_id)}-${S.esc(e.review_id)}">
       <div class="evi-head">
+        <span class="verified-badge" title="${S.esc(e.verification)}">已复核</span>
         <span class="verdict ${e.voted_up ? "up" : "down"}">${e.voted_up ? UP + " 推荐" : DOWN + " 不推荐"}</span>
-        <span class="tag gray">${S.esc(S.langName(e.language))}</span>
+        <span class="tag gray">${S.esc(S.langName(e.language_std))}</span>
+        <span class="tag gray">${S.esc(phase)}</span>
         <span class="muted">${S.fmtTime(e.created_at)}</span>
-        <span class="muted">游玩 ${e.playtime_hours} 小时</span>
-        <span class="helpful">${UP} ${S.fmtInt(e.votes_up)}</span>
+        <span class="muted">评测 #${S.esc(e.review_id)}</span>
         <span class="right">${srcLink(e, "在 Steam 打开原文 →")}</span>
       </div>
-      <div class="evi-body">${S.esc(e.text)}</div>
+      <div class="evi-body">${S.esc(e.evidence)}</div>
     </div>`;
   }
 
@@ -343,6 +346,8 @@
       `中文玩家对这次更新的评价和英文玩家差多少？`,
       `这次更新里哪一项改动被提到最多？`,
       `帮我找几条不推荐的评测看看问题在哪。`,
+      "玩家主要在讨论什么？",
+      "更新后哪些方面的负面反馈增加了？",
     ];
     $("#askChips").innerHTML = qs
       .map(
@@ -434,6 +439,13 @@
       openItem = wantItem;
       renderItems();
       location.hash = "#items";
+      const reviewId = S.param("review");
+      if (reviewId) {
+        requestAnimationFrame(() => {
+          const evidence = document.getElementById(`quote-${wantItem}-${reviewId}`);
+          if (evidence) evidence.scrollIntoView({ block: "center" });
+        });
+      }
     }
     if (S.param("tab")) location.hash = "#" + S.param("tab");
     bindReviews();

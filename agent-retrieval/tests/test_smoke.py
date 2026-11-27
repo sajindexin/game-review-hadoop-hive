@@ -47,6 +47,34 @@ class KnowledgeBaseTest(unittest.TestCase):
         cls.kb = KnowledgeBase(ROOT / "data")
         cls.agent = Agent(cls.kb)
 
+    def test_topic_answer_real_data(self) -> None:
+        patch = "steam_1245620_20240620"
+        result = self.agent.ask("玩家主要在讨论什么？", patch_id=patch)
+        self.assertEqual(result["route"]["intent"], "topic")
+        self.assertEqual(result["citations"][0]["type"], "topic")
+        self.assertEqual(sum(row["total"] for row in result["topic_stats"]["rows"]), 4882)
+        self.assertEqual(result["topic_stats"]["rows"][0]["name"], "内容/玩法")
+        en = self.agent.ask("英文玩家更新后主要在讨论什么？", patch_id=patch)
+        self.assertEqual(en["topic_stats"]["languages"], ["en"])
+        self.assertEqual(en["topic_stats"]["phases"], ["after"])
+        self.assertEqual(sum(row["total"] for row in en["topic_stats"]["rows"]), 1331)
+
+    def test_negative_topic_change(self) -> None:
+        result = self.agent.ask("更新后哪些方面的负面反馈增加了？",
+                                patch_id="steam_1245620_20240620")
+        stats = result["topic_stats"]
+        self.assertEqual(stats["phases"], ["before", "after"])
+        first = stats["rows"][0]
+        self.assertEqual((first["name"], first["before_negative"], first["after_negative"],
+                          first["negative_change"]), ("内容/玩法", 13, 157, 144))
+        self.assertIn("13 → 157（+144）", result["answer"])
+        self.assertEqual(result["evidence_status"], "none")
+
+    def test_verified_web_export_same_source(self) -> None:
+        path = ROOT.parent / "steam-review-web/data/verified.js"
+        rows = json.loads(path.read_text("utf-8").split("=", 1)[1].strip().rstrip(";"))
+        self.assertEqual(rows, self.kb.verified)
+
     def test_catalog_shape(self) -> None:
         self.assertEqual(len(self.kb.catalog.patches), 26)
         self.assertEqual(len(self.kb.catalog.items), 75)

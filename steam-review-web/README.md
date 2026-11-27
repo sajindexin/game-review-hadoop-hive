@@ -20,7 +20,8 @@ steam-review-web/
 │  └─ ask.js             问答页逻辑
 ├─ data/
 │  ├─ index.js           12 款游戏 / 26 个版本的清单
-│  ├─ patches/*.js       每个版本一个数据包（趋势、阶段统计、条目 + 引文、评论样本）
+│  ├─ verified.js        与 Agent 同源的已复核关联和 Steam 原文链接
+│  ├─ patches/*.js       每个版本一个数据包（趋势、阶段统计、改动条目、评论样本）
 │  └─ nlp/
 │     ├─ topics.js       11 类主题情感：语种 × 阶段 × 版本/游戏 四维切片
 │     └─ items.js        75 项官方改动的正/负/中性统计与窗口分布
@@ -112,6 +113,17 @@ python steam-review-web/tools/export_web_data.py \
   --out steam-review-web/data
 ```
 
+更新已复核引文库时，在 `agent-retrieval` 目录运行：
+
+```powershell
+python -m tools.build_knowledge `
+  --parquet "<v1 发布包>/releases/v1/data/cleaned_reviews.parquet" `
+  --out data `
+  --web-verified-out ../steam-review-web/data/verified.js
+```
+
+详情页加载 `data/verified.js`，按版本和改动条目展示已复核原文。该文件与 Agent 复核索引使用同一批记录；点击 Agent 问答中的复核引文入口可以定位到详情页的对应评测。
+
 ## 接口契约
 
 ```
@@ -134,7 +146,9 @@ Content-Type: application/json
 }
 ```
 
-识别意图：`overall` / `language` / `items` / `trend` / `negative`。
+识别意图：`overall` / `language` / `items` / `trend` / `negative` / `evidence` / `topic` / `topic_change`。
+
+连接检索 Agent 后即可查询主题分布及更新前后负面反馈变化。主题问答的响应含 `topic_stats`（结构化主题统计）和 `topic_citations`（NLP 数据出处）。
 
 接 Java Servlet 时，把服务地址填进 `assets/ask.js` 的 `S.backendBase` 即可（`S.useBackend` 在 http(s) 下默认开启）：
 

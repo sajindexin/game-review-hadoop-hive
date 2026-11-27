@@ -65,6 +65,8 @@
     trend: "趋势峰值",
     negative: "负面引文",
     evidence: "玩家原话",
+    topic: "讨论主题",
+    topic_change: "负面反馈变化",
   };
 
   const EVIDENCE_LABEL = {
@@ -78,7 +80,7 @@
   const pp = (v) => (v == null ? "—" : (v > 0 ? "+" : "") + v.toFixed(2) + " pp");
 
   function quote(c) {
-    const text = c.text.length > 240 ? c.text.slice(0, 240) + "…" : c.text;
+    const text = !c.verified && c.text.length > 240 ? c.text.slice(0, 240) + "…" : c.text;
 
     // detail 包含证据级别和阶段，点赞数仍以结构化字段为准。
     const src = (c.detail
@@ -94,10 +96,13 @@
 
     const url = c.url || S.reviewUrl(c, (DATA && DATA.patch && DATA.patch.appid) || "");
     const link = url
-      ? `<a class="src-link" href="${url}" target="_blank" rel="noopener">在 Steam 打开原文 →</a>`
+      ? `<a class="src-link" href="${S.esc(url)}" target="_blank" rel="noopener">在 Steam 打开原文 →</a>`
       : "";
 
-    return `<div class="quote">${badge}${S.esc(text)}<span class="src">${S.esc(src)}　${link}</span></div>`;
+    const detail = c.verified && c.patch_id && c.item_id
+      ? `<a class="src-link" href="patch.html?id=${encodeURIComponent(c.patch_id)}&item=${encodeURIComponent(c.item_id)}&review=${encodeURIComponent(c.review_id)}#items">查看版本复核引文 →</a>`
+      : "";
+    return `<div class="quote">${badge}${S.esc(text)}<span class="src">${S.esc(src)}　${link}　${detail}</span></div>`;
   }
 
   function kv(pairs) {
@@ -118,7 +123,14 @@
 
   /* ---------------------------------------------------------- 本地应答器 */
 
+  function isTopicQuestion(q) {
+    if (/改动|条目/.test(q) && /提及|提到|讨论/.test(q) && !/主题|话题|负面|负向/.test(q)) return false;
+    return /主题|话题|主要.{0,8}(讨论|聊|关注)|讨论.{0,5}(什么|哪些|最多)|哪些方面.{0,8}(反馈|评价|吐槽)/.test(q)
+      || (/方面/.test(q) && /负面|负向|差评|抱怨|吐槽/.test(q));
+  }
+
   function localAnswer(q) {
+    if (isTopicQuestion(q)) return "<p>主题情感分析需要连接并构建好 NLP 知识库的检索 Agent。</p>";
     const p = DATA.patch;
     const all = DATA.stats.all || {};
     const b = all.before || {}, r = all.release || {}, a = all.after || {};
@@ -241,14 +253,18 @@
       chinese: "简中 + 繁中",
       en: "英语",
     }[st.language_group] || "语种未注明";
-    const chips = [
+    const isTopic = ["topic", "topic_change"].includes(json.intent);
+    const topicSources = (json.topic_citations || []).map((c) =>
+      `<div class="quote"><b>[${S.esc(c.id)}] ${S.esc(c.title)}</b><div class="src">${S.esc(c.detail)}<br>${S.esc(c.source)}</div></div>`
+    ).join("");
+    const chips = (isTopic ? [["识别意图", INTENT_LABEL[json.intent]]] : [
       ["统计口径", languageGroup],
       ["更新前", pct(st.before_rate)],
       ["更新当日", pct(st.release_rate)],
       ["更新后", pct(st.after_rate)],
       ["净变化", pp(st.delta_pp)],
       ["识别意图", INTENT_LABEL[json.intent] || "综合口碑"],
-    ]
+    ])
       .map(([k, v]) => `<span>${k} <b>${v}</b></span>`)
       .join("");
     const evLabel = json.evidence_status && json.evidence_status !== "none"
@@ -268,6 +284,7 @@
       ${srcNote}
       <div class="kv">${chips}</div>
       ${announcements}
+      ${topicSources}
       ${cites}`;
   }
 
@@ -301,6 +318,8 @@
       "这次更新里哪一项改动被提到最多？",
       "帮我找几条不推荐的评测看看问题在哪。",
       "评论量峰值出现在哪一天？",
+      "玩家主要在讨论什么？",
+      "更新后哪些方面的负面反馈增加了？",
     ];
     $("#suggestions").innerHTML = base
       .map((q) => `<button class="q" data-q="${S.esc(q)}">${S.esc(q)}</button>`)
@@ -352,7 +371,7 @@
     const p = DATA.patch;
     push(
       bubbleHtml(`<p>已载入 <b>${S.esc(p.game)} · ${S.esc(p.title_zh || p.patch_name)}</b> 的版本窗口数据。</p>
-      <p>我可以回答推荐率变化、分语种差异、改动条目讨论度，也能把支撑结论的评测原文摘出来。下方示例问题可直接点。</p>`)
+      <p>我可以回答推荐率变化、分语种差异、改动条目讨论度，也能查询 NLP 讨论主题与负面反馈变化，并检索已复核的评测原文。下方示例问题可直接点。</p>`)
     );
     const q = S.param("q");
     if (q) setTimeout(() => ask(q), 320);

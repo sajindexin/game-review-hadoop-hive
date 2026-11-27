@@ -5,7 +5,7 @@
 
 输出：
   data/index.js              游戏 / 版本清单
-  data/patches/<patch_id>.js 单版本详情（趋势、阶段统计、改动条目 + 引文、评论样本）
+  data/patches/<patch_id>.js 单版本详情（趋势、阶段统计、改动条目、评论样本）
 
 用法（仓库根目录）：
   python steam-review-web/tools/export_web_data.py \
@@ -86,7 +86,7 @@ def main() -> None:
     items = load_jsonl(analysis / "黄静雯_全组版本与改动" / "items" / "items.jsonl")
     phase_rows = load_csv(analysis / "黄静雯_全组Hive统计/分阶段统计.csv")
     daily_rows = load_csv(analysis / "黄静雯_全组Hive统计/逐日统计.csv")
-    counts_rows = load_csv(Path("team_package_v1/游戏评论交付/releases/v1/reports/game_counts.csv"))
+    counts_rows = load_csv(Path(parquet).parents[1] / "reports/game_counts.csv")
 
     total_by_app = {str(r["appid"]): int(r["count"]) for r in counts_rows}
 
@@ -251,42 +251,6 @@ def main() -> None:
             )
             where = sql_like_clause(words)
             mentions = con.execute(f"SELECT count(*) FROM win WHERE {where}").fetchone()[0]
-            ev_rows = con.execute(
-                f"""
-                SELECT review_id, steamid, language_std, language, voted_up, created_at,
-                       votes_up, playtime_hours, review_text
-                FROM win WHERE {where}
-                ORDER BY votes_up DESC NULLS LAST
-                LIMIT 200
-                """
-            ).fetchall()
-
-            # 引文排序：关键词命中次数优先，其次点赞，避免高赞长评挤掉针对性引文
-            scored = []
-            lowered = [w.lower() for w in words]
-            for r in ev_rows:
-                text = r[8] or ""
-                if is_art(text):
-                    continue
-                low = text.lower()
-                occ = sum(low.count(w) for w in lowered)
-                scored.append((occ, int(r[6] or 0), r))
-            scored.sort(key=lambda x: (-x[0], -x[1]))
-
-            evidence = [
-                {
-                    "review_id": r[0],
-                    "steamid": r[1] or "",
-                    "language": r[2] or r[3] or "",
-                    "voted_up": bool(r[4]),
-                    "created_at": r[5],
-                    "votes_up": int(r[6] or 0),
-                    "playtime_hours": round(float(r[7] or 0), 1),
-                    "hits": occ,
-                    "text": clip(r[8], 300),
-                }
-                for occ, _v, r in scored[:4]
-            ]
             items_out.append(
                 {
                     "item_id": it["item_id"],
@@ -296,7 +260,6 @@ def main() -> None:
                     "section": it.get("section"),
                     "aliases": (it.get("aliases_zh", []) + it.get("aliases_en", []))[:6],
                     "mentions": int(mentions),
-                    "evidence": evidence,
                 }
             )
         items_out.sort(key=lambda x: (-x["mentions"], x["item_id"]))
