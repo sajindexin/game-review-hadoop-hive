@@ -1327,3 +1327,265 @@ img { border: 0; }
 }
 
 .loading { padding: 40px; text-align: center; color: #6d7f8c; }
+
+/* ================================================================ NLP 洞察页 */
+
+.nlp-hero {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 24px;
+  align-items: center;
+  background: linear-gradient(115deg, rgba(27, 40, 56, 0.95) 0%, rgba(22, 32, 45, 0.9) 60%, rgba(38, 56, 74, 0.85) 100%);
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  padding: 22px 26px;
+  margin: 16px 0 14px;
+}
+
+.nlp-hero-txt .kicker {
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: #6d8ba3;
+  margin-bottom: 6px;
+}
+
+.nlp-hero-txt h1 {
+  font-size: 24px;
+  font-weight: 500;
+  color: #fff;
+  margin: 0 0 8px;
+  letter-spacing: 0.2px;
+}
+
+.nlp-hero-txt p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: #94a8b8;
+  max-width: 620px;
+}
+
+.nlp-hero-stat {
+  border-left: 1px solid rgba(102, 192, 244, 0.16);
+  padding-left: 22px;
+}
+
+.hs-main { margin-bottom: 10px; }
+.hs-num {
+  font-size: 30px;
+  font-weight: 300;
+  color: #fff;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.hs-label { font-size: 11px; color: #6d7f8c; margin-top: 3px; }
+
+.hs-split { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: #8fa3b3; }
+.hs-split b { font-weight: 500; margin-right: 6px; font-variant-numeric: tabular-nums; }
+.hs-split .pos b { color: #b9d75a; }
+.hs-split .neg b { color: #e08585; }
+.hs-split .neu b { color: #8fa3b3; }
+
+/* 筛选条 */
+.nlp-filter {
+  background: rgba(0, 0, 0, 0.26);
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
+.nlp-filter .filter-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.nlp-filter .filter-label {
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #6d7f8c;
+  margin-left: 6px;
+}
+.nlp-filter .filter-label:first-child { margin-left: 0; }
+
+.nlp-filter select {
+  background: rgba(10, 16, 22, 0.8);
+  border: 1px solid var(--line);
+  color: #c6d4df;
+  font-family: inherit;
+  font-size: 12px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 2px;
+  max-width: 260px;
+}
+
+.nlp-filter select:focus { outline: none; border-color: var(--blue); }
+
+.seg-group { display: inline-flex; gap: 4px; }
+
+.chip:disabled { opacity: 0.35; cursor: not-allowed; }
+.chip.dim { opacity: 0.35; }
+
+.nlp-scope {
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px dashed rgba(102, 192, 244, 0.13);
+  font-size: 11.5px;
+  color: #8fa3b3;
+}
+
+.scope-label {
+  display: inline-block;
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #67c1f5;
+  background: rgba(103, 193, 245, 0.1);
+  border: 1px solid rgba(103, 193, 245, 0.22);
+  border-radius: 2px;
+  padding: 1px 6px;
+  margin-right: 8px;
+}
+
+.scope-sep {
+  display: inline-block;
+  width: 1px;
+  height: 11px;
+  background: rgba(102, 192, 244, 0.2);
+  margin: 0 10px;
+  vertical-align: middle;
+}
+
+/* 主题条形图 */
+.topic-bars { padding: 4px 0; }
+
+.topic-row {
+  display: grid;
+  grid-template-columns: 116px 1fr 250px;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(102, 192, 244, 0.05);
+}
+.topic-row:last-child { border-bottom: 0; }
+
+.topic-name {
+  font-size: 12px;
+  color: #c6d4df;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topic-bar-wrap { position: relative; height: 16px; background: rgba(255, 255, 255, 0.03); border-radius: 2px; }
+.topic-bar { display: flex; height: 100%; border-radius: 2px; overflow: hidden; transition: width 0.25s ease; }
+
+.topic-bar .seg { display: block; height: 100%; }
+.topic-bar .seg.pos { background: linear-gradient(180deg, #8fc659, #6da53f); }
+.topic-bar .seg.neg { background: linear-gradient(180deg, #e08585, #c25454); }
+.topic-bar .seg.neu { background: linear-gradient(180deg, #5c7284, #465a69); }
+
+.topic-nums {
+  display: grid;
+  grid-template-columns: 52px 1fr 1fr 1fr 42px;
+  gap: 4px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.topic-nums .n-total { color: #e6eef4; font-weight: 500; }
+.topic-nums .pos { color: #b9d75a; }
+.topic-nums .neg { color: #e08585; }
+.topic-nums .neu { color: #8fa3b3; }
+.topic-nums .n-rate { color: #6d7f8c; }
+.topic-nums .n-rate.hot { color: #e08585; font-weight: 500; }
+.topic-nums .n-rate.thin { color: #55677a; font-style: italic; }
+
+.topic-legend {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(102, 192, 244, 0.08);
+  font-size: 11px;
+  color: #8fa3b3;
+}
+
+.topic-legend .dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 1px;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+.topic-legend .dot.pos { background: #6da53f; }
+.topic-legend .dot.neg { background: #c25454; }
+.topic-legend .dot.neu { background: #465a69; }
+
+/* 条目表 */
+.table-scroll { overflow-x: auto; }
+
+.nlp-note {
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: #8fa3b3;
+  background: rgba(103, 193, 245, 0.05);
+  border-left: 2px solid rgba(103, 193, 245, 0.35);
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border-radius: 2px;
+}
+
+.item-name { color: #e6eef4; }
+.item-id {
+  font-size: 10px;
+  color: #5e7284;
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+#itemTable tbody tr { cursor: default; }
+#itemTable .strong { color: #fff; font-weight: 500; }
+#itemTable .neu { color: #8fa3b3; }
+#itemTable .row-zero td { color: #55677a; }
+#itemTable .row-zero .item-name { color: #7d8f9e; }
+
+/* 口径说明 */
+.method-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.85;
+  color: #94a8b8;
+}
+.method-list li { margin-bottom: 6px; }
+.method-list code {
+  background: rgba(103, 193, 245, 0.1);
+  color: #8fc7e8;
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-size: 11px;
+}
+
+/* 主题分布表头 */
+.topic-head {
+  display: grid;
+  grid-template-columns: 116px 1fr 250px;
+  gap: 12px;
+  padding: 0 0 8px;
+  border-bottom: 1px solid rgba(102, 192, 244, 0.12);
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #5e7284;
+}
+
+.topic-head .th-nums {
+  display: grid;
+  grid-template-columns: 52px 1fr 1fr 1fr 42px;
+  gap: 4px;
+  text-align: right;
+}
+
+.topic-head .th-nums i { font-style: normal; }

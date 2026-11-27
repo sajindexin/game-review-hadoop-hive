@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NLP 洞察 · Steam 评测分析台</title>
+<link rel="stylesheet" href="assets/steam.css">
+</head>
+<body>
+
+<header class="global-header" id="siteHeader"></header>
+<div class="sub-nav" id="subNav"></div>
+
+<main class="wrap">
+
+  <div class="nlp-hero">
+    <div class="nlp-hero-txt">
+      <div class="kicker">自然语言处理 · 两层标签体系</div>
+      <h1>11 类通用主题 × 75 项官方改动</h1>
+      <p>
+        第一层把每条评论拆到 11 类通用主题，标注正 / 负 / 中性；第二层把同一批评论关联到 75 项官方改动。
+        两个层级都支持按游戏、版本、语种、更新阶段筛选。
+      </p>
+    </div>
+    <div class="nlp-hero-stat" id="heroStat"></div>
+  </div>
+
+  <!-- 筛选工具条 -->
+  <section class="nlp-filter">
+    <div class="filter-row">
+      <span class="filter-label">游戏</span>
+      <select id="fGame"><option value="">全部游戏</option></select>
+
+      <span class="filter-label">版本</span>
+      <select id="fPatch"><option value="">全部版本（全时间线）</option></select>
+
+      <span class="filter-label">语种</span>
+      <div class="seg-group" id="fLang">
+        <button class="chip on" data-lang="all">全部</button>
+        <button class="chip" data-lang="zh">中文</button>
+        <button class="chip" data-lang="en">英文</button>
+      </div>
+
+      <span class="filter-label">更新阶段</span>
+      <div class="seg-group" id="fPhase">
+        <button class="chip on" data-phase="all">全部</button>
+        <button class="chip" data-phase="before">更新前 14 天</button>
+        <button class="chip" data-phase="release">发布当天</button>
+        <button class="chip" data-phase="after">更新后 14 天</button>
+      </div>
+
+      <button class="chip chip-clear" id="fReset" hidden>重置</button>
+    </div>
+    <div class="nlp-scope" id="scopeNote"></div>
+  </section>
+
+  <!-- 第一层：11 类主题情感分布 -->
+  <div class="section-head">
+    <h2>11 类通用主题的情感分布</h2>
+    <span class="sub" id="topicSub"></span>
+    <span class="right">
+      排序
+      <button class="chip on" data-sort="total">提及量</button>
+      <button class="chip" data-sort="neg">负向率</button>
+    </span>
+  </div>
+
+  <div class="panel">
+    <div class="topic-head">
+      <span>主题</span>
+      <span>正 / 负 / 中性构成</span>
+      <span class="th-nums"><i>合计</i><i>正</i><i>负</i><i>中</i><i>负向率</i></span>
+    </div>
+    <div class="topic-bars" id="topicBars"></div>
+    <div class="topic-legend">
+      <span><i class="dot pos"></i>正向</span>
+      <span><i class="dot neg"></i>负向</span>
+      <span><i class="dot neu"></i>中性</span>
+      <span class="muted">条形长度按提及量相对最大主题缩放；末列为负向率（负向 ÷ 合计），样本不足 10 条的主题按负向率排序时排末位并以斜体标注</span>
+    </div>
+  </div>
+
+  <!-- 第二层：75 项官方改动 -->
+  <div class="section-head">
+    <h2>75 项官方改动的反馈统计</h2>
+    <span class="sub" id="itemSub"></span>
+    <span class="right">
+      <button class="chip on" data-isort="total">提及量</button>
+      <button class="chip" data-isort="neg">负向数</button>
+      <button class="chip" data-isort="pos">正向数</button>
+    </span>
+  </div>
+
+  <div class="panel">
+    <div class="nlp-note" id="itemNote"></div>
+    <div class="table-scroll">
+      <table class="table" id="itemTable">
+        <thead>
+          <tr>
+            <th style="width:38px">#</th>
+            <th>官方改动</th>
+            <th>游戏 / 版本</th>
+            <th class="num">正向</th>
+            <th class="num">负向</th>
+            <th class="num">中性</th>
+            <th class="num">合计</th>
+            <th class="num">窗口内</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 口径说明 -->
+  <section class="panel">
+    <h3 class="panel-title">口径与方法</h3>
+    <div class="nlp-method" id="method"></div>
+  </section>
+
+</main>
+
+<footer class="site-footer" id="siteFooter"></footer>
+
+<script src="assets/steam.js"></script>
+<script src="assets/nlp.js"></script>
+</body>
+</html>
