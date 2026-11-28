@@ -95,6 +95,21 @@ uv run --locked python steam-review-web/server.py --port 8021
 | `GET /api/versions/{patch_id}/stats` | `appid`、`language_group` | `patch_daily`、`patch_phase`、`patch_comparison` 的逐日、阶段和前后统计 |
 | `GET /api/versions/{patch_id}/evidence` | `appid`、`item_id`、`phase`、`language_group`、`offset`、`limit` | `verified_quotes` 的原句、复核标记、公告、Steam 原页和分页 |
 
+**主题分析与情感统计（第四部分，`nlp_topic` 库，实时查 Hive，`source: "hive"`，60 秒缓存）**
+
+| 入口 | 可选参数 | Hive 来源及返回内容 |
+| --- | --- | --- |
+| `GET /api/nlp/stats/distribution` | `lang`（zh/en，默认 zh） | `topic_distribution` / `topic_distribution_en`：11 类主题 × 正/负/中 计数 |
+| `GET /api/nlp/stats/summary` | `appid`、`lang` | `topic_sentiment_review_summary`：评论总数、命中主题数、主情感分布、正/负主题对合计 |
+| `GET /api/nlp/topics/trend` | `appid`、`aspect`、`lang`、`days`（7–3650，默认 365） | `topic_sentiment_detail`：主题情感按日计数。`days` 口径为「最近 days 个有评论数据的天」（非自然日窗口），SQL 先按日聚合为每日一行再 LIMIT，不截断单日情感 |
+| `GET /api/nlp/items/feedback` | `appid`、`item_id` | `item_dict` + `patch_items` + `item_sentiment_detail` + `item_patch_summary`：改动反馈。不给 `item_id` 时以条目字典为基础返回全部官方条目（未被评论命中的补零）；给 `item_id` 时先校验条目归属（appid 与 item_id 不匹配 404），版本窗口以 `patch_items` 目录为基础关联命中统计（零命中条目补齐 `patch_id` 归属与四项窗口零值，如星露谷 1.6 的 `sdv_20240319_16`），返回单条目情感分布 + 版本窗口计数（pre_14d / release_day / post_14d / out_of_window，与第三部分版本目录对齐），三项统计同一范围 |
+| `GET /api/nlp/reviews` | `appid`、`aspect`、`sentiment`、`lang`、`offset`、`limit`（默认 50、最大 500） | `topic_sentiment_detail`：按主题+情感筛评论，带 `evidence` 引文，按置信度降序（并列时 aspect、review_id 次级排序保证稳定）分页 |
+
+- `appid` 为可选过滤条件：省略时聚合全部游戏（与第一部分 `/api/versions` 目录口径一致），返回中的 `appid` 为 `null`。
+- `aspect` 为 11 类主题 ID：content / level_design / multiplayer / graphics / performance / story / controls / monetization / cheating / audio / community；`sentiment` 为 positive / negative / neutral。输入错误 400，条目不存在或不属于该游戏 404。
+- `lang=en` 时自动切换英文结果表（`topic_sentiment_detail_en` 等）。中文与英文结果表均为**规则弱标注口径**；中文 RBT3 模型口径的结果表不通过本接口提供，避免与弱标注统计混淆。
+- 页面已在用的静态端点 `GET /api/nlp/topics`、`GET /api/nlp/items` 保持不变（离线数据包，可协商缓存）。
+
 - `language_group` 默认 `all`。推荐率取 0–1 的比例，分母为零时返回 `null`。`change_percentage_points` 采用 Hive 表原精度，星露谷物语 1.5 的全语种前后差显示为 `+0.96` 个百分点。
 - 引文 `phase=all` 查询完整复核库。指定 `before`、`release` 或 `after` 时，按所选阶段的编辑时间截止规则筛选。`chinese` 汇总简中和繁中。`available` 为筛选后的总数，`offset` 默认 0，`limit` 默认 100、最大 500。
 - 成功响应标有 `source: "hive"`。无引文时返回空数组。输入错误为 400，找不到版本、改动或统计语种为 404。连接异常及超时沿用公共错误结构。小查询使用公共客户端的 60 秒缓存。
