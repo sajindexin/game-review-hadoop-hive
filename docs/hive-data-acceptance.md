@@ -200,6 +200,3 @@ DESCRIBE FORMATTED hadoop_delivery.patch_daily;
 
 - 清洗评测、版本目录、Hive 统计、模型覆盖与候选分数、复核引文、NLP 及 Agent 检索语料的行数验收通过。
 - 统一数仓 `steam_dw` 的十二张表均可查询，可作为后端数据访问和前端接口迁移的数据来源。
-
-
-
