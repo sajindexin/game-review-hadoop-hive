@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "game-review-hive"
+version = "0.1.0"
+description = "Shared HiveServer2 access for game review analysis"
+requires-python = ">=3.10"
+dependencies = [
+    "PyHive[hive_pure_sasl]==0.7.0",
+    "thrift>=0.16,<1",
+]
+
+[tool.setuptools]
+packages = ["hive_service"]
