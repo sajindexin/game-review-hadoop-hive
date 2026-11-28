@@ -23,7 +23,9 @@ import argparse
 import hashlib
 import json
 import mimetypes
+import os
 import re
+import sys
 import urllib.error
 import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -35,6 +37,10 @@ from backend.routes import api_error, dispatch_get
 
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
+SITE = ROOT / "site"
+
+# 站点根目录：前端构建产物。旧的多页静态版已被 Vue 3 版替代，不再保留回退。
+STATIC_ROOT = SITE
 
 # 由 --agent-base 指定；为 None 时走本地规则引擎
 AGENT_BASE: str | None = None
@@ -478,7 +484,36 @@ def answer(patch_id: str, question: str, intent: str | None = None) -> dict:
 
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *a, **kw):
-        super().__init__(*a, directory=str(ROOT), **kw)
+        super().__init__(*a, directory=str(STATIC_ROOT), **kw)
+
+    def translate_path(self, path):
+        """SPA 回退：前端路由返回 index.html，其余按文件实际存在与否处理。
+
+        需要回退的两种情况：
+        - 无扩展名路径：/patch/xxx、/nlp、/ask
+        - 不存在的 .html：旧的 patch.html?id=xxx，交给 Vue Router 做重定向
+
+        带其它扩展名的请求（/assets/*.js）找不到就照常 404，
+        避免把 JS 请求错误地返回一段 HTML。
+        """
+        rel = urlparse(path).path
+
+        # data/ 是数据接口的源文件，不在 dist 里，单独映射出来便于直接核对
+        if rel.startswith("/data/"):
+            candidate = ROOT / rel.lstrip("/")
+            if candidate.is_file():
+                return str(candidate)
+
+        full = super().translate_path(path)
+        if os.path.exists(full):
+            return full
+
+        base = os.path.basename(rel)
+        if "." not in base or base.endswith(".html"):
+            index = STATIC_ROOT / "index.html"
+            if index.is_file():
+                return str(index)
+        return full
 
     def log_message(self, fmt, *args):  # 安静一点
         print("[srv] " + fmt % args)
@@ -582,7 +617,7 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 def main():
-    global AGENT_BASE
+    global AGENT_BASE, STATIC_ROOT
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument(
@@ -594,10 +629,16 @@ def main():
     AGENT_BASE = (args.agent_base or "").strip() or None
     dataset.configure(DATA)
 
+    if not (SITE / "index.html").is_file():
+        print("错误：未找到前端构建产物 site/index.html")
+        print("请先构建： cd frontend && npm install && npm run build")
+        sys.exit(1)
+
     mimetypes.add_type("application/javascript", ".js")
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     idx = load_index()
-    print(f"服务已启动： http://127.0.0.1:{args.port}/index.html")
+    print(f"服务已启动： http://127.0.0.1:{args.port}/")
+    print(f"前端：       Vue 3 构建产物（{SITE}）")
     print(f"接口：       POST http://127.0.0.1:{args.port}/api/ask")
     print(f"Hive 检查：  GET http://127.0.0.1:{args.port}/api/health/hive")
     print(f"数据：       {idx['source']['games']} 款游戏 / {idx['source']['patches']} 个版本")

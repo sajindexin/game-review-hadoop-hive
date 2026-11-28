@@ -7,21 +7,27 @@
 
 ```
 steam-review-web/
-├─ index.html            商店总览：焦点更新、游戏胶囊墙（带筛选）、26 个版本一览表
-├─ patch.html            版本详情：概览 / 改动条目 / 评测样本 / 问答入口 四个标签页
-├─ nlp.html              NLP 洞察：11 类主题情感分布 + 75 项官方改动反馈统计
-├─ ask.html              Agent 问答页（走 /api/ask，接口不可用时自动回退本地规则引擎）
-├─ server.py             本地服务：静态站 + 数据接口 + POST /api/ask
+├─ frontend/             Vue 3 源码（Vite 工程）
+│  ├─ index.html         开发入口
+│  ├─ vite.config.js     dev 代理 /api → 8077，build 输出到 ../site
+│  ├─ package.json       vue 3.5 / vue-router 4.5 / vite 7
+│  └─ src/
+│     ├─ main.js         应用入口，挂载路由与全局样式
+│     ├─ App.vue         顶栏 + router-view + 页脚
+│     ├─ router/         路由表，含旧 .html 链接的重定向
+│     ├─ api/            /api/* 请求封装（错误归一、404 区分）
+│     ├─ lib/            格式化、配色封面、SVG 图表、问答 HTML 与本地规则引擎
+│     ├─ components/     GlobalHeader / SubNav / SiteFooter / LineChart / BarChart
+│     │                  / EvidenceCard / ReviewCard
+│     ├─ views/          HomeView / PatchView / NlpView / AskView
+│     └─ styles/         steam.css（从原 assets/ 原样迁入）
+├─ site/                 npm run build 产物，server.py 托管这个目录
+├─ server.py             本地服务：托管 site + 数据接口 + POST /api/ask
 ├─ backend/
 │  ├─ common.py          统一错误类型 ApiError
 │  ├─ dataset.py         静态数据集 → JSON 接口（读 data/*.js 并原样返回）
+│  ├─ versions.py        Hive 版本分析接口
 │  └─ routes.py          GET 路由分发 + 错误映射
-├─ assets/
-│  ├─ steam.css          Steam 风格样式（#171a21 / #1b2838 / #66c0f4 配色）
-│  ├─ steam.js           公共库：导航、程序化封面、格式化、SVG 图表、原文链接
-│  ├─ index.js           首页逻辑（筛选 / 排序 / 搜索）
-│  ├─ patch.js           详情页逻辑（趋势、引文展开、评论筛选）
-│  └─ ask.js             问答页逻辑
 ├─ data/
 │  ├─ index.js           12 款游戏 / 26 个版本的清单
 │  ├─ verified.js        与 Agent 同源的已复核关联和 Steam 原文链接
@@ -31,8 +37,10 @@ steam-review-web/
 │     └─ items.js        75 项官方改动的正/负/中性统计与窗口分布
 ├─ screenshots/          页面截图（本地规则引擎模式）
 ├─ screenshots-joint/    与检索 Agent 联调的五个步骤截图
-├─ screenshots-nlp/      NLP 洞察页截图
+├─ screenshots-nlp/      NLP 洞察页截图（旧静态版）
+├─ screenshots-vue/      Vue 3 版的四个页面截图
 ├─ docs/
+│  ├─ Vue3迁移说明.md     前端改造的目录对照、关键决策与验证记录
 │  ├─ NLP前端展示说明.md  11 类主题 + 75 项改动的前端落点、口径与验证记录
 │  ├─ 联调记录-唐宇杰.md  与 agent-retrieval 的真实联调记录（第 7 章用这份）
 │  ├─ joint/*.json       联调时四类问题的完整响应
@@ -46,16 +54,63 @@ steam-review-web/
    └─ test_nlp_page.js   用 CDP 驱动真实点击，验证 NLP 页的筛选与排序
 ```
 
+## 前端技术栈
+
+Vue 3 + Vue Router + Vite，单文件组件写法，源码在 `frontend/src`，构建产物在 `site/`。
+
+| 位置 | 说明 |
+| --- | --- |
+| `frontend/src/views/` | 四个页面组件：Home / Patch / Nlp / Ask |
+| `frontend/src/components/` | 公共组件：顶栏、二级导航、页脚、两张 SVG 图表、引文卡片、评测卡片 |
+| `frontend/src/lib/` | 纯函数：格式化、配色与封面、图表绘制、问答 HTML 拼装与本地规则引擎 |
+| `frontend/src/api/` | 接口封装，统一处理错误与 404 |
+| `frontend/src/styles/steam.css` | 全局样式（原样迁移，类名未改） |
+| `site/` | `npm run build` 的产物，由 `server.py` 托管，已入库 |
+
+路由（history 模式）：
+
+| 路径 | 页面 |
+| --- | --- |
+| `/` | 商店总览：焦点更新、游戏胶囊墙、26 个版本表 |
+| `/patch/:patchId` | 版本详情：概览 / 改动条目 / 评测样本 / 问答入口 |
+| `/nlp` | NLP 洞察：11 类主题情感 + 官方改动统计 |
+| `/ask` | Agent 问答 |
+
+旧的 `index.html` / `patch.html?id=xxx` / `nlp.html` / `ask.html` 仍可访问，
+`server.py` 会把它们交给前端路由重定向，历史链接和截图里的地址不会失效。
+
 ## 启动步骤
 
-**方式一：本地规则引擎（无需其它服务）**
+**方式一：直接用构建产物（最省事）**
 
 ```bash
 cd steam-review-web
 python server.py --port 8021
 ```
 
-**方式二：接通检索 Agent（唐宇杰模块，联调用这个）**
+`site/` 已入库，克隆下来就能跑，不需要 npm。
+
+**方式二：改前端源码（开发模式）**
+
+```bash
+# 终端 1：后端
+cd steam-review-web
+python server.py --port 8077
+
+# 终端 2：Vite 开发服务器，/api 自动代理到 8077
+cd steam-review-web/frontend
+npm install
+npm run dev          # http://127.0.0.1:5180
+```
+
+改完源码发布：
+
+```bash
+cd steam-review-web/frontend
+npm run build        # 输出到 steam-review-web/site/
+```
+
+**方式三：接通检索 Agent（唐宇杰模块，联调用这个）**
 
 ```bash
 # 终端 1：先启动对方模块
@@ -69,11 +124,7 @@ python server.py --port 8066 --agent-base http://127.0.0.1:8000
 
 启动日志会打印当前问答后端与回退策略。后端挂掉时自动回退本地规则引擎，页面不白屏。
 
-打开页面入口 <http://127.0.0.1:8066/index.html>。
-同时具备问答接口 `POST /api/ask`，页面与接口同源，无需处理跨域。
-
-只想看静态页、不跑接口时，`python -m http.server 8000` 或直接双击 `index.html` 也可以，
-此时问答页会自动回退到本地规则引擎。
+打开 <http://127.0.0.1:8066/>。问答接口 `POST /api/ask` 与页面同源，无需处理跨域。
 
 ## Hive 版本 API
 
@@ -211,17 +262,19 @@ GET /api/verified                            → 403 KB（469 条）
 版本页只用一个版本的引文，过滤后省掉 92% 传输量。若传入未登记的 `patch_id` 返回空数组
 （而不是 404）——这表示"该版本没有已复核引文"，属于正常业务状态。
 
-### 取数回退
+### 取数方式
 
-`assets/steam.js` 里的 `fetchJson()` 按运行环境自动切换：
+Vue 版只走 `/api/*` 接口，`frontend/src/api/index.js` 统一封装：
 
-| 打开方式 | 行为 |
-| --- | --- |
-| `http://` / `https://` | 走 `/api/*` 接口 |
-| `file://` 双击打开 | 接口不可用，回退到 `data/*.js` 脚本注入 |
+- 网络异常 → 抛「网络请求失败，请确认后端已启动」
+- 404 → 抛出后端返回的 `error.message`（业务错误，不做兜底）
+- 其它非 2xx → 用状态码兜底
 
-回退是为了保留离线单页能力——把整个目录拷走双击 `index.html` 也能看，不用起服务。
-接口返回 404 时**不会**回退（那是业务错误，不是环境问题），会直接抛给页面显示。
+`file://` 直接双击 `site/index.html` 不再可用（ES Module 与 history 路由都需要 http）。
+要看页面请起 `server.py`，或 `cd site && python -m http.server`（此时只有静态页，接口会失败）。
+
+引文数据 `loadVerified()` 是唯一做了容错的：取不到就返回空数组，
+由版本页显示「暂无已复核引文」，不让整页失败。
 
 ### 问答接口（POST）
 
@@ -249,12 +302,15 @@ Content-Type: application/json
 
 连接检索 Agent 后即可查询主题分布及更新前后负面反馈变化。主题问答的响应含 `topic_stats`（结构化主题统计）和 `topic_citations`（NLP 数据出处）。
 
-接 Java Servlet 时，把服务地址填进 `assets/ask.js` 的 `S.backendBase` 即可（`S.useBackend` 在 http(s) 下默认开启）：
+接外部服务时改接口前缀即可，前端不写死地址：
 
-```js
-S.useBackend = true;
-S.backendBase = "http://localhost:8080/review-api";
+```bash
+# 构建时指定，或写进 frontend/.env.local
+VITE_API_BASE=http://localhost:8080/review-api npm run build
 ```
+
+对应 `frontend/src/api/index.js` 里的 `API_BASE`。默认留空表示同源，
+由 `server.py` 转发到 `--agent-base`。
 
 ## 联调记录
 

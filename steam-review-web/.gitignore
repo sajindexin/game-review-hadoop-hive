@@ -2,3 +2,9 @@
 .chromeprofile/
 __pycache__/
 *.pyc
+
+# 前端依赖，npm install 可重建
+frontend/node_modules/
+frontend/.vite/
+
+# 构建产物在 site/，需要入库：克隆下来直接 python server.py 就能跑，不必装 node

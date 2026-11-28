@@ -1,0 +1,20 @@
+{
+  "name": "steam-review-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Steam 评测分析台前端（Vue 3 + Vite）",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vue": "^3.5.46",
+    "vue-router": "^4.5.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.11",
+    "vite": "^7.0.0"
+  }
+}
