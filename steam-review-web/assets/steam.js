@@ -143,6 +143,19 @@
 
   /* -------------------------------------------------------------- 数据加载 */
 
+  /*
+   * 两种取数方式，按运行环境自动选择：
+   *
+   *   http(s) 打开     → 走 /api/* 接口（fetch + ETag 协商缓存）
+   *   file:// 直接双击 → 接口不可用，回退到 data/*.js 脚本注入
+   *
+   * 回退不是"降级凑合"，是保留离线单页能力：
+   * 老师拷走整个目录双击 index.html 也能看，不用起服务。
+   */
+
+  SRW.API_BASE = "";                      // 同源，留空即可；分离部署时可改成完整地址
+  const IS_HTTP = /^https?:$/.test(location.protocol);
+
   SRW.loadScript = (src) =>
     new Promise((resolve, reject) => {
       const s = document.createElement("script");
@@ -152,27 +165,79 @@
       document.head.appendChild(s);
     });
 
+  /** 统一取数：优先 API，失败或非 http 环境时回退到静态脚本。 */
+  async function fetchJson(apiPath, fallbackScript, sourceKey) {
+    if (IS_HTTP) {
+      try {
+        const res = await fetch(SRW.API_BASE + apiPath, {
+          headers: { Accept: "application/json" },
+          cache: "no-cache",
+        });
+        if (res.ok) return await res.json();
+        // 404 说明该版本不存在，属于业务错误，不该回退
+        if (res.status === 404) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error((err.error && err.error.message) || "数据不存在");
+        }
+        // 5xx 或其它异常 → 走回退
+      } catch (e) {
+        if (e && e.message && /不存在/.test(e.message)) throw e;
+        // 网络层异常 → 继续尝试回退
+      }
+    }
+    // file:// 或接口异常：回退静态脚本
+    window[sourceKey] = undefined;
+    await SRW.loadScript(fallbackScript);
+    if (!window[sourceKey]) throw new Error("加载失败：" + fallbackScript);
+    return window[sourceKey];
+  }
+
   SRW.loadIndex = async function () {
-    if (!window.SRW_INDEX) await SRW.loadScript("data/index.js");
+    if (!window.SRW_INDEX) window.SRW_INDEX = await fetchJson("/api/index", "data/index.js", "SRW_INDEX");
     return window.SRW_INDEX;
   };
 
   SRW.loadPatch = async function (patchId) {
     window.SRW_PATCH = null;
-    await SRW.loadScript("data/patches/" + encodeURIComponent(patchId) + ".js");
-    if (!window.SRW_PATCH) throw new Error("找不到版本数据：" + patchId);
-    return window.SRW_PATCH;
+    const data = await fetchJson(
+      "/api/patch/" + encodeURIComponent(patchId),
+      "data/patches/" + encodeURIComponent(patchId) + ".js",
+      "SRW_PATCH"
+    );
+    window.SRW_PATCH = data;
+    return data;
   };
 
   /* NLP 结果包：主题情感切片 + 75 项官方改动统计 */
   SRW.loadNlpTopics = async function () {
-    if (!window.SRW_NLP_TOPICS) await SRW.loadScript("data/nlp/topics.js");
+    if (!window.SRW_NLP_TOPICS) {
+      window.SRW_NLP_TOPICS = await fetchJson("/api/nlp/topics", "data/nlp/topics.js", "SRW_NLP_TOPICS");
+    }
     return window.SRW_NLP_TOPICS;
   };
 
   SRW.loadNlpItems = async function () {
-    if (!window.SRW_NLP_ITEMS) await SRW.loadScript("data/nlp/items.js");
+    if (!window.SRW_NLP_ITEMS) {
+      window.SRW_NLP_ITEMS = await fetchJson("/api/nlp/items", "data/nlp/items.js", "SRW_NLP_ITEMS");
+    }
     return window.SRW_NLP_ITEMS;
+  };
+
+  /* 已复核引文：版本页展开改动条目时用。
+     传 patchId 时只取该版本（30 KB 左右），否则全量（403 KB）。 */
+  SRW.loadVerified = async function (patchId) {
+    if (!window.SRW_VERIFIED) {
+      const api = patchId
+        ? "/api/verified?patch_id=" + encodeURIComponent(patchId)
+        : "/api/verified";
+      // 这份数据缺失时不该让整页失败，返回空数组由页面提示"暂无"
+      try {
+        window.SRW_VERIFIED = await fetchJson(api, "data/verified.js", "SRW_VERIFIED");
+      } catch (e) {
+        window.SRW_VERIFIED = [];
+      }
+    }
+    return window.SRW_VERIFIED;
   };
 
   /* -------------------------------------------------------------- SVG 图表 */

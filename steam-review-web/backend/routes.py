@@ -1,11 +1,30 @@
 from __future__ import annotations
 
 import logging
+import re
+from urllib.parse import parse_qs
 
+from . import dataset
 from .common import ApiError, get_hive
 from .versions import VersionAPI
 
 logger = logging.getLogger(__name__)
+
+# /api/patch/<patch_id>
+_PATCH_ROUTE = re.compile(r"^/api/patch/([A-Za-z0-9_]+)$")
+
+# 这些接口返回构建产物，内容随部署变化，用 ETag 协商缓存
+_STATIC_DATA_ROUTES = {
+    "/api/meta": dataset.meta,
+    "/api/index": dataset.index,
+    "/api/nlp/topics": dataset.nlp_topics,
+    "/api/nlp/items": dataset.nlp_items,
+}
+
+# 允许的查询参数：空 = 不接受任何参数
+_ALLOWED_QUERY = {
+    "/api/verified": {"patch_id"},
+}
 
 
 def hive_health() -> dict:
@@ -14,14 +33,48 @@ def hive_health() -> dict:
     return {"status": "ok", "source": "hive"}
 
 
-def dispatch_get(path: str, query: str = "") -> dict:
-    """分发 Hive 健康检查和版本分析接口。"""
+def _check_query(path: str, query: str) -> dict:
+    """校验查询参数，返回解析后的字典。"""
+    allowed = _ALLOWED_QUERY.get(path, set())
+    if not query:
+        return {}
+    params = parse_qs(query, keep_blank_values=True)
+    extra = set(params) - allowed
+    if extra:
+        raise ApiError(400, "invalid_request", f"不支持的查询参数：{', '.join(sorted(extra))}")
+    return {k: v[0] for k, v in params.items()}
+
+
+def dispatch_get(path: str, query: str = ""):
+    """GET 路由分发。
+
+    返回 (payload, cacheable) 二元组：cacheable 为 True 时允许前端做协商缓存。
+    - 静态数据集（构建产物）：可缓存
+    - Hive 健康检查、版本分析接口：实时查库，不缓存
+    """
     if path == "/api/health/hive":
         if query:
             raise ApiError(400, "invalid_request", "此接口不接受查询参数")
-        return hive_health()
+        return hive_health(), False
+
     if path == "/api/versions" or path.startswith("/api/versions/"):
-        return VersionAPI(get_hive).get(path, query)
+        return VersionAPI(get_hive).get(path, query), False
+
+    handler = _STATIC_DATA_ROUTES.get(path)
+    if handler is not None:
+        _check_query(path, query)
+        return handler(), True
+
+    if path == "/api/verified":
+        params = _check_query(path, query)
+        return dataset.verified(params.get("patch_id")), True
+
+    m = _PATCH_ROUTE.match(path)
+    if m:
+        if query:
+            raise ApiError(400, "invalid_request", "此接口不接受查询参数")
+        return dataset.patch(m.group(1)), True
+
     raise ApiError(404, "not_found", "接口不存在")
 
 

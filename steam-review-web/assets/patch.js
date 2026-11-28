@@ -403,6 +403,9 @@
     }
     if (!id && INDEX) id = INDEX.games[0].patches[INDEX.games[0].patches.length - 1].patch_id;
 
+    // 引文数据与版本数据并行取；只取当前版本的引文，避免每次都拉全量 403 KB
+    const verifiedTask = S.loadVerified(id);
+
     try {
       DATA = await S.loadPatch(id);
     } catch (err) {
@@ -422,6 +425,8 @@
       ],
       game ? `${game.patches.length} 个版本窗口` : ""
     );
+
+    await verifiedTask;
 
     renderHead();
     renderStats();
