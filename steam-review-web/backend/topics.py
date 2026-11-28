@@ -14,7 +14,9 @@ Parquet 入库脚本见 nlp-topic-sentiment/data/result/IMPORT_GUIDE.md）。
   - appid 为可选过滤条件：省略时聚合全部游戏（与第一部分 /api/versions 一致）；
   - trend 的 days 表示「返回最近 days 个有评论数据的天」，SQL 先按日聚合成每日一行再 LIMIT；
   - feedback 以 nlp_topic.item_dict 为基础：列表给全部官方条目补零，
-    详情先校验条目归属（appid 与 item_id 不匹配 404），三项统计同范围。
+    详情先校验条目归属（appid 与 item_id 不匹配 404），三项统计同范围；
+    版本窗口以 hadoop_delivery.patch_items 目录为基础，
+    零命中条目补齐 patch_id 归属与四项窗口零值。
 """
 
 from __future__ import annotations
@@ -40,6 +42,7 @@ ASPECTS = (
 SENTIMENTS = ("positive", "negative", "neutral")
 ITEM_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,95}")
 DATABASE = "nlp_topic"
+VERSION_DATABASE = "hadoop_delivery"  # 官方版本改动目录（第三部分）
 CACHE_TTL = 60
 QUERY_KEYS = {
     "distribution": {"lang"},
@@ -271,10 +274,30 @@ class TopicAPI:
             detail_filters.insert(0, appid_filter)
             detail_params.insert(0, appid)
         detail_where = " AND ".join(detail_filters)
-        windows = self._rows(
-            f"SELECT patch_id, item_id, item_title, pre_14d, release_day, post_14d, out_of_window "
-            f"FROM {DATABASE}.item_patch_summary WHERE item_id = %s ORDER BY patch_id", (item_id,),
+        # 窗口统计以官方版本改动目录（hadoop_delivery.patch_items，第三部分维护，
+        # 覆盖全部 75 项）为基础关联 item_patch_summary 的命中统计：
+        # item_patch_summary 只有被评论命中的条目，零命中条目由此补齐
+        # patch_id 版本归属与四项窗口零值，保证详情可直接用于前端版本联动。
+        catalog_windows = self._rows(
+            f"SELECT patch_id, item_id, title FROM {VERSION_DATABASE}.patch_items "
+            f"WHERE item_id = %s ORDER BY patch_id", (item_id,),
         )
+        window_stats = {
+            row["patch_id"]: row
+            for row in self._rows(
+                f"SELECT patch_id, item_id, item_title, pre_14d, release_day, post_14d, out_of_window "
+                f"FROM {DATABASE}.item_patch_summary WHERE item_id = %s", (item_id,),
+            )
+        }
+        windows = [
+            {
+                "patch_id": row["patch_id"], "item_id": row["item_id"],
+                "item_title": window_stats.get(row["patch_id"], {}).get("item_title") or row["title"],
+                **{key: window_stats.get(row["patch_id"], {}).get(key, 0)
+                   for key in ("pre_14d", "release_day", "post_14d", "out_of_window")},
+            }
+            for row in catalog_windows
+        ]
         by_sentiment = self._rows(
             f"SELECT sentiment, count(*) AS cnt FROM {detail} "
             f"WHERE {detail_where} GROUP BY sentiment", tuple(detail_params),

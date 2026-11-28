@@ -158,9 +158,10 @@ class TopicApiTests(unittest.TestCase):
 
     def test_feedback_detail_and_list(self):
         hive = Mock()
-        # 详情：先查条目字典校验归属，再查窗口表 + 情感统计（同一 appid+item_id 范围）
+        # 详情：字典校验归属 → patch_items 版本目录 → 窗口命中统计 → 情感统计（同 appid+item_id 范围）
         hive.query.side_effect = [
             [{"item_id": "S15_01", "title": "姜岛探索", "game": "Stardew Valley", "aspect": "content"}],
+            [{"patch_id": "sdv_20201221_15", "item_id": "S15_01", "title": "姜岛探索"}],
             [{"patch_id": "sdv_20201221_15", "item_id": "S15_01", "item_title": "姜岛探索",
               "pre_14d": 1, "release_day": 0, "post_14d": 2, "out_of_window": 631}],
             [{"sentiment": "positive", "cnt": 2}, {"sentiment": "neutral", "cnt": 1}],
@@ -171,12 +172,35 @@ class TopicApiTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(payload["item_title"], "姜岛探索")
         self.assertEqual(payload["windows"][0]["patch_id"], "sdv_20201221_15")
+        self.assertEqual(payload["windows"][0]["pre_14d"], 1)
         self.assertEqual(payload["by_sentiment"]["positive"], 2)
         self.assertEqual(payload["by_sentiment"]["negative"], 0)
-        catalog_sql = hive.query.call_args_list[0][0][0]
-        self.assertIn("nlp_topic.item_dict", catalog_sql)
+        dict_sql = hive.query.call_args_list[0][0][0]
+        self.assertIn("nlp_topic.item_dict", dict_sql)
+        self.assertIn("item_id = %s", dict_sql)
+        self.assertIn("appid = %s", dict_sql)
+        catalog_sql = hive.query.call_args_list[1][0][0]
+        self.assertIn("hadoop_delivery.patch_items", catalog_sql)
         self.assertIn("item_id = %s", catalog_sql)
-        self.assertIn("appid = %s", catalog_sql)
+
+    def test_feedback_zero_hit_detail_has_patch(self):
+        """零命中条目详情：版本窗口以 patch_items 目录补齐 patch_id 与四项零值。"""
+        hive = Mock()
+        hive.query.side_effect = [
+            [{"item_id": "S16_05", "title": "饲养多只宠物", "game": "Stardew Valley", "aspect": "content"}],
+            [{"patch_id": "sdv_20240319_16", "item_id": "S16_05", "title": "饲养多只宠物"}],
+            [],  # item_patch_summary 无命中统计
+            [],  # 情感统计为零
+            [],  # 窗口情感为零
+        ]
+        with patch.object(routes, "get_hive", return_value=hive):
+            status, payload = self.request("/api/nlp/items/feedback?appid=413150&item_id=S16_05")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["windows"], [{
+            "patch_id": "sdv_20240319_16", "item_id": "S16_05", "item_title": "饲养多只宠物",
+            "pre_14d": 0, "release_day": 0, "post_14d": 0, "out_of_window": 0,
+        }])
+        self.assertEqual(payload["by_sentiment"], {"positive": 0, "negative": 0, "neutral": 0})
 
     def test_feedback_item_game_mismatch_404(self):
         """用 CS2 的 appid 查星露谷条目：字典无匹配，404 且不再查统计。"""

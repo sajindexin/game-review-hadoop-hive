@@ -102,7 +102,7 @@ uv run --locked python steam-review-web/server.py --port 8021
 | `GET /api/nlp/stats/distribution` | `lang`（zh/en，默认 zh） | `topic_distribution` / `topic_distribution_en`：11 类主题 × 正/负/中 计数 |
 | `GET /api/nlp/stats/summary` | `appid`、`lang` | `topic_sentiment_review_summary`：评论总数、命中主题数、主情感分布、正/负主题对合计 |
 | `GET /api/nlp/topics/trend` | `appid`、`aspect`、`lang`、`days`（7–3650，默认 365） | `topic_sentiment_detail`：主题情感按日计数。`days` 口径为「最近 days 个有评论数据的天」（非自然日窗口），SQL 先按日聚合为每日一行再 LIMIT，不截断单日情感 |
-| `GET /api/nlp/items/feedback` | `appid`、`item_id` | `item_dict` + `item_sentiment_detail` + `item_patch_summary`：改动反馈。不给 `item_id` 时以条目字典为基础返回全部官方条目（未被评论命中的补零）；给 `item_id` 时先校验条目归属（appid 与 item_id 不匹配 404），返回单条目情感分布 + `patch_id` 版本窗口计数（pre_14d / release_day / post_14d / out_of_window，与第三部分版本目录对齐），三项统计同一范围 |
+| `GET /api/nlp/items/feedback` | `appid`、`item_id` | `item_dict` + `patch_items` + `item_sentiment_detail` + `item_patch_summary`：改动反馈。不给 `item_id` 时以条目字典为基础返回全部官方条目（未被评论命中的补零）；给 `item_id` 时先校验条目归属（appid 与 item_id 不匹配 404），版本窗口以 `patch_items` 目录为基础关联命中统计（零命中条目补齐 `patch_id` 归属与四项窗口零值，如星露谷 1.6 的 `sdv_20240319_16`），返回单条目情感分布 + 版本窗口计数（pre_14d / release_day / post_14d / out_of_window，与第三部分版本目录对齐），三项统计同一范围 |
 | `GET /api/nlp/reviews` | `appid`、`aspect`、`sentiment`、`lang`、`offset`、`limit`（默认 50、最大 500） | `topic_sentiment_detail`：按主题+情感筛评论，带 `evidence` 引文，按置信度降序（并列时 aspect、review_id 次级排序保证稳定）分页 |
 
 - `appid` 为可选过滤条件：省略时聚合全部游戏（与第一部分 `/api/versions` 目录口径一致），返回中的 `appid` 为 `null`。
