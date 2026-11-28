@@ -14,15 +14,15 @@
 
 ## 安装和配置
 
-在各自运行模块的 Python 环境中，从仓库根目录安装公共包（Python 3.10+，PyHive 0.7.0，Windows 可用的 pure-SASL 驱动）。
+公共包使用 `uv` 管理依赖，支持 Python 3.10+，并通过仓库根目录的 `uv.lock` 锁定 PyHive 0.7.0 及相关依赖。安装 `uv` 后，在仓库根目录执行：
 
 ```powershell
-python -m pip install -e .
+uv sync --locked
 $env:HIVE_HOST = 'hive.hujiayuan.com'
 $env:HIVE_PORT = '10000'
 $env:HIVE_AUTH = 'NONE'
 $env:HIVE_DATABASE = 'default'
-python -c "from hive_service import get_hive_client; print(get_hive_client().query('SELECT 1 AS ok'))"
+uv run --locked python -c "from hive_service import get_hive_client; print(get_hive_client().query('SELECT 1 AS ok'))"
 ```
 
 连接前加入项目的 Tailscale 网络。`.env.example` 列出可设置的环境变量，公共包读取进程环境，无需加载额外的配置库。Linux/macOS 可用 `export` 设置同名变量。配置变更后重启进程。
@@ -101,5 +101,5 @@ print(hive.query("DESCRIBE steam_dw.ads_patch_compare"))
 ## 验证
 
 ```powershell
-python -m unittest discover -s tests -v
+uv run --locked python -m unittest discover -s tests -v
 ```
