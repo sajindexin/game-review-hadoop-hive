@@ -8,7 +8,6 @@ from unittest.mock import Mock, patch
 
 import server
 from backend import routes
-from backend.common import ApiError
 
 
 class WebApiTests(unittest.TestCase):
@@ -41,28 +40,9 @@ class WebApiTests(unittest.TestCase):
         self.assertEqual(headers.get_content_type(), "application/json")
         return json.loads(body)
 
-    def test_pending_modules_have_explicit_errors(self):
-        with patch.object(routes.version_api, "get_index", side_effect=ApiError(501, "not_implemented", "待接入")):
-            self.assertEqual(self.assert_json("/api/index", 501)["error"]["code"], "not_implemented")
-
     def test_unknown_api_and_unexpected_query(self):
         self.assertEqual(self.assert_json("/api/unknown", 404)["error"]["code"], "not_found")
-        self.assertEqual(self.assert_json("/api/nlp/items?lang=zh", 400)["error"]["code"], "invalid_request")
-
-    def test_module_results_are_returned_without_envelope(self):
-        for module, function, path in ((routes.version_api, "get_index", "/api/index"),
-                                       (routes.nlp_api, "get_topics", "/api/nlp/topics"),
-                                       (routes.nlp_api, "get_items", "/api/nlp/items")):
-            with self.subTest(path=path), patch.object(module, function, return_value={"data": function}) as handler:
-                self.assertEqual(self.assert_json(path, 200), {"data": function})
-                handler.assert_called_once_with()
-        with patch.object(routes.version_api, "get_patch", return_value={"patch": {"patch_id": "p1"}}) as handler:
-            self.assertEqual(self.assert_json("/api/patches/p1", 200), {"patch": {"patch_id": "p1"}})
-            handler.assert_called_once_with("p1")
-        with patch.object(routes.version_api, "get_verified_quotes", return_value=[{"item_id": "i1"}]):
-            self.assertEqual(self.assert_json("/api/verified-quotes", 200), [{"item_id": "i1"}])
-        with patch.object(routes.version_api, "get_patch", side_effect=ApiError(404, "not_found", "版本不存在")):
-            self.assertEqual(self.assert_json("/api/patches/missing", 404)["error"]["code"], "not_found")
+        self.assertEqual(self.assert_json("/api/health/hive?lang=zh", 400)["error"]["code"], "invalid_request")
 
     def test_health_uses_hive_without_cache(self):
         hive = Mock()

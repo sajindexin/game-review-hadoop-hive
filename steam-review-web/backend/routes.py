@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import logging
-import re
 
-from . import nlp_api, version_api
 from .common import ApiError, get_hive
 
 logger = logging.getLogger(__name__)
@@ -15,23 +13,13 @@ def hive_health() -> dict:
     return {"status": "ok", "source": "hive"}
 
 
-def dispatch_get(path: str, query: str = "") -> dict | list:
-    """分发已声明的 GET API，业务模块负责查询及数据映射。"""
-    routes = {
-        "/api/health/hive": hive_health,
-        "/api/index": version_api.get_index,
-        "/api/verified-quotes": version_api.get_verified_quotes,
-        "/api/nlp/topics": nlp_api.get_topics,
-        "/api/nlp/items": nlp_api.get_items,
-    }
-    match = re.fullmatch(r"/api/patches/([A-Za-z0-9_-]+)", path)
-    if path not in routes and match is None:
+def dispatch_get(path: str, query: str = "") -> dict:
+    """分发公共 Hive 健康检查。"""
+    if path != "/api/health/hive":
         raise ApiError(404, "not_found", "接口不存在")
     if query:
         raise ApiError(400, "invalid_request", "此接口不接受查询参数")
-    if match is not None:
-        return version_api.get_patch(match[1])
-    return routes[path]()
+    return hive_health()
 
 
 def api_error(exc: Exception) -> ApiError:

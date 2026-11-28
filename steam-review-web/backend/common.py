@@ -19,7 +19,3 @@ def get_hive():
     except ImportError as exc:
         raise ApiError(503, "hive_unavailable", "请先安装公共 Hive 客户端") from exc
     return get_hive_client()
-
-
-def pending(module: str):
-    raise ApiError(501, "not_implemented", f"{module} Hive 接口尚待接入")

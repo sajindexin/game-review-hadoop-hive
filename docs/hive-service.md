@@ -1,6 +1,16 @@
-# 公共 Hive 数据访问层
+# Hive 服务使用文档
 
-胡家源负责维护 `hive_service`。版本分析、NLP、检索 Agent 和 Web 后端统一通过该 Python 包连接 HiveServer2，业务 SQL 与字段映射由各模块维护。
+## 连接信息
+
+| 项目 | 值 |
+| --- | --- |
+| HiveServer2 主机 | `hive.hujiayuan.com` |
+| 端口 | `10000` |
+| 认证方式 | `NONE` |
+| 默认数据库 | `default` |
+| 网络 | 项目 Tailscale 网络 |
+
+连接 Hive 后执行 `SELECT 1` 验证连通性。
 
 ## 安装和配置
 
@@ -17,17 +27,17 @@ python -c "from hive_service import get_hive_client; print(get_hive_client().que
 
 连接前加入项目的 Tailscale 网络。`.env.example` 列出可设置的环境变量，公共包读取进程环境，无需加载额外的配置库。Linux/macOS 可用 `export` 设置同名变量。配置变更后重启进程。
 
-| 环境变量 | 默认 | 说明 |
-| --- | --- | --- |
-| `HIVE_HOST` | 必填 | HiveServer2 主机 |
-| `HIVE_PORT` | `10000` | Thrift TCP 端口 |
-| `HIVE_USERNAME` | 当前系统用户 | Hive 会话用户名，按团队服务端配置指定 |
-| `HIVE_AUTH` | `NONE` | 已验证的 SASL PLAIN 无密码认证，另支持 `NOSASL` |
-| `HIVE_DATABASE` | `default` | 会话默认库，SQL 使用显式库名以便跨库查询 |
-| `HIVE_CONNECT_TIMEOUT` | `10` | 连接及会话初始化的单次网络 I/O 超时，单位秒 |
-| `HIVE_QUERY_TIMEOUT` | `60` | 查询执行和取数时间预算，单位秒，同时设置 Hive 会话查询超时 |
-| `HIVE_MAX_ROWS` | `10000` | 默认最多返回的行数，超出会抛出异常 |
-| `HIVE_CACHE_ENTRIES` | `32` | 单进程缓存的最大条目数，`0` 禁用 |
+| 环境变量               | 默认         | 说明                                                       |
+| ---------------------- | ------------ | ---------------------------------------------------------- |
+| `HIVE_HOST`            | 必填         | HiveServer2 主机                                           |
+| `HIVE_PORT`            | `10000`      | Thrift TCP 端口                                            |
+| `HIVE_USERNAME`        | 当前系统用户 | Hive 会话用户名，按团队服务端配置指定                      |
+| `HIVE_AUTH`            | `NONE`       | 已验证的 SASL PLAIN 无密码认证，另支持 `NOSASL`            |
+| `HIVE_DATABASE`        | `default`    | 会话默认库，SQL 使用显式库名以便跨库查询                   |
+| `HIVE_CONNECT_TIMEOUT` | `10`         | 连接及会话初始化的单次网络 I/O 超时，单位秒                |
+| `HIVE_QUERY_TIMEOUT`   | `60`         | 查询执行和取数时间预算，单位秒，同时设置 Hive 会话查询超时 |
+| `HIVE_MAX_ROWS`        | `10000`      | 默认最多返回的行数，超出会抛出异常                         |
+| `HIVE_CACHE_ENTRIES`   | `32`         | 单进程缓存的最大条目数，`0` 禁用                           |
 
 ## Python 接口
 
@@ -49,29 +59,47 @@ rows = hive.query(
 ```
 
 - `get_hive_client()` 延迟读取环境，返回进程内共享客户端。也可以在测试或命令行脚本中用 `HiveClient(HiveConfig(...))` 显式初始化。
-- `query(sql, params=None, *, max_rows=None, cache_ttl=0)` 返回 `list[dict]`，无匹配时为 `[]`。保留 Hive/PyHive 返回的值类型（含 `None`、日期时间、Decimal）；HTTP 层由业务模块转换成接口规定的 JSON 值。SQL 请使用独立列别名，以避免 Hive 返回限定列名或同名列。
+- `query(sql, params=None, *, max_rows=None, cache_ttl=0)` 返回 `list[dict]`，无匹配时为 `[]`。保留 Hive/PyHive 返回的值类型（含 `None`、日期时间、Decimal）。SQL 建议使用独立列别名，以避免 Hive 返回限定列名或同名列。
 - 参数使用 PyHive 的 `%s`（位置参数元组/列表）或者 `%(name)s`（字典参数）。参数用于值，库名、表名、列名、排序方向等 SQL 结构必须由受控模板或白名单提供。参数化 SQL 中的字面百分号需写成 `%%`。
-- `query()` 接受模块定义的 SELECT、WITH、SHOW、DESCRIBE 查询模板。应用只从可信代码传入 SQL，外部输入只作为值绑定；数据库权限由 HiveServer2 控制。Web 无通用 SQL 查询入口。
+- `query()` 接受 SELECT、WITH、SHOW、DESCRIBE 查询模板。应用只从可信代码传入 SQL，外部输入只作为值绑定；数据库权限由 HiveServer2 控制。
 - 每次查询独立打开会话与游标，允许线程共享客户端实例。查询采用异步执行及轮询，执行超时会尝试取消操作；查询、读取结果和网络 I/O 失败后都会释放本地资源。网络断开时服务端操作的清理由 HiveServer2 的超时和会话机制负责。DNS、会话初始化和资源清理可能使请求总耗时超过查询预算。
 - 大数据查询应优先用 Hive 聚合、限制行数或按稳定键分批读取。Agent 如需加载 62,007 条语料，可以显式设置 `max_rows=70000`，并根据运行情况调整超时。超过上限会抛异常，避免悄悄丢失数据。
 - `cache_ttl` 单位秒，默认关闭。仅调用方显式开启缓存且结果不超过 1,000 行时才保存。缓存按 SQL、参数、行数上限、TTL 隔离，线程安全，成功结果可在 TTL 内复用；失败不缓存。数据重载后调用 `hive.clear_cache()` 或重启。
 
 ## 异常处理
 
-| 异常 | 处理约定 |
-| --- | --- |
-| `HiveConfigurationError` | 检查环境变量配置 |
-| `HiveUnavailable` | 检查 Tailscale、服务状态和 Hive 会话 |
-| `HiveTimeout` | 检查查询成本、超时配置或网络 |
-| `HiveQueryError` | 检查 SQL、参数或列别名 |
-| `HiveResultTooLarge`（继承 `HiveQueryError`） | 调整聚合、分页或明确提高结果上限 |
+| 异常                                          | 处理约定                             |
+| --------------------------------------------- | ------------------------------------ |
+| `HiveConfigurationError`                      | 检查环境变量配置                     |
+| `HiveUnavailable`                             | 检查 Tailscale、服务状态和 Hive 会话 |
+| `HiveTimeout`                                 | 检查查询成本、超时配置或网络         |
+| `HiveQueryError`                              | 检查 SQL、参数或列别名               |
+| `HiveResultTooLarge`（继承 `HiveQueryError`） | 调整聚合、分页或明确提高结果上限     |
 
-所有异常继承 `HiveError`。底层异常保留在 `__cause__` 供开发调试。HTTP 响应仅提供稳定错误码和用户提示。公共客户端不会自动重试昂贵查询。
+所有异常继承 `HiveError`。底层异常保留在 `__cause__` 供开发调试。公共客户端不会自动重试昂贵查询。
+
+## 已有数据库和表
+
+以下是 2026-11-28 实际查询确认可见的部分数据表。
+
+| 数据库 | 主要数据表 |
+| --- | --- |
+| `game_reviews` | `reviews_v1`（12 款游戏，4,884,580 条评测） |
+| `steam_dw` | `dim_patch`、`dim_item`、`ads_patch_daily`、`ads_patch_stage`、`ads_patch_compare` 及 NLP ODS/ADS 表 |
+| `nlp_topic` | `topic_distribution`、`topic_distribution_en`、中英及 RBT3 主题明细与汇总、条目情感表 |
+| `hadoop_delivery` | `review_coverage`、`candidate_scores`、`verified_quotes`（469 条引文） |
+| `game_review_upload` | `gr_agent_corpus_62007`（62,007 条）、`gr_lexicon_items`、`gr_lexicon_global`、`gr_manifest` |
+
+可以查询数据库、表清单及字段信息：
+
+```python
+print(hive.query("SHOW DATABASES"))
+print(hive.query("SHOW TABLES IN steam_dw"))
+print(hive.query("DESCRIBE steam_dw.ads_patch_compare"))
+```
 
 ## 验证
 
 ```powershell
 python -m unittest discover -s tests -v
 ```
-
-本地单元检查不需要 Hive，涵盖参数传递、会话释放、超时取消、断网处理、行数上限和缓存等。连接验证使用上面的 `SELECT 1 AS ok`，预期返回 `[{'ok': 1}]`。

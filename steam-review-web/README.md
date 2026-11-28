@@ -126,7 +126,7 @@ python -m tools.build_knowledge `
 
 ## 接口契约
 
-公共 Hive 连接配置和后端数据接口见 [Hive 后端接口与联调约定](../docs/backend-integration.md)，包括版本、NLP、复核引文 GET API 的对接函数，以及现有问答入口的迁移依赖。
+公共 Hive 服务连接配置见 [Hive 服务使用文档](../docs/hive-service.md)。
 
 ```
 POST /api/ask
