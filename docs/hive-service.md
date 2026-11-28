@@ -14,10 +14,10 @@
 
 ## 安装和配置
 
-公共包使用 `uv` 管理依赖，支持 Python 3.10+，并通过仓库根目录的 `uv.lock` 锁定 PyHive 0.7.0 及相关依赖。安装 `uv` 后，在仓库根目录执行：
+公共包与 `crawler/` 共用 uv workspace 和根目录的 `uv.lock`。工作区需要 Python 3.12+（公共 Hive 包自身支持 Python 3.10+）。安装 `uv` 后，在仓库根目录执行：
 
 ```powershell
-uv sync --locked
+uv sync --all-packages --locked
 $env:HIVE_HOST = 'hive.hujiayuan.com'
 $env:HIVE_PORT = '10000'
 $env:HIVE_AUTH = 'NONE'

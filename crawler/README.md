@@ -10,16 +10,22 @@
 
 ### 方式一：使用 `uv`（推荐）
 
-在 `crawler/` 目录下执行：
+爬虫是仓库根目录 uv workspace 的成员，与公共 Hive 包共用根目录 `uv.lock` 和 `.venv`。在仓库根目录安装全部成员：
 
 ```powershell
-uv sync
-uv run steam-crawler --help
+uv sync --all-packages --locked
 ```
 
-> 若从仓库根目录运行，请加上 `--directory crawler`：
+在 `crawler/` 目录下执行，后续示例也以该目录为工作目录：
+
+```powershell
+uv run --locked steam-crawler --help
+```
+
+> 若从仓库根目录运行，可用 `--package steam-feedback-crawler` 选择爬虫包，或使用 `--directory crawler` 保持示例中的相对路径以 `crawler/` 为起点：
 > ```powershell
-> uv run --directory crawler steam-crawler --help
+> uv run --locked --package steam-feedback-crawler steam-crawler --help
+> uv run --locked --directory crawler steam-crawler --help
 > ```
 
 ### 方式二：未安装 `uv` 时（使用 `venv` + `pip`）

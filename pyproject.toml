@@ -14,3 +14,6 @@ dependencies = [
 
 [tool.setuptools]
 packages = ["hive_service"]
+
+[tool.uv.workspace]
+members = ["crawler"]
