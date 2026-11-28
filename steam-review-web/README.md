@@ -126,6 +126,10 @@ python -m tools.build_knowledge `
 
 ## 接口契约
 
+公共 Hive 服务连接配置见 [Hive 服务使用文档](../docs/hive-service.md)。
+
+配置 Hive 后，可在仓库根目录通过 `uv run --locked python steam-review-web/server.py --port 8021` 启动联调服务。
+
 ```
 POST /api/ask
 Content-Type: application/json

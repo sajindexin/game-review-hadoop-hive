@@ -29,6 +29,8 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
+from backend.routes import api_error, dispatch_get
+
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
 
@@ -479,6 +481,32 @@ class Handler(SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):  # 安静一点
         print("[srv] " + fmt % args)
 
+    def _send_json(self, status, result):
+        try:
+            body = json.dumps(result, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        except (TypeError, ValueError) as exc:
+            error = api_error(exc)
+            status = error.status
+            body = json.dumps(error.payload(), ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        request = urlparse(self.path)
+        if request.path != "/api" and not request.path.startswith("/api/"):
+            return super().do_GET()
+        try:
+            result = dispatch_get(request.path, request.query)
+        except Exception as exc:
+            error = api_error(exc)
+            self._send_json(error.status, error.payload())
+        else:
+            self._send_json(200, result)
+
     def do_POST(self):
         if urlparse(self.path).path != "/api/ask":
             self.send_error(404)
@@ -516,12 +544,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_error(404, f"unknown patch_id: {patch_id}")
             return
 
-        body = json.dumps(result, ensure_ascii=False).encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        self._send_json(200, result)
 
     def end_headers(self):
         # 允许 file:// 页面直接调接口时跨域
@@ -552,6 +575,7 @@ def main():
     idx = load_index()
     print(f"服务已启动： http://127.0.0.1:{args.port}/index.html")
     print(f"接口：       POST http://127.0.0.1:{args.port}/api/ask")
+    print(f"Hive 检查：  GET http://127.0.0.1:{args.port}/api/health/hive")
     print(f"数据：       {idx['source']['games']} 款游戏 / {idx['source']['patches']} 个版本")
     if AGENT_BASE:
         print(f"问答后端：   检索 Agent {AGENT_BASE}（不可用时自动回退本地规则引擎）")
