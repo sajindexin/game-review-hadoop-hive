@@ -1,7 +1,7 @@
 # Steam 评测分析台 · 前端
 
 复刻 Steam 商店 / 社区视觉语言的静态前端，用来演示「选游戏和版本 → 查指标 → 提问 → 看引文 → 点开原文」这条完整链路。
-数据全部来自本仓库已有的离线产物，**不依赖任何 CDN、不用构建工具、不用打包**。
+离线页面使用仓库内的导出数据包。版本 API 通过公共 Hive 服务从数据仓库取数。
 
 ## 目录
 
@@ -74,6 +74,38 @@ python server.py --port 8066 --agent-base http://127.0.0.1:8000
 
 只想看静态页、不跑接口时，`python -m http.server 8000` 或直接双击 `index.html` 也可以，
 此时问答页会自动回退到本地规则引擎。
+
+## Hive 版本 API
+
+版本查询复用 [公共 Hive 客户端](../docs/hive-service.md)，直接读取 [已验收的 `hadoop_delivery` 表](../docs/hive-data-acceptance.md#3-版本目录hive-统计与模型证据)。按服务文档配置项目 Tailscale 与 Hive 后，在仓库根目录启动。
+
+```powershell
+uv sync --all-packages --locked
+$env:HIVE_HOST = 'hive.hujiayuan.com'
+$env:HIVE_PORT = '10000'
+$env:HIVE_AUTH = 'NONE'
+uv run --locked python steam-review-web/server.py --port 8021
+```
+
+| 入口 | 可选参数 | Hive 来源及返回内容 |
+| --- | --- | --- |
+| `GET /api/versions` | `appid` | `patches` 目录及 `patch_comparison` 的全语种 `summary` |
+| `GET /api/versions/{patch_id}` | `appid` | 版号、上线日、窗口、公告和全语种摘要 |
+| `GET /api/versions/{patch_id}/changes` | `appid`、`item_id` | `patch_items` 的中英文名称、别名、说明和公告链接 |
+| `GET /api/versions/{patch_id}/stats` | `appid`、`language_group` | `patch_daily`、`patch_phase`、`patch_comparison` 的逐日、阶段和前后统计 |
+| `GET /api/versions/{patch_id}/evidence` | `appid`、`item_id`、`phase`、`language_group`、`offset`、`limit` | `verified_quotes` 的原句、复核标记、公告、Steam 原页和分页 |
+
+- `language_group` 默认 `all`。推荐率取 0–1 的比例，分母为零时返回 `null`。`change_percentage_points` 采用 Hive 表原精度，星露谷物语 1.5 的全语种前后差显示为 `+0.96` 个百分点。
+- 引文 `phase=all` 查询完整复核库。指定 `before`、`release` 或 `after` 时，按所选阶段的编辑时间截止规则筛选。`chinese` 汇总简中和繁中。`available` 为筛选后的总数，`offset` 默认 0，`limit` 默认 100、最大 500。
+- 成功响应标有 `source: "hive"`。无引文时返回空数组。输入错误为 400，找不到版本、改动或统计语种为 404。连接异常及超时沿用公共错误结构。小查询使用公共客户端的 60 秒缓存。
+
+```text
+GET /api/health/hive
+GET /api/versions?appid=413150
+GET /api/versions/sdv_20201221_15/changes?item_id=S15_01
+GET /api/versions/sdv_20201221_15/stats?language_group=all
+GET /api/versions/sdv_20201221_15/evidence?item_id=S15_01&phase=after
+```
 
 ## 页面入口
 

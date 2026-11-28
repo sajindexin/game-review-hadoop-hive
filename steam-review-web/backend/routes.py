@@ -6,6 +6,7 @@ from urllib.parse import parse_qs
 
 from . import dataset
 from .common import ApiError, get_hive
+from .versions import VersionAPI
 
 logger = logging.getLogger(__name__)
 
@@ -48,12 +49,16 @@ def dispatch_get(path: str, query: str = ""):
     """GET 路由分发。
 
     返回 (payload, cacheable) 二元组：cacheable 为 True 时允许前端做协商缓存。
-    纯静态数据集可缓存；Hive 健康检查是探活，不缓存。
+    - 静态数据集（构建产物）：可缓存
+    - Hive 健康检查、版本分析接口：实时查库，不缓存
     """
     if path == "/api/health/hive":
         if query:
             raise ApiError(400, "invalid_request", "此接口不接受查询参数")
         return hive_health(), False
+
+    if path == "/api/versions" or path.startswith("/api/versions/"):
+        return VersionAPI(get_hive).get(path, query), False
 
     handler = _STATIC_DATA_ROUTES.get(path)
     if handler is not None:

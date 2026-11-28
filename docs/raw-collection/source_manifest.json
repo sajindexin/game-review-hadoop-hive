@@ -1,0 +1,418 @@
+{
+  "dataset": "Steam 原始采集层 490 万评测交付",
+  "source_scope": "原始完整源文件和本次选取记录数",
+  "raw_review_rows": 4900000,
+  "announcements": 4934,
+  "sources": [
+    {
+      "data_type": "reviews",
+      "source_file": "old/cs2/reviews.jsonl",
+      "source_member": "",
+      "rows_by_appid": {
+        "730": 500000
+      },
+      "decoded_sha256": "ce2502f605d426a2c0bcde80a50eb2454a847d9f1100e2d698196a995bdf9f72",
+      "appid": "730",
+      "full_merged_first_row": 1,
+      "full_merged_last_row": 500000,
+      "source_rows": 500000,
+      "selected_rows": 500000,
+      "selected_rows_by_appid": {
+        "730": 500000
+      },
+      "selection": "all source records",
+      "output_first_row": 1,
+      "output_last_row": 500000
+    },
+    {
+      "data_type": "reviews",
+      "source_file": "old/rust-reviews.jsonl.gz",
+      "source_member": "",
+      "rows_by_appid": {
+        "252490": 400000
+      },
+      "decoded_sha256": "88087f758f5f77c7255ee8d7456d53b6336cae4d5f6f1a888a73be6b4d299a97",
+      "appid": "252490",
+      "full_merged_first_row": 500001,
+      "full_merged_last_row": 900000,
+      "source_rows": 400000,
+      "selected_rows": 400000,
+      "selected_rows_by_appid": {
+        "252490": 400000
+      },
+      "selection": "all source records",
+      "output_first_row": 500001,
+      "output_last_row": 900000
+    },
+    {
+      "data_type": "reviews",
+      "source_file": "old/stardew-valley-reviews.jsonl.gz",
+      "source_member": "",
+      "rows_by_appid": {
+        "413150": 400000
+      },
+      "decoded_sha256": "76ad3c6445ba24ceff596bd42348f7531381026051368361327b8df72ad8e9d5",
+      "appid": "413150",
+      "full_merged_first_row": 900001,
+      "full_merged_last_row": 1300000,
+      "source_rows": 400000,
+      "selected_rows": 400000,
+      "selected_rows_by_appid": {
+        "413150": 400000
+      },
+      "selection": "all source records",
+      "output_first_row": 900001,
+      "output_last_row": 1300000
+    },
+    {
+      "data_type": "reviews",
+      "source_file": "old/TF2.jsonl.gz",
+      "source_member": "",
+      "rows_by_appid": {
+        "440": 1257673
+      },
+      "decoded_sha256": "9ded5e29ef533363406b9fe9f78c87587f8e843577380cf41a7dff4a5fd08113",
+      "appid": "440",
+      "full_merged_first_row": 1300001,
+      "full_merged_last_row": 2557673,
+      "source_rows": 1257673,
+      "selected_rows": 400000,
+      "selected_rows_by_appid": {
+        "440": 400000
+      },
+      "selection": "v1 effective review IDs plus sampled invalid source records",
+      "output_first_row": 1300001,
+      "output_last_row": 1700000
+    },
+    {
+      "data_type": "reviews",
+      "source_file": "old/gmod/reviews.jsonl",
+      "source_member": "",
+      "rows_by_appid": {
+        "4000": 400000
+      },
+      "decoded_sha256": "36a800a809ffdb29cc1f3c9c7e02476c66778e46a00fb580171acc7fda45bc62",
+      "appid": "4000",
+      "full_merged_first_row": 2557674,
+      "full_merged_last_row": 2957673,
+      "source_rows": 400000,
+      "selected_rows": 400000,
+      "selected_rows_by_appid": {
+        "4000": 400000
+      },
+      "selection": "all source records",
+      "output_first_row": 1700001,
+      "output_last_row": 2100000
+    },
+    {
+      "data_type": "reviews",
+      "source_file": "old/r6s_reviews.jsonl.gz",
+      "source_member": "",
+      "rows_by_appid": {
+        "359550": 400000
+      },
+      "decoded_sha256": "63043f66cfdabb52abbb2b8f6b4d85b6fd408a8f46d8b3813644ed17387fcec7",
+      "appid": "359550",
+      "full_merged_first_row": 2957674,
+      "full_merged_last_row": 3357673,
+      "source_rows": 400000,
+      "selected_rows": 400000,
+      "selected_rows_by_appid": {
+        "359550": 400000
+      },
+      "selection": "all source records",
+      "output_first_row": 2100001,
+      "output_last_row": 2500000
+    },
+    {
+      "data_type": "reviews",
+      "source_file": "old/泰拉瑞亚-reviews-2026-11-21.zip",
+      "source_member": "reviews-schinese.jsonl",
+      "rows_by_appid": {
+        "105600": 200000
+      },
+      "decoded_sha256": "dd9e8d3bb9fde39d850b56b5ee24035fb741b918da5810abd0886ee1cabd8679",
+      "appid": "105600",
+      "full_merged_first_row": 3357674,
+      "full_merged_last_row": 3557673,
+      "source_rows": 200000,
+      "selected_rows": 200000,
+      "selected_rows_by_appid": {
+        "105600": 200000
+      },
+      "selection": "all source records",
+      "output_first_row": 2500001,
+      "output_last_row": 2700000
+    },
+    {
+      "data_type": "reviews",
+      "source_file": "old/泰拉瑞亚-reviews-2026-11-21.zip",
+      "source_member": "reviews-english.jsonl",
+      "rows_by_appid": {
+        "105600": 200000
+      },
+      "decoded_sha256": "13a96603022118178f2498d624c2695578e5b9ba1300276720f7a23cade9fc15",
+      "appid": "105600",
+      "full_merged_first_row": 3557674,
+      "full_merged_last_row": 3757673,
+      "source_rows": 200000,
+      "selected_rows": 200000,
+      "selected_rows_by_appid": {
+        "105600": 200000
+      },
+      "selection": "all source records",
+      "output_first_row": 2700001,
+      "output_last_row": 2900000
+    },
+    {
+      "data_type": "reviews",
+      "source_file": "old/eldenring_reviews.jsonl.gz",
+      "source_member": "",
+      "rows_by_appid": {
+        "1245620": 400000
+      },
+      "decoded_sha256": "88a1a30c44752c3f43fc5a12ed003ec94cb9d162bf733a09a7624934f7741439",
+      "appid": "1245620",
+      "full_merged_first_row": 3757674,
+      "full_merged_last_row": 4157673,
+      "source_rows": 400000,
+      "selected_rows": 400000,
+      "selected_rows_by_appid": {
+        "1245620": 400000
+      },
+      "selection": "all source records",
+      "output_first_row": 2900001,
+      "output_last_row": 3300000
+    },
+    {
+      "data_type": "reviews",
+      "source_file": "old/L4D2-reviews-2026-11-21.zip",
+      "source_member": "reviews-schinese.jsonl",
+      "rows_by_appid": {
+        "550": 200000
+      },
+      "decoded_sha256": "34d3d3ed0952feef192e786f0e43a0d7ddae7821a6c4c69d49ee66389a4016bf",
+      "appid": "550",
+      "full_merged_first_row": 4157674,
+      "full_merged_last_row": 4357673,
+      "source_rows": 200000,
+      "selected_rows": 200000,
+      "selected_rows_by_appid": {
+        "550": 200000
+      },
+      "selection": "all source records",
+      "output_first_row": 3300001,
+      "output_last_row": 3500000
+    },
+    {
+      "data_type": "reviews",
+      "source_file": "old/L4D2-reviews-2026-11-21.zip",
+      "source_member": "reviews-english.jsonl",
+      "rows_by_appid": {
+        "550": 200000
+      },
+      "decoded_sha256": "ac733077ff16624f16f98092a8e3e04f9de28d7e506109c10b700dd8a444d054",
+      "appid": "550",
+      "full_merged_first_row": 4357674,
+      "full_merged_last_row": 4557673,
+      "source_rows": 200000,
+      "selected_rows": 200000,
+      "selected_rows_by_appid": {
+        "550": 200000
+      },
+      "selection": "all source records",
+      "output_first_row": 3500001,
+      "output_last_row": 3700000
+    },
+    {
+      "data_type": "reviews",
+      "source_file": "old/DOTA2.jsonl.gz",
+      "source_member": "",
+      "rows_by_appid": {
+        "570": 2818727
+      },
+      "decoded_sha256": "09ef3f3e9285836647bf6b91d0716bcbfd5143cfed84434b56dbc00126f27240",
+      "appid": "570",
+      "full_merged_first_row": 4557674,
+      "full_merged_last_row": 7376400,
+      "source_rows": 2818727,
+      "selected_rows": 400000,
+      "selected_rows_by_appid": {
+        "570": 400000
+      },
+      "selection": "v1 effective review IDs plus sampled invalid source records",
+      "output_first_row": 3700001,
+      "output_last_row": 4100000
+    },
+    {
+      "data_type": "announcements",
+      "source_file": "old/announcements.jsonl",
+      "source_member": "",
+      "rows_by_appid": {
+        "252490": 970,
+        "413150": 72
+      },
+      "decoded_sha256": "c7132a464cfea4118ef10217b2f6e330928a58614320ac45f1d704aa4d5df59c",
+      "full_merged_first_row": 1,
+      "full_merged_last_row": 1042,
+      "source_rows": 1042,
+      "selected_rows": 1042,
+      "selected_rows_by_appid": {
+        "252490": 970,
+        "413150": 72
+      },
+      "selection": "all source records",
+      "output_first_row": 1,
+      "output_last_row": 1042
+    },
+    {
+      "data_type": "announcements",
+      "source_file": "old/cs2/announcements.jsonl",
+      "source_member": "",
+      "rows_by_appid": {
+        "730": 461
+      },
+      "decoded_sha256": "11e94f7f45c029cccdb2c9edb865399f2063873d80d7e3f324026320caeb8060",
+      "full_merged_first_row": 1043,
+      "full_merged_last_row": 1503,
+      "source_rows": 461,
+      "selected_rows": 461,
+      "selected_rows_by_appid": {
+        "730": 461
+      },
+      "selection": "all source records",
+      "output_first_row": 1043,
+      "output_last_row": 1503
+    },
+    {
+      "data_type": "announcements",
+      "source_file": "old/gmod/announcements.jsonl",
+      "source_member": "",
+      "rows_by_appid": {
+        "4000": 202
+      },
+      "decoded_sha256": "d37c1f2e6d9029802ba0806878b766c17b0fa97f7a480f2fdadcf3a834cd025c",
+      "full_merged_first_row": 1504,
+      "full_merged_last_row": 1705,
+      "source_rows": 202,
+      "selected_rows": 202,
+      "selected_rows_by_appid": {
+        "4000": 202
+      },
+      "selection": "all source records",
+      "output_first_row": 1504,
+      "output_last_row": 1705
+    },
+    {
+      "data_type": "announcements",
+      "source_file": "old/eldenring_announcements.jsonl",
+      "source_member": "",
+      "rows_by_appid": {
+        "1245620": 98
+      },
+      "decoded_sha256": "0d43add5acc5d1e6844a77e3f92b2aac2c228b6a62bf936fa849f52984e76289",
+      "full_merged_first_row": 1706,
+      "full_merged_last_row": 1803,
+      "source_rows": 98,
+      "selected_rows": 98,
+      "selected_rows_by_appid": {
+        "1245620": 98
+      },
+      "selection": "all source records",
+      "output_first_row": 1706,
+      "output_last_row": 1803
+    },
+    {
+      "data_type": "announcements",
+      "source_file": "old/r6s_announcements.jsonl",
+      "source_member": "",
+      "rows_by_appid": {
+        "359550": 776
+      },
+      "decoded_sha256": "d0fbb966908344947ddbc87e8610a4c05b7b7f0220f7e56bd78d2e7996b2d56b",
+      "full_merged_first_row": 1804,
+      "full_merged_last_row": 2579,
+      "source_rows": 776,
+      "selected_rows": 776,
+      "selected_rows_by_appid": {
+        "359550": 776
+      },
+      "selection": "all source records",
+      "output_first_row": 1804,
+      "output_last_row": 2579
+    },
+    {
+      "data_type": "announcements",
+      "source_file": "raw-collection-work/announcement-export/announcements.jsonl",
+      "source_member": "",
+      "rows_by_appid": {
+        "105600": 149,
+        "2358720": 21,
+        "271590": 367,
+        "440": 745,
+        "550": 299,
+        "570": 774
+      },
+      "decoded_sha256": "f1815453a64aa34369e0fd10adef5c6e175a13880f96a8c65f2335f38256aa08",
+      "full_merged_first_row": 2580,
+      "full_merged_last_row": 4934,
+      "source_rows": 2355,
+      "selected_rows": 2355,
+      "selected_rows_by_appid": {
+        "105600": 149,
+        "2358720": 21,
+        "271590": 367,
+        "440": 745,
+        "550": 299,
+        "570": 774
+      },
+      "selection": "all source records",
+      "output_first_row": 2580,
+      "output_last_row": 4934
+    },
+    {
+      "data_type": "reviews",
+      "appid": "2358720",
+      "source_file": "old/wukong-400k/reviews_400k.jsonl.gz",
+      "source_member": "",
+      "rows_by_appid": {
+        "2358720": 400000
+      },
+      "decoded_sha256": "ba9bdbf976c885da8faf22a8e1219d7bf850c7b9598889c159f812bc190df732",
+      "original_gzip_sha256": "9c75a171554da97fbb37943dd448aac26f2a87205b0da8a57921c714d479e3fe",
+      "appid_filled_rows": 400000,
+      "full_merged_first_row": 7376401,
+      "full_merged_last_row": 7776400,
+      "source_rows": 400000,
+      "selected_rows": 400000,
+      "selected_rows_by_appid": {
+        "2358720": 400000
+      },
+      "selection": "all source records",
+      "output_first_row": 4100001,
+      "output_last_row": 4500000
+    },
+    {
+      "data_type": "reviews",
+      "appid": "271590",
+      "source_file": "old/gtav-legacy-400k/reviews_400k.jsonl.gz",
+      "source_member": "",
+      "rows_by_appid": {
+        "271590": 400000
+      },
+      "decoded_sha256": "a53e0da7acdb0acc356f86b4554c426d037eab9c5b442ff787d8697bbe219c1b",
+      "original_gzip_sha256": "007357a3403a0664feefea4e6a3cdfe3f4e76feaa71ef8efa2dff409c8af0c39",
+      "appid_filled_rows": 400000,
+      "full_merged_first_row": 7776401,
+      "full_merged_last_row": 8176400,
+      "source_rows": 400000,
+      "selected_rows": 400000,
+      "selected_rows_by_appid": {
+        "271590": 400000
+      },
+      "selection": "all source records",
+      "output_first_row": 4500001,
+      "output_last_row": 4900000
+    }
+  ]
+}
