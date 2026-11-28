@@ -6,6 +6,7 @@ from urllib.parse import parse_qs
 
 from . import dataset
 from .common import ApiError, get_hive
+from .topics import TopicAPI
 from .versions import VersionAPI
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,15 @@ def dispatch_get(path: str, query: str = ""):
 
     if path == "/api/versions" or path.startswith("/api/versions/"):
         return VersionAPI(get_hive).get(path, query), False
+
+    # 第四部分：主题分析 / 情感统计 / 改动反馈（Hive 实时查询，不协商缓存）。
+    # 注意顺序：/api/nlp/topics、/api/nlp/items 两个静态端点必须先走 _STATIC_DATA_ROUTES，
+    # 这里只接 stats/、topics/trend、items/feedback、reviews 四组动态前缀。
+    if (path.startswith("/api/nlp/stats/")
+            or path == "/api/nlp/topics/trend" or path.startswith("/api/nlp/topics/trend/")
+            or path.startswith("/api/nlp/items/feedback")
+            or path == "/api/nlp/reviews" or path.startswith("/api/nlp/reviews/")):
+        return TopicAPI(get_hive).get(path, query), False
 
     handler = _STATIC_DATA_ROUTES.get(path)
     if handler is not None:

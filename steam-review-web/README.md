@@ -95,6 +95,20 @@ uv run --locked python steam-review-web/server.py --port 8021
 | `GET /api/versions/{patch_id}/stats` | `appid`、`language_group` | `patch_daily`、`patch_phase`、`patch_comparison` 的逐日、阶段和前后统计 |
 | `GET /api/versions/{patch_id}/evidence` | `appid`、`item_id`、`phase`、`language_group`、`offset`、`limit` | `verified_quotes` 的原句、复核标记、公告、Steam 原页和分页 |
 
+**主题分析与情感统计（第四部分，`nlp_topic` 库，实时查 Hive，`source: "hive"`，60 秒缓存）**
+
+| 入口 | 可选参数 | Hive 来源及返回内容 |
+| --- | --- | --- |
+| `GET /api/nlp/stats/distribution` | `lang`（zh/en，默认 zh） | `topic_distribution` / `topic_distribution_en`：11 类主题 × 正/负/中 计数 |
+| `GET /api/nlp/stats/summary` | `appid`、`lang` | `topic_sentiment_review_summary`：评论总数、命中主题数、主情感分布、正/负主题对合计 |
+| `GET /api/nlp/topics/trend` | `appid`、`aspect`、`lang`、`days`（7–3650，默认 365） | `topic_sentiment_detail`：主题情感按日计数（`days` 控制返回天数） |
+| `GET /api/nlp/items/feedback` | `appid`、`item_id` | `item_sentiment_detail` + `item_patch_summary`：改动反馈。不给 `item_id` 返回该游戏全部条目情感汇总；给 `item_id` 返回单条目情感分布 + `patch_id` 版本窗口计数（pre_14d / release_day / post_14d / out_of_window，与第三部分版本目录对齐） |
+| `GET /api/nlp/reviews` | `appid`、`aspect`、`sentiment`、`lang`、`offset`、`limit`（默认 50、最大 500） | `topic_sentiment_detail`：按主题+情感筛评论，带 `evidence` 引文，按置信度降序分页 |
+
+- `aspect` 为 11 类主题 ID：content / level_design / multiplayer / graphics / performance / story / controls / monetization / cheating / audio / community；`sentiment` 为 positive / negative / neutral。输入错误 400，条目未命中 404。
+- `lang=en` 时自动切换英文结果表（`topic_sentiment_detail_en` 等）；英文为规则弱标注口径，供探索性统计。
+- 页面已在用的静态端点 `GET /api/nlp/topics`、`GET /api/nlp/items` 保持不变（离线数据包，可协商缓存）。
+
 - `language_group` 默认 `all`。推荐率取 0–1 的比例，分母为零时返回 `null`。`change_percentage_points` 采用 Hive 表原精度，星露谷物语 1.5 的全语种前后差显示为 `+0.96` 个百分点。
 - 引文 `phase=all` 查询完整复核库。指定 `before`、`release` 或 `after` 时，按所选阶段的编辑时间截止规则筛选。`chinese` 汇总简中和繁中。`available` 为筛选后的总数，`offset` 默认 0，`limit` 默认 100、最大 500。
 - 成功响应标有 `source: "hive"`。无引文时返回空数组。输入错误为 400，找不到版本、改动或统计语种为 404。连接异常及超时沿用公共错误结构。小查询使用公共客户端的 60 秒缓存。
