@@ -11,7 +11,11 @@ steam-review-web/
 ├─ patch.html            版本详情：概览 / 改动条目 / 评测样本 / 问答入口 四个标签页
 ├─ nlp.html              NLP 洞察：11 类主题情感分布 + 75 项官方改动反馈统计
 ├─ ask.html              Agent 问答页（走 /api/ask，接口不可用时自动回退本地规则引擎）
-├─ server.py             本地服务：静态站 + POST /api/ask（联调用，接口契约与 Servlet 一致）
+├─ server.py             本地服务：静态站 + 数据接口 + POST /api/ask
+├─ backend/
+│  ├─ common.py          统一错误类型 ApiError
+│  ├─ dataset.py         静态数据集 → JSON 接口（读 data/*.js 并原样返回）
+│  └─ routes.py          GET 路由分发 + 错误映射
 ├─ assets/
 │  ├─ steam.css          Steam 风格样式（#171a21 / #1b2838 / #66c0f4 配色）
 │  ├─ steam.js           公共库：导航、程序化封面、格式化、SVG 图表、原文链接
@@ -34,6 +38,8 @@ steam-review-web/
 │  ├─ joint/*.json       联调时四类问题的完整响应
 │  ├─ 联调记录.md        本地自测记录
 │  └─ resp-*.json        本地规则引擎的五类响应
+├─ test_server.py        问答引擎单元测试
+├─ test_dataset_api.py   数据接口与源文件一致性测试
 └─ tools/
    ├─ export_web_data.py 从 parquet + 组内 CSV/JSONL 生成 data/ 的导出脚本
    ├─ export_nlp_data.py 从 NLP 模块结果生成 data/nlp/ 的导出脚本
@@ -129,6 +135,63 @@ python -m tools.build_knowledge `
 公共 Hive 服务连接配置见 [Hive 服务使用文档](../docs/hive-service.md)。
 
 配置 Hive 后，可在仓库根目录通过 `uv run --locked python steam-review-web/server.py --port 8021` 启动联调服务。
+
+### 数据读取接口（GET）
+
+页面数据统一走接口，不再用 `<script src="data/*.js">` 注入全局变量。
+接口只做「读出 → 原样返回」，不改变任何数据结构，所以前端渲染逻辑与旧版一致。
+
+| 接口 | 说明 | 大小 | 缓存 |
+| --- | --- | --- | --- |
+| `GET /api/meta` | 轻量元信息：12 款游戏 + 26 个版本 ID 清单 | 1.7 KB | ETag |
+| `GET /api/index` | 完整总览：游戏、版本、推荐率区间 | 9 KB | ETag |
+| `GET /api/patch/<patch_id>` | 单个版本包：趋势、阶段统计、改动条目、评论样本 | 平均 23 KB | ETag |
+| `GET /api/nlp/topics` | 11 类主题情感的四维切片 | 145 KB | ETag |
+| `GET /api/nlp/items` | 75 项官方改动的正/负/中性统计 | 34 KB | ETag |
+| `GET /api/verified` | 已复核引文索引（可用 `?patch_id=` 过滤到单版本） | 403 KB / 31 KB | ETag |
+| `GET /api/health/hive` | Hive 探活 | 极小 | 不缓存 |
+
+缓存策略：响应带弱 ETag（内容 SHA-256 前 32 位）+ `Cache-Control: no-cache`，
+浏览器下次请求带 `If-None-Match`，命中返回 `304` 空体。数据更新后摘要变化，自动失效。
+
+错误统一返回 JSON，HTTP 状态码与 `code` 对应：
+
+```json
+{ "error": { "code": "patch_not_found", "message": "找不到版本：nope" } }
+```
+
+| 场景 | 状态码 | code |
+| --- | --- | --- |
+| 未知路径 | 404 | `not_found` |
+| 版本不存在 | 404 | `patch_not_found` |
+| `patch_id` 含非法字符 | 400 | `invalid_patch_id` |
+| 该接口不接受查询参数 | 400 | `invalid_request` |
+
+`patch_id` 只允许 `[A-Za-z0-9_]`，`/api/patch/../server` 这类路径穿越会被拒绝（有单测覆盖）。
+
+`/api/verified` 支持按版本过滤，这是接口相对静态脚本最实际的收益：
+
+```
+GET /api/verified?patch_id=sdv_20201221_15   →  31 KB（39 条）
+GET /api/verified                            → 403 KB（469 条）
+```
+
+版本页只用一个版本的引文，过滤后省掉 92% 传输量。若传入未登记的 `patch_id` 返回空数组
+（而不是 404）——这表示"该版本没有已复核引文"，属于正常业务状态。
+
+### 取数回退
+
+`assets/steam.js` 里的 `fetchJson()` 按运行环境自动切换：
+
+| 打开方式 | 行为 |
+| --- | --- |
+| `http://` / `https://` | 走 `/api/*` 接口 |
+| `file://` 双击打开 | 接口不可用，回退到 `data/*.js` 脚本注入 |
+
+回退是为了保留离线单页能力——把整个目录拷走双击 `index.html` 也能看，不用起服务。
+接口返回 404 时**不会**回退（那是业务错误，不是环境问题），会直接抛给页面显示。
+
+### 问答接口（POST）
 
 ```
 POST /api/ask

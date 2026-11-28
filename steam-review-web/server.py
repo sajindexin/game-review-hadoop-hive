@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import mimetypes
 import re
@@ -29,6 +30,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
+from backend import dataset
 from backend.routes import api_error, dispatch_get
 
 ROOT = Path(__file__).resolve().parent
@@ -481,16 +483,22 @@ class Handler(SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):  # 安静一点
         print("[srv] " + fmt % args)
 
-    def _send_json(self, status, result):
+    def _send_json(self, status, result, etag=None):
         try:
             body = json.dumps(result, ensure_ascii=False, allow_nan=False).encode("utf-8")
         except (TypeError, ValueError) as exc:
             error = api_error(exc)
             status = error.status
             body = json.dumps(error.payload(), ensure_ascii=False).encode("utf-8")
+            etag = None
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
+        if etag:
+            # 静态数据集内容随构建变化，用内容摘要做弱校验，配合 If-None-Match 走 304
+            self.send_header("ETag", etag)
+            self.send_header("Cache-Control", "no-cache")
+        else:
+            self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -499,13 +507,28 @@ class Handler(SimpleHTTPRequestHandler):
         request = urlparse(self.path)
         if request.path != "/api" and not request.path.startswith("/api/"):
             return super().do_GET()
+
         try:
-            result = dispatch_get(request.path, request.query)
+            payload, cacheable = dispatch_get(request.path, request.query)
         except Exception as exc:
             error = api_error(exc)
             self._send_json(error.status, error.payload())
-        else:
-            self._send_json(200, result)
+            return
+
+        etag = None
+        if cacheable:
+            digest = hashlib.sha256(
+                json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
+            ).hexdigest()[:32]
+            etag = f'W/"{digest}"'
+            if self.headers.get("If-None-Match") == etag:
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", "no-cache")
+                self.end_headers()
+                return
+
+        self._send_json(200, payload, etag=etag)
 
     def do_POST(self):
         if urlparse(self.path).path != "/api/ask":
@@ -569,6 +592,7 @@ def main():
     )
     args = ap.parse_args()
     AGENT_BASE = (args.agent_base or "").strip() or None
+    dataset.configure(DATA)
 
     mimetypes.add_type("application/javascript", ".js")
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
