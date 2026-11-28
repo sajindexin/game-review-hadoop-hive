@@ -1,0 +1,353 @@
+-- Raw collection acceptance queries; compare with manifest_verified.json
+SHOW TABLES IN game_review_raw;
+SELECT 'raw_reviews' AS table_name, COUNT(*) AS actual_rows, 4900000 AS expected_rows FROM game_review_raw.raw_reviews;
+SELECT 'raw_announcements' AS table_name, COUNT(*) AS actual_rows, 4934 AS expected_rows FROM game_review_raw.raw_announcements;
+SELECT 'game_counts' AS table_name, COUNT(*) AS actual_rows, 12 AS expected_rows FROM game_review_raw.game_counts;
+SELECT 'collection_batches' AS table_name, COUNT(*) AS actual_rows, 33967 AS expected_rows FROM game_review_raw.collection_batches;
+SELECT appid, COUNT(*) AS raw_review_rows FROM game_review_raw.raw_reviews GROUP BY appid ORDER BY appid;
+SELECT appid, COUNT(*) AS announcement_rows FROM game_review_raw.raw_announcements GROUP BY appid ORDER BY appid;
+SELECT SUM(raw_review_rows) AS reviews_from_counts, SUM(announcement_rows) AS announcements_from_counts FROM game_review_raw.game_counts;
+
+
+
+建表文件
+-- Validated raw collection delivery, version v1_490
+
+CREATE DATABASE IF NOT EXISTS game_review_raw;
+
+CREATE EXTERNAL TABLE IF NOT EXISTS game_review_raw.`raw_reviews` (
+  `appid` BIGINT,
+  `item_id` STRING,
+  `source` STRING,
+  `task_id` STRING,
+  `fetched_at` STRING,
+  `schema_version` BIGINT,
+  `content_hash` STRING,
+  `source_file` STRING,
+  `source_member` STRING,
+  `source_row` BIGINT,
+  `review_id` STRING,
+  `language` STRING,
+  `review` STRING,
+  `voted_up` BOOLEAN,
+  `timestamp_created` BIGINT,
+  `timestamp_updated` BIGINT,
+  `author_steamid` STRING,
+  `playtime_at_review` BIGINT,
+  `playtime_forever` BIGINT,
+  `votes_up` BIGINT,
+  `votes_funny` BIGINT,
+  `comment_count` BIGINT,
+  `weighted_vote_score` DOUBLE,
+  `steam_purchase` BOOLEAN,
+  `received_for_free` BOOLEAN,
+  `refunded` BOOLEAN,
+  `written_during_early_access` BOOLEAN,
+  `primarily_steam_deck` BOOLEAN,
+  `segment_id` STRING,
+  `segment_label` STRING,
+  `raw_json` STRING
+) STORED AS PARQUET LOCATION 'hdfs://namenode:8020/datasets/game_review_raw/v1_490/raw_reviews';
+
+CREATE EXTERNAL TABLE IF NOT EXISTS game_review_raw.`raw_announcements` (
+  `appid` BIGINT,
+  `item_id` STRING,
+  `source` STRING,
+  `task_id` STRING,
+  `fetched_at` STRING,
+  `schema_version` BIGINT,
+  `content_hash` STRING,
+  `source_file` STRING,
+  `source_member` STRING,
+  `source_row` BIGINT,
+  `announcement_id` STRING,
+  `title` STRING,
+  `contents` STRING,
+  `date` BIGINT,
+  `author` STRING,
+  `url` STRING,
+  `feed_type` BIGINT,
+  `feedname` STRING,
+  `feedlabel` STRING,
+  `is_external_url` BOOLEAN,
+  `raw_json` STRING
+) STORED AS PARQUET LOCATION 'hdfs://namenode:8020/datasets/game_review_raw/v1_490/raw_announcements';
+
+CREATE EXTERNAL TABLE IF NOT EXISTS game_review_raw.`game_counts` (
+  `appid` BIGINT,
+  `game_name` STRING,
+  `raw_review_rows` BIGINT,
+  `historical_v1_sample_rows` BIGINT,
+  `raw_review_duplicate_ids` BIGINT,
+  `announcement_rows` BIGINT,
+  `announcement_duplicate_ids` BIGINT,
+  `review_source_status` STRING,
+  `announcement_origin` STRING,
+  `appid_filled_rows` BIGINT,
+  `v1_cleaned_rows` BIGINT,
+  `reconstructed_invalid_rows` BIGINT
+) STORED AS PARQUET LOCATION 'hdfs://namenode:8020/datasets/game_review_raw/v1_490/game_counts';
+
+CREATE EXTERNAL TABLE IF NOT EXISTS game_review_raw.`collection_batches` (
+  `data_type` STRING,
+  `appid` BIGINT,
+  `source_file` STRING,
+  `source_member` STRING,
+  `task_id` STRING,
+  `rows` BIGINT,
+  `fetched_at_min` STRING,
+  `fetched_at_max` STRING,
+  `event_time_min_utc` STRING,
+  `event_time_max_utc` STRING,
+  `language_counts` STRING,
+  `query` STRING,
+  `batch_basis` STRING,
+  `segment_id` STRING,
+  `segment_label` STRING,
+  `appid_filled_rows` BIGINT
+) STORED AS PARQUET LOCATION 'hdfs://namenode:8020/datasets/game_review_raw/v1_490/collection_batches';
+
+
+
+# 原始采集层数据验收报告
+
+日期：2026-11-28；数据库：`game_review_raw`；版本：`v1_490`。
+
+源 ZIP：`原始采集层_Parquet_490.zip`；SHA-256：`a3b438f337089f3204cf004099e9f92f17df88d79929a4b62aecb3706668a6a9`。源 ZIP 保持不变。
+
+## 四表结果
+
+| Hive 表 | Hive 行数 | 源清单行数 | HDFS SHA-256 |
+|---|---:|---:|---|
+| `game_review_raw.raw_reviews` | 4,900,000 | 4,900,000 | 与源文件一致 |
+| `game_review_raw.raw_announcements` | 4,934 | 4,934 | 与源文件一致 |
+| `game_review_raw.game_counts` | 12 | 12 | 与源文件一致 |
+| `game_review_raw.collection_batches` | 33,967 | 33,967 | 与源文件一致 |
+
+四张表均为 HDFS 版本化路径上的 Parquet 外部表。`hdfs_sha256_verified.tsv` 记录源与远端完整哈希；Hive 查询通过 Tailscale 地址 `node.taile33391.ts.net:10000` 执行。
+
+## 分布与质量
+
+- 评测覆盖 12 个 AppID；CS2 500,000 行，其余 11 款各 400,000 行。逐游戏 Hive 数量与源清单完全一致。
+- 公告逐游戏 Hive 数量与源清单完全一致，共 4,934 行。
+- `game_counts` 汇总得到评测 4,900,000 行、公告 4,934 行。
+- `collection_batches` 的分组行数分别汇总为评测 4,900,000 行、公告 4,934 行。
+- 源 Parquet 独立检查：评测/公告的主键缺失数、`raw_json` 缺失数、按 `(appid, ID)` 的重复数均为 0。
+- HDFS 检查与 Hive 建表过程不修改原有 `game_reviews` 清洗表。
+
+## 数据口径与限制
+
+- 这 490 万条是交付抽样，不表示所有原始采集历史记录。
+- TF2 与 Dota 2 的历史 40 万抽样原件未找到；交付者保留历史 v1 有效记录，并从同源原始文件补入 1,163 和 1,563 条符合无效评测规则的记录。原历史样本中具体被剔除的 2,726 条记录无法还原。详见源包 `sample_reconciliation.json`。
+- 此处“零重复”按 `(appid, review_id)` 和 `(appid, announcement_id)` 计算；不代表跨不同游戏的 ID 必须唯一。
+- 组员在另一台电脑上连接 Hive 的验收仍需实际测试。
+
+## 查询示例
+
+```sql
+SHOW TABLES IN game_review_raw;
+SELECT appid, COUNT(*) FROM game_review_raw.raw_reviews GROUP BY appid ORDER BY appid;
+SELECT COUNT(*) FROM game_review_raw.raw_announcements;
+```
+
+
+
+
+
+# 原始采集层 490 万评测交付（Parquet）
+
+负责人：张成鑫
+
+## 交付规模
+
+- 12 款游戏原始评测 4,900,000 条。
+- 12 款游戏官方公告 4,934 条。
+- 采集任务及来源分组 33,967 个。
+
+Parquet 采用 Snappy 压缩。此次按历史 v1 样本规模交付，其他十款游戏的全部评测及全部公告保持原样。
+
+## TF2 与 Dota 2 抽样对账
+
+| 游戏 | v1 有效原始记录 | 同源补入无效记录 | 交付原始评测 |
+| --- | ---: | ---: | ---: |
+| TF2 | 398,837 | 1,163 | 400,000 |
+| Dota 2 | 398,437 | 1,563 | 400,000 |
+
+两款游戏的历史原始 40 万条抽样文件未找到。依据用户确认的方案，保留 v1 全部有效评测对应的原始记录，经 review_id、原文、清洗文本及创建时间逐条对账一致。使用原 v1 清洗程序校验同源无效记录，并以固定随机种子 42 蓄水池抽样补足。历史抽样中被剔除的具体 2,726 条记录仍未知，补入记录来自完整原始文件，均符合 v1 无效评测剔除规则。具体记录 ID、源文件行号、原因及抽样规则见 sample_reconciliation.json。
+
+## 逐游戏行数
+
+| 游戏 | AppID | 原始评测 | 公告 |
+| --- | ---: | ---: | ---: |
+| Counter-Strike 2 | 730 | 500,000 | 461 |
+| Rust | 252490 | 400,000 | 970 |
+| Stardew Valley | 413150 | 400,000 | 72 |
+| Black Myth: Wukong | 2358720 | 400,000 | 21 |
+| Team Fortress 2 | 440 | 400,000 | 745 |
+| Garry's Mod | 4000 | 400,000 | 202 |
+| Tom Clancy's Rainbow Six Siege | 359550 | 400,000 | 776 |
+| Terraria | 105600 | 400,000 | 149 |
+| ELDEN RING | 1245620 | 400,000 | 98 |
+| Left 4 Dead 2 | 550 | 400,000 | 299 |
+| Dota 2 | 570 | 400,000 | 774 |
+| Grand Theft Auto V Legacy | 271590 | 400,000 | 367 |
+| 合计 | | 4,900,000 | 4,934 |
+
+## 交付文件
+
+| 文件 | 行数 | 用途 |
+| --- | ---: | --- |
+| `raw_reviews.parquet` | 4,900,000 | 合并原始评测 |
+| `raw_announcements.parquet` | 4,934 | 合并官方公告 |
+| `game_counts.parquet` | 12 | 逐游戏行数统计 |
+| `collection_batches.parquet` | 33,967 | 采集批次及来源分组清单 |
+| `game_counts.csv` / `collection_batches.csv` | | 便于查看的统计清单 |
+| `source_manifest.json` | | 完整原件来源及抽取记录数 |
+| `sample_reconciliation.json` | | TF2/Dota 2 抽样重建及验证详情 |
+| `manifest.json` | | Parquet 文件行数、字段、SHA-256 |
+
+## 字段与校验
+
+`raw_json` 保留所选原始评测和公告的完整 JSON 对象。`appid`、`review_id` / `announcement_id`、正文、时间和常用字段可直接查询。`source_file`、`source_member`、`source_row` 指向原始文件和非空记录序号。所有时间口径 UTC。两款补录游戏的原始信封 appid 补齐情况沿用全量交付。
+
+回读全部所选评测的 raw_json 验证逐行内容哈希和逐游戏行数，公告 Parquet 哈希与全量包一致，批次统计与交付数量对账一致。
+
+
+
+
+
+
+
+
+# 原始采集层字段字典
+
+来源：`原始采集层_Parquet_490.zip` 内 `manifest.json` 与 Parquet 实际 Schema。时间口径按随包 README 为 UTC。`STRING` 字段保留原值；除特别注明外，未对可空性施加约束。
+
+## `game_review_raw.raw_reviews`
+
+一条原始评测一行；12 款游戏的交付抽样，保留原始 JSON。
+
+预期行数：**4,900,000**。HDFS：`/datasets/game_review_raw/v1_490/raw_reviews/part-00000.parquet`。
+
+| 字段 | Hive 类型 | 含义 |
+|---|---|---|
+| `appid` | BIGINT | Steam 游戏 AppID |
+| `item_id` | STRING | 采集信封中的条目 ID |
+| `source` | STRING | 采集来源标识 |
+| `task_id` | STRING | 采集任务 ID |
+| `fetched_at` | STRING | 采集时间，原始字符串 |
+| `schema_version` | BIGINT | 采集信封 Schema 版本 |
+| `content_hash` | STRING | 采集内容哈希 |
+| `source_file` | STRING | 原始源文件路径 |
+| `source_member` | STRING | 压缩包内源文件名；非压缩源可为空 |
+| `source_row` | BIGINT | 源文件中的非空记录序号 |
+| `review_id` | STRING | Steam 评测 ID |
+| `language` | STRING | 评测语言原值 |
+| `review` | STRING | 原始评测正文 |
+| `voted_up` | BOOLEAN | 是否推荐 |
+| `timestamp_created` | BIGINT | 评测创建时间，Unix 秒（UTC） |
+| `timestamp_updated` | BIGINT | 评测更新时间，Unix 秒（UTC） |
+| `author_steamid` | STRING | 评测作者 Steam ID |
+| `playtime_at_review` | BIGINT | 发布评测时游玩分钟数 |
+| `playtime_forever` | BIGINT | 累计游玩分钟数 |
+| `votes_up` | BIGINT | 有用票数 |
+| `votes_funny` | BIGINT | 欢乐票数 |
+| `comment_count` | BIGINT | 评论数 |
+| `weighted_vote_score` | DOUBLE | Steam 加权投票分数 |
+| `steam_purchase` | BOOLEAN | 是否在 Steam 购买 |
+| `received_for_free` | BOOLEAN | 是否免费获得 |
+| `refunded` | BOOLEAN | 是否退款 |
+| `written_during_early_access` | BOOLEAN | 是否抢先体验阶段撰写 |
+| `primarily_steam_deck` | BOOLEAN | 是否主要使用 Steam Deck |
+| `segment_id` | STRING | 采集分段 ID |
+| `segment_label` | STRING | 采集分段标签 |
+| `raw_json` | STRING | 所选原始对象完整 JSON 字符串 |
+
+## `game_review_raw.raw_announcements`
+
+一条官方公告一行，保留原始 JSON。
+
+预期行数：**4,934**。HDFS：`/datasets/game_review_raw/v1_490/raw_announcements/part-00000.parquet`。
+
+| 字段 | Hive 类型 | 含义 |
+|---|---|---|
+| `appid` | BIGINT | Steam 游戏 AppID |
+| `item_id` | STRING | 采集信封中的条目 ID |
+| `source` | STRING | 采集来源标识 |
+| `task_id` | STRING | 采集任务 ID |
+| `fetched_at` | STRING | 采集时间，原始字符串 |
+| `schema_version` | BIGINT | 采集信封 Schema 版本 |
+| `content_hash` | STRING | 采集内容哈希 |
+| `source_file` | STRING | 原始源文件路径 |
+| `source_member` | STRING | 压缩包内源文件名；非压缩源可为空 |
+| `source_row` | BIGINT | 源文件中的非空记录序号 |
+| `announcement_id` | STRING | 官方公告 ID |
+| `title` | STRING | 公告标题 |
+| `contents` | STRING | 公告正文 |
+| `date` | BIGINT | 公告发布时间，Unix 秒（UTC） |
+| `author` | STRING | 公告作者 |
+| `url` | STRING | 公告链接 |
+| `feed_type` | BIGINT | Steam 公告 feed 类型代码 |
+| `feedname` | STRING | Steam feed 名称 |
+| `feedlabel` | STRING | Steam feed 标签 |
+| `is_external_url` | BOOLEAN | 公告链接是否指向外部网站 |
+| `raw_json` | STRING | 所选原始对象完整 JSON 字符串 |
+
+## `game_review_raw.game_counts`
+
+一个游戏一行；原始、公告与历史清洗数量的对账表。
+
+预期行数：**12**。HDFS：`/datasets/game_review_raw/v1_490/game_counts/part-00000.parquet`。
+
+| 字段 | Hive 类型 | 含义 |
+|---|---|---|
+| `appid` | BIGINT | Steam 游戏 AppID |
+| `game_name` | STRING | 游戏名称 |
+| `raw_review_rows` | BIGINT | 本次交付的原始评测行数 |
+| `historical_v1_sample_rows` | BIGINT | 历史 v1 采样行数 |
+| `raw_review_duplicate_ids` | BIGINT | 原始评测重复 ID 数 |
+| `announcement_rows` | BIGINT | 官方公告行数 |
+| `announcement_duplicate_ids` | BIGINT | 公告重复 ID 数 |
+| `review_source_status` | STRING | 评测来源状态说明 |
+| `announcement_origin` | STRING | 公告来源说明 |
+| `appid_filled_rows` | BIGINT | 原始信封 AppID 补齐行数 |
+| `v1_cleaned_rows` | BIGINT | 历史 v1 清洗后行数 |
+| `reconstructed_invalid_rows` | BIGINT | TF2/Dota 2 同源补入的无效记录数 |
+
+## `game_review_raw.collection_batches`
+
+一个采集任务/来源/分段分组一行。
+
+预期行数：**33,967**。HDFS：`/datasets/game_review_raw/v1_490/collection_batches/part-00000.parquet`。
+
+| 字段 | Hive 类型 | 含义 |
+|---|---|---|
+| `data_type` | STRING | 记录类型：评测或公告 |
+| `appid` | BIGINT | Steam 游戏 AppID |
+| `source_file` | STRING | 原始源文件路径 |
+| `source_member` | STRING | 压缩包内源文件名；非压缩源可为空 |
+| `task_id` | STRING | 采集任务 ID |
+| `rows` | BIGINT | 该采集分组的行数 |
+| `fetched_at_min` | STRING | 分组最早采集时间 |
+| `fetched_at_max` | STRING | 分组最晚采集时间 |
+| `event_time_min_utc` | STRING | 分组最早事件时间（UTC） |
+| `event_time_max_utc` | STRING | 分组最晚事件时间（UTC） |
+| `language_counts` | STRING | 语言计数的 JSON 字符串 |
+| `query` | STRING | 采集查询条件或来源查询 |
+| `batch_basis` | STRING | 采集批次划分依据 |
+| `segment_id` | STRING | 采集分段 ID |
+| `segment_label` | STRING | 采集分段标签 |
+| `appid_filled_rows` | BIGINT | 原始信封 AppID 补齐行数 |
+
+## 数据口径
+
+`raw_reviews` 是交付抽样，不等于所有游戏的历史采集全量。TF2 与 Dota 2 的 40 万历史抽样原件未找到；交付者保留历史 v1 有效记录，并从同源原始文件补入符合清洗剔除规则的记录，分别为 1,163 与 1,563 条。具体依据见 ZIP 内 `sample_reconciliation.json`。
+
+
+
+
+
+
+
+
+
