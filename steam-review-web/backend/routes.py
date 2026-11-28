@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from .common import ApiError, get_hive
+from .versions import VersionAPI
 
 logger = logging.getLogger(__name__)
 
@@ -14,12 +15,14 @@ def hive_health() -> dict:
 
 
 def dispatch_get(path: str, query: str = "") -> dict:
-    """分发公共 Hive 健康检查。"""
-    if path != "/api/health/hive":
-        raise ApiError(404, "not_found", "接口不存在")
-    if query:
-        raise ApiError(400, "invalid_request", "此接口不接受查询参数")
-    return hive_health()
+    """分发 Hive 健康检查和版本分析接口。"""
+    if path == "/api/health/hive":
+        if query:
+            raise ApiError(400, "invalid_request", "此接口不接受查询参数")
+        return hive_health()
+    if path == "/api/versions" or path.startswith("/api/versions/"):
+        return VersionAPI(get_hive).get(path, query)
+    raise ApiError(404, "not_found", "接口不存在")
 
 
 def api_error(exc: Exception) -> ApiError:
