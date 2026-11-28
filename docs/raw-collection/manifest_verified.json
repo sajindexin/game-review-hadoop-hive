@@ -1,0 +1,358 @@
+[
+  {
+    "table": "game_review_raw.raw_reviews",
+    "rows": 4900000,
+    "bytes": 2207264737,
+    "sha256": "7fab6f2f8bcb1cc79d1b66c29f3b44e86c75839fb960b153ba2634ecc7a563b4",
+    "hdfs": "/datasets/game_review_raw/v1_490/raw_reviews/part-00000.parquet",
+    "columns": [
+      {
+        "name": "appid",
+        "type": "int64"
+      },
+      {
+        "name": "item_id",
+        "type": "string"
+      },
+      {
+        "name": "source",
+        "type": "string"
+      },
+      {
+        "name": "task_id",
+        "type": "string"
+      },
+      {
+        "name": "fetched_at",
+        "type": "string"
+      },
+      {
+        "name": "schema_version",
+        "type": "int64"
+      },
+      {
+        "name": "content_hash",
+        "type": "string"
+      },
+      {
+        "name": "source_file",
+        "type": "string"
+      },
+      {
+        "name": "source_member",
+        "type": "string"
+      },
+      {
+        "name": "source_row",
+        "type": "int64"
+      },
+      {
+        "name": "review_id",
+        "type": "string"
+      },
+      {
+        "name": "language",
+        "type": "string"
+      },
+      {
+        "name": "review",
+        "type": "string"
+      },
+      {
+        "name": "voted_up",
+        "type": "bool"
+      },
+      {
+        "name": "timestamp_created",
+        "type": "int64"
+      },
+      {
+        "name": "timestamp_updated",
+        "type": "int64"
+      },
+      {
+        "name": "author_steamid",
+        "type": "string"
+      },
+      {
+        "name": "playtime_at_review",
+        "type": "int64"
+      },
+      {
+        "name": "playtime_forever",
+        "type": "int64"
+      },
+      {
+        "name": "votes_up",
+        "type": "int64"
+      },
+      {
+        "name": "votes_funny",
+        "type": "int64"
+      },
+      {
+        "name": "comment_count",
+        "type": "int64"
+      },
+      {
+        "name": "weighted_vote_score",
+        "type": "double"
+      },
+      {
+        "name": "steam_purchase",
+        "type": "bool"
+      },
+      {
+        "name": "received_for_free",
+        "type": "bool"
+      },
+      {
+        "name": "refunded",
+        "type": "bool"
+      },
+      {
+        "name": "written_during_early_access",
+        "type": "bool"
+      },
+      {
+        "name": "primarily_steam_deck",
+        "type": "bool"
+      },
+      {
+        "name": "segment_id",
+        "type": "string"
+      },
+      {
+        "name": "segment_label",
+        "type": "string"
+      },
+      {
+        "name": "raw_json",
+        "type": "string"
+      }
+    ]
+  },
+  {
+    "table": "game_review_raw.raw_announcements",
+    "rows": 4934,
+    "bytes": 12348255,
+    "sha256": "cc03ae4e7c97c52fd3b2b2a0274665197ea403dba9e9d3c5315fbb357c06932b",
+    "hdfs": "/datasets/game_review_raw/v1_490/raw_announcements/part-00000.parquet",
+    "columns": [
+      {
+        "name": "appid",
+        "type": "int64"
+      },
+      {
+        "name": "item_id",
+        "type": "string"
+      },
+      {
+        "name": "source",
+        "type": "string"
+      },
+      {
+        "name": "task_id",
+        "type": "string"
+      },
+      {
+        "name": "fetched_at",
+        "type": "string"
+      },
+      {
+        "name": "schema_version",
+        "type": "int64"
+      },
+      {
+        "name": "content_hash",
+        "type": "string"
+      },
+      {
+        "name": "source_file",
+        "type": "string"
+      },
+      {
+        "name": "source_member",
+        "type": "string"
+      },
+      {
+        "name": "source_row",
+        "type": "int64"
+      },
+      {
+        "name": "announcement_id",
+        "type": "string"
+      },
+      {
+        "name": "title",
+        "type": "string"
+      },
+      {
+        "name": "contents",
+        "type": "string"
+      },
+      {
+        "name": "date",
+        "type": "int64"
+      },
+      {
+        "name": "author",
+        "type": "string"
+      },
+      {
+        "name": "url",
+        "type": "string"
+      },
+      {
+        "name": "feed_type",
+        "type": "int64"
+      },
+      {
+        "name": "feedname",
+        "type": "string"
+      },
+      {
+        "name": "feedlabel",
+        "type": "string"
+      },
+      {
+        "name": "is_external_url",
+        "type": "bool"
+      },
+      {
+        "name": "raw_json",
+        "type": "string"
+      }
+    ]
+  },
+  {
+    "table": "game_review_raw.game_counts",
+    "rows": 12,
+    "bytes": 4857,
+    "sha256": "48e5d612ccf3f10ab21e225a605cef112d906684bb93f8a0ffd983310e053c35",
+    "hdfs": "/datasets/game_review_raw/v1_490/game_counts/part-00000.parquet",
+    "columns": [
+      {
+        "name": "appid",
+        "type": "int64"
+      },
+      {
+        "name": "game_name",
+        "type": "string"
+      },
+      {
+        "name": "raw_review_rows",
+        "type": "int64"
+      },
+      {
+        "name": "historical_v1_sample_rows",
+        "type": "int64"
+      },
+      {
+        "name": "raw_review_duplicate_ids",
+        "type": "int64"
+      },
+      {
+        "name": "announcement_rows",
+        "type": "int64"
+      },
+      {
+        "name": "announcement_duplicate_ids",
+        "type": "int64"
+      },
+      {
+        "name": "review_source_status",
+        "type": "string"
+      },
+      {
+        "name": "announcement_origin",
+        "type": "string"
+      },
+      {
+        "name": "appid_filled_rows",
+        "type": "int64"
+      },
+      {
+        "name": "v1_cleaned_rows",
+        "type": "int64"
+      },
+      {
+        "name": "reconstructed_invalid_rows",
+        "type": "int64"
+      }
+    ]
+  },
+  {
+    "table": "game_review_raw.collection_batches",
+    "rows": 33967,
+    "bytes": 3667473,
+    "sha256": "8817281e5ff4a80d58635fa56b5dde933cb31b5e918e291c351a0b2b965b8ea6",
+    "hdfs": "/datasets/game_review_raw/v1_490/collection_batches/part-00000.parquet",
+    "columns": [
+      {
+        "name": "data_type",
+        "type": "string"
+      },
+      {
+        "name": "appid",
+        "type": "int64"
+      },
+      {
+        "name": "source_file",
+        "type": "string"
+      },
+      {
+        "name": "source_member",
+        "type": "string"
+      },
+      {
+        "name": "task_id",
+        "type": "string"
+      },
+      {
+        "name": "rows",
+        "type": "int64"
+      },
+      {
+        "name": "fetched_at_min",
+        "type": "string"
+      },
+      {
+        "name": "fetched_at_max",
+        "type": "string"
+      },
+      {
+        "name": "event_time_min_utc",
+        "type": "string"
+      },
+      {
+        "name": "event_time_max_utc",
+        "type": "string"
+      },
+      {
+        "name": "language_counts",
+        "type": "string"
+      },
+      {
+        "name": "query",
+        "type": "string"
+      },
+      {
+        "name": "batch_basis",
+        "type": "string"
+      },
+      {
+        "name": "segment_id",
+        "type": "string"
+      },
+      {
+        "name": "segment_label",
+        "type": "string"
+      },
+      {
+        "name": "appid_filled_rows",
+        "type": "int64"
+      }
+    ]
+  }
+]

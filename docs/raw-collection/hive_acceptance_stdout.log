@@ -1,0 +1,41 @@
+tab_name
+collection_batches
+game_counts
+raw_announcements
+raw_reviews
+table_name	actual_rows	expected_rows
+raw_reviews	4900000	4900000
+table_name	actual_rows	expected_rows
+raw_announcements	4934	4934
+table_name	actual_rows	expected_rows
+game_counts	12	12
+table_name	actual_rows	expected_rows
+collection_batches	33967	33967
+appid	raw_review_rows
+440	400000
+550	400000
+570	400000
+730	500000
+4000	400000
+105600	400000
+252490	400000
+271590	400000
+359550	400000
+413150	400000
+1245620	400000
+2358720	400000
+appid	announcement_rows
+440	745
+550	299
+570	774
+730	461
+4000	202
+105600	149
+252490	970
+271590	367
+359550	776
+413150	72
+1245620	98
+2358720	21
+reviews_from_counts	announcements_from_counts
+4900000	4934

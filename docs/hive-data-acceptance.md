@@ -138,18 +138,18 @@
 
 ## 7. 原始采集层入仓情况
 
-本地已完成 `原始采集层_Parquet_490万交付_20261128.zip` 交付包，经 Parquet 回读、逐游戏统计和哈希校验。包含下列四个文件。
+2026-11-28 后续交付报告记录了 `game_review_raw` 数据库的四张外部 Parquet 表。依据[原始采集层入仓验收报告](raw-collection/acceptance-report.md)，四表已建表并完成 HDFS SHA-256 与 Hive 行数对账。
 
-| Parquet 文件                 |  交付行数 | Hive 当前状态        |
-| ---------------------------- | --------: | -------------------- |
-| `raw_reviews.parquet`        | 4,900,000 | 尚未发现对应 Hive 表 |
-| `raw_announcements.parquet`  |     4,934 | 尚未发现对应 Hive 表 |
-| `collection_batches.parquet` |    33,967 | 尚未发现对应 Hive 表 |
-| `game_counts.parquet`        |        12 | 尚未发现对应 Hive 表 |
+| Hive 表 | 交付行数 | 交付者验收行数 |
+| --- | ---: | ---: |
+| `game_review_raw.raw_reviews` | 4,900,000 | 4,900,000 |
+| `game_review_raw.raw_announcements` | 4,934 | 4,934 |
+| `game_review_raw.collection_batches` | 33,967 | 33,967 |
+| `game_review_raw.game_counts` | 12 | 12 |
 
-原始包中 TF2 与 Dota 2 各保留 40 万条评测，其中 797,274 条有效评测与历史 v1 对齐，另从原始文件补足 2,726 条符合 v1 清洗剔除规则的无效评测，具体记录见交付包中的 `sample_reconciliation.json`。
+原始包中 TF2 与 Dota 2 各保留 40 万条评测，其中 797,274 条有效评测与历史 v1 对齐，另从原始文件补足 2,726 条符合 v1 清洗剔除规则的无效评测，具体记录见原始数据交付包中的 `sample_reconciliation.json`。
 
-待入仓验收由 Hadoop/Hive 负责人完成，确认 HDFS 文件上传情况，创建相应的外部表，然后按上述目标行数和逐游戏数量复核。
+交付材料见[原始采集层说明](raw-collection/README.md)，包括[字段字典](raw-collection/field-dictionary.md)、[建表 SQL](raw-collection/create_tables.sql)、[验收 SQL](raw-collection/acceptance.sql)、[入仓清单](raw-collection/manifest_verified.json)及[Hive 验收输出](raw-collection/hive_acceptance_stdout.log)。此处记录的是交付者的验收结果，组员异机连接仍待实际确认。
 
 ## 8. 验收复现 SQL
 
