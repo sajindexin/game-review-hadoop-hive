@@ -129,20 +129,38 @@ class TopicApiTests(unittest.TestCase):
 
     def test_trend_groups_by_day(self):
         hive = Mock()
+        # SQL 已聚合为每日一行（先按日聚合再 LIMIT 天数，不截断单日情感）
         hive.query.return_value = [
-            {"created_date": "2020-12-20", "sentiment": "positive", "cnt": 2},
-            {"created_date": "2020-12-20", "sentiment": "negative", "cnt": 1},
-            {"created_date": "2020-12-21", "sentiment": "positive", "cnt": 5},
+            {"created_date": "2020-12-21", "positive": 5, "negative": 0, "neutral": 0},
+            {"created_date": "2020-12-20", "positive": 2, "negative": 1, "neutral": 3},
         ]
         with patch.object(routes, "get_hive", return_value=hive):
-            status, payload = self.request("/api/nlp/topics/trend?appid=413150&aspect=content")
+            status, payload = self.request("/api/nlp/topics/trend?appid=413150&aspect=content&days=7")
         self.assertEqual(status, 200)
         self.assertEqual([d["date"] for d in payload["trend"]], ["2020-12-20", "2020-12-21"])
-        self.assertEqual(payload["trend"][0]["negative"], 1)
+        self.assertEqual(payload["trend"][0], {"date": "2020-12-20", "positive": 2, "negative": 1, "neutral": 3})
+        self.assertEqual(payload["covered_days"], 2)
+        sql = hive.query.call_args[0][0]
+        self.assertIn("GROUP BY created_date", sql)
+        self.assertIn("ORDER BY created_date DESC LIMIT %s", sql)
+        # LIMIT 作用在外层（每日一行）而不是分组明细上
+        self.assertEqual(sql.count("GROUP BY"), 1)
+        self.assertIn("appid = %s", sql)
+
+    def test_trend_without_appid_covers_all_games(self):
+        hive = Mock()
+        hive.query.return_value = []
+        with patch.object(routes, "get_hive", return_value=hive):
+            status, payload = self.request("/api/nlp/topics/trend?days=7")
+        self.assertEqual(status, 200)
+        self.assertIsNone(payload["appid"])
+        self.assertNotIn("appid = %s", hive.query.call_args[0][0])
 
     def test_feedback_detail_and_list(self):
         hive = Mock()
+        # 详情：先查条目字典校验归属，再查窗口表 + 情感统计（同一 appid+item_id 范围）
         hive.query.side_effect = [
+            [{"item_id": "S15_01", "title": "姜岛探索", "game": "Stardew Valley", "aspect": "content"}],
             [{"patch_id": "sdv_20201221_15", "item_id": "S15_01", "item_title": "姜岛探索",
               "pre_14d": 1, "release_day": 0, "post_14d": 2, "out_of_window": 631}],
             [{"sentiment": "positive", "cnt": 2}, {"sentiment": "neutral", "cnt": 1}],
@@ -151,18 +169,53 @@ class TopicApiTests(unittest.TestCase):
         with patch.object(routes, "get_hive", return_value=hive):
             status, payload = self.request("/api/nlp/items/feedback?appid=413150&item_id=S15_01")
         self.assertEqual(status, 200)
+        self.assertEqual(payload["item_title"], "姜岛探索")
         self.assertEqual(payload["windows"][0]["patch_id"], "sdv_20201221_15")
         self.assertEqual(payload["by_sentiment"]["positive"], 2)
+        self.assertEqual(payload["by_sentiment"]["negative"], 0)
+        catalog_sql = hive.query.call_args_list[0][0][0]
+        self.assertIn("nlp_topic.item_dict", catalog_sql)
+        self.assertIn("item_id = %s", catalog_sql)
+        self.assertIn("appid = %s", catalog_sql)
 
-        hive2 = Mock()
-        hive2.query.return_value = [
-            {"item_id": "S15_01", "item_title": "姜岛探索", "aspect": "content",
-             "sentiment": "positive", "cnt": 7},
+    def test_feedback_item_game_mismatch_404(self):
+        """用 CS2 的 appid 查星露谷条目：字典无匹配，404 且不再查统计。"""
+        hive = Mock()
+        hive.query.return_value = []  # item_dict 无此 appid+item_id 组合
+        with patch.object(routes, "get_hive", return_value=hive):
+            status, payload = self.request("/api/nlp/items/feedback?appid=730&item_id=S15_01")
+        self.assertEqual(status, 404)
+        self.assertEqual(hive.query.call_count, 1)  # 只查了字典，未查窗口/情感
+
+    def test_feedback_list_zero_fill(self):
+        """列表以条目字典为基础：零命中条目补零出现。"""
+        hive = Mock()
+        hive.query.side_effect = [
+            [  # item_dict：两个官方条目
+                {"item_id": "S15_01", "title": "姜岛探索", "game": "Stardew Valley", "aspect": "content"},
+                {"item_id": "S16_02", "title": "沙漠节", "game": "Stardew Valley", "aspect": "content"},
+            ],
+            [  # 情感明细：只有姜岛探索被命中
+                {"item_id": "S15_01", "sentiment": "positive", "cnt": 7},
+                {"item_id": "S15_01", "sentiment": "neutral", "cnt": 2},
+            ],
         ]
-        with patch.object(routes, "get_hive", return_value=hive2):
+        with patch.object(routes, "get_hive", return_value=hive):
             status, payload = self.request("/api/nlp/items/feedback?appid=413150")
         self.assertEqual(status, 200)
-        self.assertEqual(payload["items"][0]["by_sentiment"]["positive"], 7)
+        self.assertEqual([item["item_id"] for item in payload["items"]], ["S15_01", "S16_02"])
+        self.assertEqual(payload["items"][0]["by_sentiment"], {"positive": 7, "negative": 0, "neutral": 2})
+        self.assertEqual(payload["items"][1]["item_title"], "沙漠节")
+        self.assertEqual(payload["items"][1]["by_sentiment"], {"positive": 0, "negative": 0, "neutral": 0})
+
+    def test_feedback_list_without_appid(self):
+        hive = Mock()
+        hive.query.side_effect = [[], []]
+        with patch.object(routes, "get_hive", return_value=hive):
+            status, payload = self.request("/api/nlp/items/feedback")
+        self.assertEqual(status, 200)
+        self.assertIsNone(payload["appid"])
+        self.assertNotIn("appid = %s", hive.query.call_args_list[0][0][0])
 
     def test_reviews_pagination(self):
         hive = Mock()
@@ -178,7 +231,20 @@ class TopicApiTests(unittest.TestCase):
         self.assertEqual(payload["reviews"][0]["evidence"], "姜岛探索很好玩")
         sql = hive.query.call_args[0][0]
         self.assertIn("LIMIT %s OFFSET %s", sql)
+        self.assertIn("ORDER BY confidence DESC, aspect, review_id", sql)
         self.assertIn("topic_sentiment_detail", sql)
+        self.assertIn("appid = %s", sql)
+
+    def test_reviews_without_appid(self):
+        hive = Mock()
+        hive.query.return_value = []
+        with patch.object(routes, "get_hive", return_value=hive):
+            status, payload = self.request("/api/nlp/reviews?lang=en&limit=3")
+        self.assertEqual(status, 200)
+        self.assertIsNone(payload["appid"])
+        sql = hive.query.call_args[0][0]
+        self.assertNotIn("appid = %s", sql)
+        self.assertIn("topic_sentiment_detail_en", sql)
 
     def test_reviews_english_table_selected_by_lang(self):
         hive = Mock()
